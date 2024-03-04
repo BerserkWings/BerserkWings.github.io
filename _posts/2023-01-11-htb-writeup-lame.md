@@ -20,7 +20,7 @@ tags:
   - Command Injection
   - Privesc - UMSCE (CVE-2007-2447)
   - OSCP Style
-  - Metasploit
+  - Metasploit Framework
 ---
 
 ![](/assets/images/htb-writeup-lame/lame_logo.png)
@@ -29,10 +29,11 @@ La **máquina Lame** es una de las primeras máquinas que hice, justo después d
 Herramientas utilizadas para resolver está máquina:
 * *nmap*
 * *ftp*
+* *searchsploit*
 * *smbclient*
 * *tcpdump*
 * *nc*
-
+* *metasploit framework*
 
 
 <br>
@@ -49,14 +50,14 @@ Herramientas utilizadas para resolver está máquina:
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="#Exploit">Buscando un Exploit para Servicio FTP</a></li>
-				<ul>
-					<li><a href="#PruebaExp">Probando Exploit: vsftpd 2.3.4 - Backdoor Command Execution</a></li>
-				</ul>
 				<li><a href="#Samba">Enumeración Servicio Samba</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
+				<li><a href="#Exploit">Buscando un Exploit para Servicio FTP</a></li>
+                                <ul>
+                                        <li><a href="#PruebaExp">Probando Exploit: vsftpd 2.3.4 - Backdoor Command Execution</a></li>
+                                </ul>
 				<li><a href="#Busqueda">Buscando, Analizando y Probando un Exploit para Servicio Samba</a></li>
 				<ul>
                                         <li><a href="#PruebaExp2">Probando Exploit: Samba 3.0.20 < 3.0.25rc3 - 'Username' map script' Command Execution (Metasploit)</a></li>
@@ -139,7 +140,7 @@ Nmap done: 1 IP address (1 host up) scanned in 31.56 seconds
            Raw packets sent: 131084 (5.768MB) | Rcvd: 37 (1.628KB)
 ```
 
-| Parametros | Descripción |
+| Parámetros | Descripción |
 |--------------------------|
 | *-p-*      | Para indicarle un escaneo en ciertos puertos. |
 | *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
@@ -155,7 +156,7 @@ Nmap done: 1 IP address (1 host up) scanned in 31.56 seconds
 
 Analizando el **escaneo de servicios**, observamos que hay 3 servicios que nos interesan. El primero es el **servicio FTP**, ya que podemos loguearnos como **anonymous**, el **servicio SSH** aunque de momento no tenemos ningún usuario ni contraseña y el **servicio Samba** aunque lo vemos en 2 puertos, el que nos interesa más será el puerto 445.
 ```bash
-nmap -sC -sV -p21,22,139,445,3632
+nmap -sC -sV -p21,22,139,445,3632 -oN targeted 10.10.10.3
 Nmap 7.93 scan initiated Wed Jan 11 14:10:38 2023 as: nmap -sC -sV -p21,22,139,445,3632 -oN targeted 10.10.10.3
 Nmap scan report for 10.10.10.3
 Host is up (0.14s latency).
@@ -204,7 +205,7 @@ Service detection performed. Please report any incorrect results at https://nmap
 Nmap done at Wed Jan 11 14:11:32 2023 -- 1 IP address (1 host up) scanned in 54.32 seconds
 ```
 
-| Parametros | Descripción |
+| Parámetros | Descripción |
 |--------------------------|
 | *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
 | *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
@@ -226,7 +227,7 @@ Nmap done at Wed Jan 11 14:11:32 2023 -- 1 IP address (1 host up) scanned in 54.
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
-Entraremos a este servicio como usuario anonymous, para ver que podemos encontrar que nos pueda ser util.
+Entraremos a este servicio como **usuario anonymous**, para ver que podemos encontrar que nos pueda ser útil.
 ```bash
 ftp 10.10.10.3 
 Connected to 10.10.10.3.
@@ -258,6 +259,73 @@ local: /etc/passwd remote: /etc/passwd
 553 Could not create file.
 ```
 No se puede, por lo que deducimos que no tenemos permisos de escritura. Aunque, quizá hay un exploit que podamos usar aquí.
+
+<h2 id="Samba">Enumeración Servicio Samba</h2>
+
+Ahora nos logueamos en el Samba para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
+
+Primero vamos a tratar de mostrar los recursos compartidos que estén a nivel de red, para ver si hay algo útil.
+```bash
+smbclient -L 10.10.10.3 -N --option 'client min protocol = NT1'
+Anonymous login successful
+
+        Sharename       Type      Comment
+        ---------       ----      -------
+        print$          Disk      Printer Drivers
+        tmp             Disk      oh noes!
+        opt             Disk      
+        IPC$            IPC       IPC Service (lame server (Samba 3.0.20-Debian))
+        ADMIN$          IPC       IPC Service (lame server (Samba 3.0.20-Debian))
+Reconnecting with SMB1 for workgroup listing.
+Anonymous login successful
+
+        Server               Comment
+        ---------            -------
+
+        Workgroup            Master
+        ---------            -------
+        WORKGROUP            LAME
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-L*         | Sirve para listar los recursos compartidos. |
+| *-N*	     | Sirve para que no nos pida usuario y contraseña para logearnos, osea una Null Session. |
+| *--option 'client min protocol = NT1'* | Sirve para conectarnos a servicios Samba viejos. |
+
+
+Observamos ahí algo curioso en el **recurso tmp**, puede que ahí tengamos algo que nos ayude así que vamos a logearnos directamente ahí:
+```bash
+smbclient //10.10.10.3/tmp -N                                  
+Anonymous login successful
+Try "help" to get a list of possible commands.
+smb: \> dir
+  .                                   D        0  Thu Mar 16 15:48:12 2023
+  ..                                 DR        0  Sat Oct 31 00:33:58 2020
+  .ICE-unix                          DH        0  Thu Mar 16 13:56:55 2023
+  vmware-root                        DR        0  Thu Mar 16 13:57:22 2023
+  .X11-unix                          DH        0  Thu Mar 16 13:57:22 2023
+  .X0-lock                           HR       11  Thu Mar 16 13:57:22 2023
+  vgauthsvclog.txt.0                  R     1600  Thu Mar 16 13:56:53 2023
+  5567.jsvc_up                        R        0  Thu Mar 16 13:57:59 2023
+
+                7282168 blocks of size 1024. 5386560 blocks available
+smb: \> 
+```
+Pues no veo nada útil, bueno que yo sepa ahí no nos sirve algo, así que mejor vamos a buscar un Exploit que nos ayude aquí.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
 
 <h2 id="Exploit">Buscando un Exploit para Servicio FTP</h2>
 
@@ -302,79 +370,12 @@ print('Send `exit` to quit shell')
 tn2.interact()
 
 ```
-
-| Parametros | Descripción |
+| Parámetros | Descripción |
 |--------------------------|
-| -x 	     | Para poder leer el Exploit. |
-| -m 	     | Para copiar el Exploit en el directorio actual. |
+| *-x*         | Para poder leer el Exploit. |
+| *-m*         | Para copiar el Exploit en el directorio actual. |
 
 Lo que hace este Exploit es, tratar de conectarnos al **servicio FTP** a través del puerto 6200 (o eso entiendo), pero no creo que funcione porque dicho puerto no está abierto, así que no perdamos tiempo y mejor analicemos el servicio Samba.
-
-<h2 id="Samba">Enumeración Servicio Samba</h2>
-
-Ahora nos logueamos en el Samba para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
-
-Primero vamos a tratar de mostrar los recursos compartidos que estén a nivel de red, para ver si hay algo útil.
-```bash
-smbclient -L 10.10.10.3 -N --option 'client min protocol = NT1'
-Anonymous login successful
-
-        Sharename       Type      Comment
-        ---------       ----      -------
-        print$          Disk      Printer Drivers
-        tmp             Disk      oh noes!
-        opt             Disk      
-        IPC$            IPC       IPC Service (lame server (Samba 3.0.20-Debian))
-        ADMIN$          IPC       IPC Service (lame server (Samba 3.0.20-Debian))
-Reconnecting with SMB1 for workgroup listing.
-Anonymous login successful
-
-        Server               Comment
-        ---------            -------
-
-        Workgroup            Master
-        ---------            -------
-        WORKGROUP            LAME
-```
-
-| Parametros | Descripción |
-|--------------------------|
-| -L         | Sirve para listar los recursos compartidos. |
-| -N	     | Sirve para que no nos pida usuario y contraseña para logearnos, osea una Null Session. |
-
-
-Observamos ahí algo curioso en el **recurso TMP**, puede que ahí tengamos algo que nos ayude así que vamos a logearnos directamente ahí:
-```
-smbclient //10.10.10.3/tmp -N                                  
-Anonymous login successful
-Try "help" to get a list of possible commands.
-smb: \> dir
-  .                                   D        0  Thu Mar 16 15:48:12 2023
-  ..                                 DR        0  Sat Oct 31 00:33:58 2020
-  .ICE-unix                          DH        0  Thu Mar 16 13:56:55 2023
-  vmware-root                        DR        0  Thu Mar 16 13:57:22 2023
-  .X11-unix                          DH        0  Thu Mar 16 13:57:22 2023
-  .X0-lock                           HR       11  Thu Mar 16 13:57:22 2023
-  vgauthsvclog.txt.0                  R     1600  Thu Mar 16 13:56:53 2023
-  5567.jsvc_up                        R        0  Thu Mar 16 13:57:59 2023
-
-                7282168 blocks of size 1024. 5386560 blocks available
-smb: \> 
-```
-Pues no veo nada útil, bueno que yo sepa ahí no nos sirve algo, así que mejor vamos a buscar un Exploit que nos ayude aquí.
-
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
 
 <h2 id="Busqueda">Buscando, Analizando y Probando un Exploit para Servicio Samba</h2>
 
@@ -519,7 +520,7 @@ cdrom  initrd      lost+found      opt        srv   var
 dev    initrd.img  media           proc       sys   vmlinu
 ```
 Ahora solamente buscamos la flag del root y del usuario:
-```
+```bash
 root@lame:/# find \-name user.txt
 ./home/makis/user.txt
 root@lame:/# cat ./home/makis/user.txt
