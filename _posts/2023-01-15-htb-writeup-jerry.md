@@ -14,10 +14,10 @@ categories:
 tags:
   - Windows
   - Tomcat
+  - Malicious Payload
   - Abusing File Upload
   - Reverse Shell
   - OSCP Style
-  - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-jerry/jerry_logo.png)
 Esta es una máquina bastante sencilla, realizada en **Windows** y en la cual vamos a usar el **servicio Tomcat** para poder hackearla, usando un **Payload** en lugar de un Exploit, para crear una **Backdoor** en la máquina para que nos devuelva una **Shell**.
@@ -25,9 +25,10 @@ Esta es una máquina bastante sencilla, realizada en **Windows** y en la cual va
 Herramientas utilizadas:
 * *nmap*
 * *whatweb*
+* *wfuzz*
 * *msfvenom*
 * *rlwrap*
-* *metasploit framework*
+
 
 <br>
 <hr>
@@ -395,7 +396,7 @@ C:\Users\Administrator\Desktop\flags>type "2 for the price of 1.txt"
 type "2 for the price of 1.txt"
 ```
 
-De esta forma, no es necesario ya escalar privilegios, pues ya somos administradores y tampoco es necesario usar metasploit framework, porque sería complicarnos un poco la vida y eso no es lo que buscamos.
+De esta forma, no es necesario ya escalar privilegios, pues ya somos administradores y tampoco es necesario usar **Metasploit Framework**, porque sería complicarnos un poco la vida y eso no es lo que buscamos.
 
 
 <br>
