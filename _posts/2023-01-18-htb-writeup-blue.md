@@ -52,8 +52,6 @@ Herramientas utilizadas:
 			<ul>
 				<li><a href="#smb">Analizando y Probando Servicio SMB</a></li>
 				<li><a href="#herra">Probando Herramienta smbclient</a></li>
-				<li><a href="#Exploit">Buscando y Configurando un Exploit</a></li>
-
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
