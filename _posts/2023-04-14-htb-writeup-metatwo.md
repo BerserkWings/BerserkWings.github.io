@@ -86,7 +86,6 @@ Herramientas utilizadas:
 				<li><a href="#Web">Accediendo a la Página Web y Obteniendo Credenciales de FTP</a></li>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
 				<li><a href="#SSH">Entrando al Servicio SSH</a></li>
-				<li><a href="#"></a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
