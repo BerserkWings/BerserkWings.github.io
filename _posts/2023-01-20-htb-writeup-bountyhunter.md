@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Bounty Hunter - Hack The Box
-excerpt: "Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la página usaremos BurpSuite para obtener las credenciales, una vez dentro nos aprovecharemos de los permisos sobre un script en Python para poder ganar acceso a la máquina víctima, aquí el análisis de código es vital y de suma importancia, pues debemos saber algo de Python y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina."
+excerpt: "Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la máquina por el servicio SSH usaremos BurpSuite para obtener las credenciales desde la página web aplicando varias inyecciones XXE, una vez dentro nos aprovecharemos de los permisos sobre un script en Python para poder escalar privilegios como root, aquí el análisis de código es vital y de suma importancia, pues debemos saber algo de Python y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina."
 date: 2023-01-20
 classes: wide
 header:
@@ -13,20 +13,26 @@ categories:
   - Easy Machine
 tags:
   - Linux
+  - PHP
   - BurpSuite
-  - XXE Injection
+  - XXE Injection 
   - Python Vulnerability
-  - Abusing Sudoers Privilege
+  - Privesc - Abusing Sudoers Privilege
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bountyhunter/bounty_logo.png)
 
-Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la página, usaremos **BurpSuite** para obtener las credenciales, una vez dentro, nos aprovecharemos de los permisos sobre un script en **Python** para poder ganar acceso a la máquina víctima, aquí el análisis del código es vital y de suma importancia, pues debemos saber algo de Python y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina.
+Esta es una máquina un poco más dificil que las anteriores, siendo que para poder entrar a la máquina por el **servicio SSH** usaremos **BurpSuite** para obtener las credenciales desde la página web aplicando varias inyecciones XXE, una vez dentro, nos aprovecharemos de los permisos sobre un script en **Python** para poder escalar privilegios como root, aquí el análisis del código es vital y de suma importancia, pues debemos saber algo de **Python** y desarrollo web o al menos entender lo que hacen ciertas partes de la máquina.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *burpsuite*
-* *python*
+* *ssh*
+* *python3*
+* *sudo*
+* *chmod*
+* *bash*
 
 
 <br>
@@ -42,7 +48,7 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Burp">Configurando BurpSuite</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
@@ -64,12 +70,10 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
+
 
 <h2 id="Ping">Traza ICMP</h2>
 
@@ -164,15 +168,12 @@ De momento no tenemos credeciales para loguearnos en SSH, vamos a revisar la pag
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
 Viendo todos los botones interactivos de la página, algunos no funcionan y otros no sabemos que hacen, con excepción del que dice **Portal**, una vez le demos click nos redirige a una subpágina:
 
@@ -183,7 +184,7 @@ Al parecer esta sección no está completa y nos pide ir a otra subpágina, vamo
 ![](/assets/images/htb-writeup-bountyhunter/Captura2.png)
 
 Una vez dentro, quizá podamos tratar de inyectar código, probemos utilizando la herramienta **BurpSuite** y nos vamos a utilizar la siguiente página como guía del **XML External Entity (XXE) Injection**: 
-* https://portswigger.net/web-security/xxe
+* <a href="https://portswigger.net/web-security/xxe" target="_blank">XML external entity (XXE) injection</a>
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura3.png">
@@ -226,7 +227,7 @@ Esto lo hacemos porque **BurpSuite** tiene un proxy configurado por defecto:
 <img src="/assets/images/htb-writeup-bountyhunter/Captura6.png">
 </p>
 
-* Instala el certificado CA en tu navegador, es posible que **BurpSuite** automáticamente te lo pida y te dé pasos a seguir, si usas **FireFox** aquí estan los pasos: https://portswigger.net/burp/documentation/desktop/external-browser-config/certificate/ca-cert-firefox
+* Instala el **certificado CA** en tu navegador, es posible que **BurpSuite** automáticamente te lo pida y te dé pasos a seguir, si usas **FireFox** aquí estan los pasos: <a href="https://portswigger.net/burp/documentation/desktop/external-browser-config/certificate/ca-cert-firefox" target="_blank">Guía para Instalar Certificado CA</a>
 
 * Activa la intercepción en **BurpSuite** y activa el **FoxyProxy**.
 
@@ -237,10 +238,7 @@ Ahora sí, ya estamos listos para trabajar.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -281,7 +279,9 @@ Bien, según la página guía de **BurpSuite**, aquí podemos inyectar código p
 
 Una vez que la data este en **base64**, lo copiamos, nos vamos al **Repeater**, cambiamos la data por la nueva que acabamos de obtener y enviamos la petición para ver que obtenemos.
 
-**IMPORTANTE**: para que funcione hay que convertir la data a **URL code**, solamente seleccionamos la nueva data y oprimimos **ctrl + u** y ya quedara **URL code**:
+**IMPORTANTE**: para que funcione hay que convertir la data a **URL code**, solamente seleccionamos la nueva data y oprimimos **ctrl + u** y ya quedara **URL code**.
+
+Intentalo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-bountyhunter/Captura16.png">
@@ -294,16 +294,17 @@ Vaya, al parecer podemos vulnerar la página de esta forma:
 </p>
 
 Incluso, si analizamos bien lo que nos muestra, en la parte de abajo, podemos ver un usuario llamado **Development**, esto nos puede servir más adelante.
-```
+```bash
 Dumper:/:/usr/sbin/nologin
 development:x:1000:1000:Development:/home/development:/bin/bash
 ```
+
 Pero, con esta subpágina no podremos hacer mucho. Ahora lo que vamos a hacer es buscar más subpáginas ocultas, es tiempo de hacer **FUZZING**.
 
 <h2 id="Fuzz">Fuzzing</h2>
 
 Para hacer el **fuzzing** usaremos la herramienta **wfuzz**, para usarla debemos indicarle bastantes cosillas:
-```
+```bash
 wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://10.10.11.100/FUZZ.php
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
 ********************************************************
@@ -317,22 +318,10 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                      
 =====================================================================
 
-000000003:   200        388 L    1470 W     25168 Ch    "# Copyright 2007 James Fisher"                                              
-000000001:   200        388 L    1470 W     25168 Ch    "# directory-list-2.3-medium.txt"                                            
-000000007:   200        388 L    1470 W     25168 Ch    "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"            
 000000015:   200        388 L    1470 W     25168 Ch    "index"                                                                      
 000000368:   200        5 L      15 W       125 Ch      "portal"                                                                     
-000000008:   200        388 L    1470 W     25168 Ch    "# or send a letter to Creative Commons, 171 Second Street,"                 
-000000009:   200        388 L    1470 W     25168 Ch    "# Suite 300, San Francisco, California, 94105, USA."                        
-000000006:   200        388 L    1470 W     25168 Ch    "# Attribution-Share Alike 3.0 License. To view a copy of this"              
-000000005:   200        388 L    1470 W     25168 Ch    "# This work is licensed under the Creative Commons"                         
-000000002:   200        388 L    1470 W     25168 Ch    "#"                                                                          
-000000004:   200        388 L    1470 W     25168 Ch    "#"                                                                          
 000000848:   200        0 L      0 W        0 Ch        "db"                                                                         
 000000014:   403        9 L      28 W       277 Ch      "http://10.10.11.100/.php"                                                   
-000000013:   200        388 L    1470 W     25168 Ch    "#"                                                                          
-000000012:   200        388 L    1470 W     25168 Ch    "# on atleast 2 different hosts"                                             
-000000011:   200        388 L    1470 W     25168 Ch    "# Priority ordered case sensative list, where entries were found"           
 000000010:   200        388 L    1470 W     25168 Ch    "#"                                                                          
 ^C /usr/lib/python3/dist-packages/wfuzz/wfuzz.py:80: UserWarning:Finishing pending requests...
 
@@ -357,7 +346,7 @@ Vemos una subpágina a la que no teniamos acceso llama **db**, vamos a checar de
 
 Nada, no muestra nada, pero eso quiere decir que si existe y que podemos accesar a ella de alguna manera. Es momento de usar **BurpSuite** otra vez.
 
-Estando en el **Decoder**, podemos indicar en la inyección de código, que podamos ver ciertas páginas dependiendo del **wrapper** que estas usan. Como en este caso se usa PHP, podemos indicarle que nos liste un archivo de **PHP en base64** para que nosotros después podamos **deencodear** esa data desde la terminal.
+Estando en el **Decoder**, podemos indicar en la inyección de código, que podamos ver ciertas páginas dependiendo del **wrapper** que estas usan. Como en este caso se usa **PHP**, podemos indicarle que nos liste un archivo de **PHP en base64** para que nosotros después podamos **deencodear** esa data desde la terminal.
 
 
 Vámonos por pasos:
@@ -414,10 +403,7 @@ development@bountyhunter:~$
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -511,11 +497,13 @@ La función lee el ticket, ósea el archivo **.md**, y debe contener dos cosas p
 if not x.startswith("# Skytrain Inc"):
                 return False
 ```
+
 * Que incluya también el siguiente comentario:
 ```python
 if not x.startswith("## Ticket to "):
                 return False
 ```
+
 * Y por último dicho ticket debe incluir lo siguiente:
 ```python
 if x.startswith("__Ticket Code:__"):
@@ -629,7 +617,7 @@ development@bountyhunter:/tmp$ which bash | xargs ls -l
 -rwsr-xr-x 1 root root 1183448 Jun 18  2020 /usr/bin/bash
 ```
 
-¡Y ya está! Solo debemos iniciar la consola bash para buscar la flag y terminamos.
+¡Y ya está! Solo debemos iniciar la consola **Bash** para buscar la flag y terminamos.
 ```bash
 development@bountyhunter:/tmp$ bash -p
 bash-5.0# whoami
@@ -645,10 +633,7 @@ exit
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -658,3 +643,48 @@ exit
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
