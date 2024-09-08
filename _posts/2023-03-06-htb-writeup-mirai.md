@@ -13,11 +13,11 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - Pi - Hole
+  - Pi-Hole
   - Raspberry Pi
   - Default Credentials
-  - Abusing Sudoers Privileges
-  - Recovering Deleted Files
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - Recovering Deleted Files
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-mirai/mirai_logo.png)
@@ -25,12 +25,15 @@ tags:
 Esta es una de las máquinas más sencillas que he hecho, pues no es mucho lo que tienes que hacer, aunque la investigación si me tomo algo de tiempo. Lo que haremos será usar credenciales por defecto del **SO Raspberry Pi** para entrar al **SSH** y con esto obtener las flags, lo único quizá difícil, es la forma de recuperar un **.txt** que fue eliminado. Igual, vamos a probar la forma de copiar el disco que tiene los archivos borrados y trataremos de recuperarlos en nuestra máquina.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
 * *wfuzz*
 * *gobuster*
 * *dig*
+* *searchploit*
+* *python2*
 * *ssh*
 * *df*
 * *strings*
@@ -85,10 +88,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -206,10 +206,7 @@ Bien, de momento no tenemos credenciales para el **servicio SSH**, así que vamo
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -256,8 +253,7 @@ Ok, entonces por lo que entiendo, nos estamos enfrentando a una máquina que usa
 <br>
 
 Vaya, ósea que es una minicomputadora por así decirlo. Además, este aparato tiene un sistema operativo propio llamado **Raspberry Pi OS**, este SO esta hecho con **Linux** por lo que debe de tener claves por defecto, que quizá podamos usar en el **servicio SSH**. Busquemos:
-
-* https://www.makeuseof.com/tag/raspbian-default-password/
+* <a href="https://www.makeuseof.com/tag/raspbian-default-password/" target="_blank">What's the Default Username and Password for Raspberry Pi OS (Raspbian)?</a>
 
 Según la página que encontré, el usuario y contraseña por defecto son:
 * *Usuario: pi*
@@ -314,7 +310,7 @@ by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
 [+] User Agent:              gobuster/3.5
 [+] Timeout:                 10s
 ===============================================================
-2024/04/28 15:10:00 Starting gobuster in directory enumeration mode
+Starting gobuster in directory enumeration mode
 ===============================================================
 /admin                (Status: 301) [Size: 0] [--> http://10.10.10.48/admin/]
 /versions             (Status: 200) [Size: 13]
@@ -329,7 +325,6 @@ Progress: 220461 / 220561 (99.95%)
 | *-u*       | Para indicar la URL a utilizar. |
 | *-w*       | Para indicar el diccionario a usar en el fuzzing. |
 | *-t*       | Para indicar la cantidad de hilos a usar. |
-| *-k*       | Para indicar que se deshabilite la comprobación de certificados |
 
 <br>
 
@@ -353,8 +348,7 @@ Unicamente nos pide la contraseña para poder entrar, busquemos si hay una crede
 </p>
 
 No funciono, de acuerdo a un blog en **Reddit**, **Pi-hole** crea una contraseña random y la da al usuario, existe un comando para poder cambiarla y este mismo nos lo muestra el dashboard, aca te pongo el blog:
-
-* https://www.reddit.com/r/pihole/comments/8kw5z8/dashboard_default_password/?rdt=51247
+* <a href="https://www.reddit.com/r/pihole/comments/8kw5z8/dashboard_default_password/?rdt=51247" target="_blank">Dashboard Default Password</a>
 
 Puedes intentar cambiar la contraseña después.
 
@@ -363,6 +357,8 @@ Por último, veamos si podemos entrar a los otros servicios activos.
 <h2 id="HTTP2">Investigando los Otros Servicios</h2>
 
 Vamos a investigar los servicios que estan en los puertos 53 y 32400.
+
+<br>
 
 <h3 id="dig">Analizando Servicio DNS</h3>
 
@@ -392,6 +388,7 @@ dig @10.10.10.48 axrf
 ;; SERVER: 10.10.10.48#53(10.10.10.48) (UDP)
 ;; MSG SIZE  rcvd: 22
 ```
+
 Intente hacer una tranferencia de zona, pero no tengo un dominio al cual hacerlo, probemos con uno posible:
 ```bash
 dig @10.10.10.48 mirai.htb axrf
@@ -421,7 +418,7 @@ Nada, este servicio queda descartado para obtener información.
 
 <h3 id="HTTP3">Analizando Servicio de Puerto 32400</h3>
 
-Veamos que nos encontramos, si entramos en el servicio que esta corriendo en el puerto 32400:
+Veamos que nos encontramos, si entramos en el servicio que esta corriendo en el **puerto 32400**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-mirai/Captura6.png">
@@ -444,10 +441,7 @@ Excelente, es hora de probar las credenciales por defecto en el **servicio SSH**
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -480,7 +474,7 @@ Papers: No Results
 ```
 Se supone que la versión de este Exploit se ajusta a la que usa la máquina. Copialo en tu directorio de trabajo y cambiale el nombre si quieres.
 
-* Ejecutemoslo usando el usuario pi:
+* Ejecutemoslo usando el **usuario pi**:
 ```bash
 python2 SSH_Enum.py 10.10.10.48 pi 2>/dev/null
 [-] pi is an invalid username
@@ -532,10 +526,7 @@ Ahí está la flag del usuario.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -615,6 +606,7 @@ tmpfs           250M  8.0K  250M   1% /tmp
 tmpfs            50M     0   50M   0% /run/user/999
 tmpfs            50M     0   50M   0% /run/user/1000
 ```
+
 Justamente ahí se ve en donde estamos, esa partición es la que vamos a analizar con el **comando strings**:
 ```bash
 root@raspberrypi:/media/usbstick# strings /dev/sdb
@@ -753,7 +745,7 @@ cat root.txt
 ───────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    1   │ ....
 ```
-Waos, funciono correctamente.
+Funciono correctamente.
 
 Existen otras herramientas como **testdisk, foremost, scalpel**, etc. En mi caso, probe primero la **herramienta testdisk**, pero el archivo que recupero no tenia contenido, así que la descarte para ponerla. También probe la **herramienta foremost**, pero no sabía que se debe montar primero el disco y luego hace la recuperación, ya no lo hice por flojo, pero puedes intentarlo e igual puedes probar ahí la **herramienta scalpel**.
 
@@ -761,10 +753,7 @@ Existen otras herramientas como **testdisk, foremost, scalpel**, etc. En mi caso
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -782,3 +771,48 @@ Existen otras herramientas como **testdisk, foremost, scalpel**, etc. En mi caso
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
