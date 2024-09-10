@@ -14,12 +14,14 @@ categories:
 tags:
   - Linux
   - pdfkit
+  - Extracting Metadata
+  - Fuzzing
   - Command Injection (CI)
-  - CVE-2022-25765
+  - CVE-2022-25765 (CI)
   - Ruby Enumeration
   - Information Leakage
-  - Abusing Sudoers Privileges
-  - YAML Deserialization Attack
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - YAML Deserialization Attack
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-precious/precious_logo.png)
@@ -27,6 +29,7 @@ tags:
 Esta fue una máquina algo difícil, porque no sabía bien como acceder como usuario, trate de cargar un Payload, pero no funciono, estudie el **ataque Smuggling** para tratar de obtener credenciales, pero no lo entendí del todo bien, intente usar un Exploit para **Ruby-on-rails**, pero no funciono, por eso tarde bastante en resolverla. En fin, vamos a abusar de la herramienta que genera el el PDF que usa la página web de la máquina, llamado **pdfkit**, usaremos el Exploit **CVE-2022-25765** para acceder a la máquina y robar las credenciales del usuario. Una vez conectados como usuario, abusaremos de un script de **Ruby** que tiene permisos de **SUDO** para inyectar código malicioso que nos permita escalar privilegios como Root, esto en base al **YAML Deserialization**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -34,6 +37,7 @@ Herramientas utilizadas:
 * *python3*
 * *nc*
 * *pdfinfo*
+* *python*
 * *exiftool*
 * *wget*
 * *curl*
@@ -86,10 +90,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -186,10 +187,7 @@ Bien, ahí nos dice que se esta ocupando un servicio, el **nginx 1.18.0**, y nos
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -261,20 +259,7 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                              
 =====================================================================
 
-000000001:   200        18 L     42 W       483 Ch      "# directory-list-2.3-medium.txt"                                    
-000000007:   200        18 L     42 W       483 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"    
-000000003:   200        18 L     42 W       483 Ch      "# Copyright 2007 James Fisher"                                      
-000000010:   200        18 L     42 W       483 Ch      "#"                                                                  
-000000011:   200        18 L     42 W       483 Ch      "# Priority ordered case sensative list, where entries were found"   
-000000009:   200        18 L     42 W       483 Ch      "# Suite 300, San Francisco, California, 94105, USA."                
-000000012:   200        18 L     42 W       483 Ch      "# on atleast 2 different hosts"                                     
-000000013:   200        18 L     42 W       483 Ch      "#"                                                                  
 000000014:   200        18 L     42 W       483 Ch      "http://precious.htb//"                                              
-000000006:   200        18 L     42 W       483 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this"      
-000000008:   200        18 L     42 W       483 Ch      "# or send a letter to Creative Commons, 171 Second Street,"         
-000000005:   200        18 L     42 W       483 Ch      "# This work is licensed under the Creative Commons"                 
-000000002:   200        18 L     42 W       483 Ch      "#"                                                                  
-000000004:   200        18 L     42 W       483 Ch      "#"                                                                  
 000045240:   200        18 L     42 W       483 Ch      "http://precious.htb//"                                              
 000155453:   503        0 L      29 W       189 Ch      "previousHeaderGraphics"                                             
 000155446:   503        0 L      29 W       189 Ch      "newsforgeNewsforge"                                                 
@@ -311,17 +296,8 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                               
 =====================================================================
 
-000000001:   200        18 L     42 W       483 Ch      "# directory-list-2.3-medium.txt"                                     
-000000003:   200        18 L     42 W       483 Ch      "# Copyright 2007 James Fisher"                                       
-000000007:   200        18 L     42 W       483 Ch      "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
 000000013:   200        18 L     42 W       483 Ch      "#"                                                                   
-000000012:   200        18 L     42 W       483 Ch      "# on atleast 2 different hosts"                                      
-000000011:   200        18 L     42 W       483 Ch      "# Priority ordered case sensative list, where entries were found"    
 000000010:   200        18 L     42 W       483 Ch      "#"                                                                   
-000000009:   200        18 L     42 W       483 Ch      "# Suite 300, San Francisco, California, 94105, USA."                 
-000000006:   200        18 L     42 W       483 Ch      "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000008:   200        18 L     42 W       483 Ch      "# or send a letter to Creative Commons, 171 Second Street,"          
-000000005:   200        18 L     42 W       483 Ch      "# This work is licensed under the Creative Commons"                  
 000000002:   200        18 L     42 W       483 Ch      "#"                                                                   
 000000004:   200        18 L     42 W       483 Ch      "#"                                                                   
 
@@ -348,9 +324,9 @@ Tratemos de darle una página cualquiera, puse "hola_mundo" de Wikipedia:
 
 ![](/assets/images/htb-writeup-precious/Captura3.png)
 
-Mmmmm no sirvió, vamos a ver que pasa si lo hacemos con una página local, hagámoslo por pasos:
+No sirvió, vamos a ver que pasa si lo hacemos con una página local, hagámoslo por pasos:
 
-* Abramos un servidor web con Python:
+* Abramos un servidor web con **Python**:
 ```bash
 python3 -m http.server
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
@@ -387,7 +363,9 @@ Veamos que hacen estas dos herramientas:
 
 <br>
 
-Entonces, ambas herramientas nos dan información especifica de los **archivos PDF**, pero la **herramienta exiftool** me parece más útil para poder ver los medatadatos de cualquier archivo. En fin, vamos a probar ambas:
+Entonces, ambas herramientas nos dan información especifica de los **archivos PDF**, pero la **herramienta exiftool** me parece más útil para poder ver los medatadatos de cualquier archivo. 
+
+En fin, vamos a probar ambas:
 
 * Probamos primero la **herramienta pdfinfo**:
 ```bash
@@ -435,10 +413,7 @@ Interesante, vemos que utilizaron una herramienta/servicio para crear el **PDF**
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -446,7 +421,7 @@ Interesante, vemos que utilizaron una herramienta/servicio para crear el **PDF**
 <h2 id="pdfkit">Aplicando Inyección de Comandos</h2>
 
 Investigando un poco, nos encontramos con la siguiente página:
-* https://security.snyk.io/vuln/SNYK-RUBY-PDFKIT-2869795
+* <a href="https://security.snyk.io/vuln/SNYK-RUBY-PDFKIT-2869795" target="_blank">Command Injection: Affecting pdfkit package, versions <0.8.7.2 </a>
 
 Esta página nos explica como se pueden inyectar comandos dentro de la URL, pues no esta bien sanitizada. Para que podamos realizar nuestras inyecciones, utilizamos el siguiente parámetro dentro de la URL que vamos a usar para convertir en **PDF**: 
 ```bash
@@ -492,7 +467,11 @@ Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 Curiosamente, el resultado se muestra también desde el servidor HTTP
 
+-------
+
 **Nota**: podríamos intentar capturar todo este proceso en **BurpSuite**, pero hay algo que nos impide inyectar comandos desde ahí, por lo que lo descarte, pero si quieres probar e investigar que es lo que nos impide la inyección de comandos, adelante.
+
+-------
 
 Excelente, de esta forma podemos inyectar comandos, es momento de poner nuestra **Reverse Shell** de confianza para ganar acceso a la máquina:
 
@@ -527,8 +506,8 @@ uid=1001(ruby) gid=1001(ruby) groups=1001(ruby)
 <h2 id="pdfkit2">Buscando un Exploit para pdfkit v0.8.6</h2>
 
 A la hora de buscar un Exploit para esta versión de **pdfkit**, se encunetran un par que nos pueden servir mucho:
-* https://github.com/UNICORDev/exploit-CVE-2022-25765
-* https://github.com/shamo0/PDFkit-CMD-Injection
+* <a href="https://github.com/UNICORDev/exploit-CVE-2022-25765" target="_blank">Repositorio de UNICORDev: Exploit for CVE-2022–25765 (pdfkit) - Command Injection</a>
+* <a href="https://github.com/shamo0/PDFkit-CMD-Injection" target="_blank">Repositorio de shamo0: PDFkit-CMD-Injection</a>
 
 Vamos a probar ambos, para ver que tal funcionan.
 
@@ -546,7 +525,7 @@ Petición HTTP enviada, esperando respuesta... 200 OK
 Longitud: 7849 (7.7K) [text/plain]
 Grabando a: «exploit-CVE-2022-25765.py»
 .
-exploit-CVE-2022-25765.py                                  100%[=======================================================================================================================================>]   7.67K  --.-KB/s    en 0s      
+exploit-CVE-2022-25765.py            100%[========>]   7.67K  --.-KB/s    en 0s      
 .
 2023-10-04 14:44:54 (24.0 MB/s) - «exploit-CVE-2022-25765.py» guardado [7849/7849]
 ```
@@ -557,7 +536,7 @@ nc -nvlp 443
 listening on [any] 443 ...
 ```
 
-* Para usarlo, debemos usar el parámetro -h y usamos **Python 3**:
+* Para usarlo, debemos usar el parámetro **-h** y usamos **Python3**:
 ```bash
 python3 exploit-CVE-2022-25765.py -h
 UNICORD Exploit for CVE-2022–25765 (pdfkit) - Command Injection
@@ -654,10 +633,7 @@ Estamos dentro otra vez. Diría que busquemos la flag, pero no somos usuarios, v
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -713,7 +689,7 @@ exit
 ```
 Muy bien, tenemos la contraseña del **usuario henry**.
 
-Es momento de entrar a la máquina por el servicio SSH:
+Es momento de entrar a la máquina por el **servicio SSH**:
 ```bash
 ssh henry@10.10.11.189              
 The authenticity of host '10.10.11.189 (10.10.11.189)' can't be established.
@@ -809,12 +785,12 @@ Encontré algo llamado **YAML Deserialization**:
 | *Se pueden crear payloads personalizados utilizando módulos YAML de Python como PyYAML o ruamel.yaml. Estos payloads pueden explotar vulnerabilidades en sistemas que deserializan entradas no confiables sin una sanitización adecuada.* |
 
 Para más información:
-* https://book.hacktricks.xyz/v/es/pentesting-web/deserialization/python-yaml-deserialization
+* <a href="https://book.hacktricks.xyz/v/es/pentesting-web/deserialization/python-yaml-deserialization" target="_blank">HackTricks: Python Yaml Deserialization</a>
 
 <br>
 
 Pero la siguiente página lo explica mejor:
-* https://blog.stratumsecurity.com/2021/06/09/blind-remote-code-execution-through-yaml-deserialization/
+* <a href="https://blog.stratumsecurity.com/2021/06/09/blind-remote-code-execution-through-yaml-deserialization/" target="_blank">Blind Remote Code Execution through YAML Deserialization</a>
 
 En resumen, vamos a utilizar la **librería YAML** para ejecutar código malicioso, al momento de que se valide el script **dependencies.yml**. Para hacer esto, debemos crear un archivo del mismo nombre y poner lo siguiente:
 ```bash
@@ -949,11 +925,9 @@ Y listo, ya tenemos las flags.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://github.com/shamo0/PDFkit-CMD-Injection
 * https://security.snyk.io/vuln/SNYK-RUBY-PDFKIT-2869795
@@ -975,3 +949,47 @@ Y listo, ya tenemos las flags.
 <br>
 # FIN
 
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
