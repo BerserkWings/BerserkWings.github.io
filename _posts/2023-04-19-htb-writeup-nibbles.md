@@ -17,9 +17,9 @@ tags:
   - Nibbleblog
   - Information Leakage
   - Arbitrary File Upload (AFU)
-  - AFU - CVE-2015-6967
+  - CVE-2015-6967 (AFU)
   - Reverse Shell
-  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
   - Metasploit Framework
 ---
@@ -28,6 +28,7 @@ tags:
 Esta fue una máquina bastante sencilla, en la que vamos a analizar el código fuente de la página web que está activa en el puerto **HTTP**, ahí nos indica que podemos ver un directorio que no aparecerá si hacemos **Fuzzing**, una vez que nos metamos ahí, encontraremos que esta subpágina utiliza el servicio **Nibbleblog**. Cuando investiguemos este servicio, sabremos que es un blog creado por una **CMS** y si hacemos **Fuzzing** normal y ambientado a subpáginas/directorios **PHP**, encontraremos algunas a las cuales podremos enumerar y así encontrar un usuario y un login, en dicho login utilizaremos el usuario que encontramos y como contraseña el nombre de la máquina para poder acceder al servicio **Nibbleblog**. Una vez dentro, analizaremos el Exploit **CVE-2015-6967**, el cual nos indicara que podemos añadir una **Reverse Shell** hecha en **PHP**, para poder conectarnos de manera remota a la máquina víctima como usuarios. Una vez conectados, utilizaremos un script en **Bash** con permisos de **SUDO** para poder escalar privilegios como **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -37,7 +38,8 @@ Herramientas utilizadas:
 * *nc*
 * *php*
 * *bash*
-* *msfconsole*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/http/nibbleblog_file_upload*
 * *git*
 * *python3*
 * *sudo*
@@ -91,10 +93,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -191,10 +190,7 @@ Bien, aparece el servicio **Apache**, pero mejor analicemos la página web.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -280,20 +276,7 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                              
 =====================================================================
 
-000000001:   200        16 L     9 W        93 Ch       "# directory-list-2.3-medium.txt"                                    
-000000003:   200        16 L     9 W        93 Ch       "# Copyright 2007 James Fisher"                                      
-000000007:   200        16 L     9 W        93 Ch       "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"    
-000000004:   200        16 L     9 W        93 Ch       "#"                                                                  
-000000005:   200        16 L     9 W        93 Ch       "# This work is licensed under the Creative Commons"                 
-000000002:   200        16 L     9 W        93 Ch       "#"                                                                  
-000000008:   200        16 L     9 W        93 Ch       "# or send a letter to Creative Commons, 171 Second Street,"         
-000000006:   200        16 L     9 W        93 Ch       "# Attribution-Share Alike 3.0 License. To view a copy of this"      
-000000009:   200        16 L     9 W        93 Ch       "# Suite 300, San Francisco, California, 94105, USA."                
-000000010:   200        16 L     9 W        93 Ch       "#"                                                                  
-000000013:   200        16 L     9 W        93 Ch       "#"                                                                  
-000000011:   200        16 L     9 W        93 Ch       "# Priority ordered case sensative list, where entries were found"   
 000000014:   200        16 L     9 W        93 Ch       "http://10.10.10.75//"                                               
-000000012:   200        16 L     9 W        93 Ch       "# on atleast 2 different hosts"                                     
 000000083:   403        11 L     32 W       292 Ch      "icons"                                                              
 
 Total time: 0
@@ -328,22 +311,9 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                               
 =====================================================================
 
-000000003:   200        60 L     168 W      2985 Ch     "# Copyright 2007 James Fisher"                                       
-000000007:   200        60 L     168 W      2985 Ch     "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"     
-000000001:   200        60 L     168 W      2985 Ch     "# directory-list-2.3-medium.txt"                                     
 000000259:   200        22 L     126 W      2127 Ch     "admin"                                                               
 000000014:   200        60 L     168 W      2985 Ch     "http://10.10.10.75/nibbleblog//"                                     
-000000013:   200        60 L     168 W      2985 Ch     "#"                                                                   
-000000012:   200        60 L     168 W      2985 Ch     "# on atleast 2 different hosts"                                      
-000000006:   200        60 L     168 W      2985 Ch     "# Attribution-Share Alike 3.0 License. To view a copy of this"       
-000000010:   200        60 L     168 W      2985 Ch     "#"                                                                   
-000000009:   200        60 L     168 W      2985 Ch     "# Suite 300, San Francisco, California, 94105, USA."                 
-000000011:   200        60 L     168 W      2985 Ch     "# Priority ordered case sensative list, where entries were found"    
-000000004:   200        60 L     168 W      2985 Ch     "#"                                                                   
 000000519:   200        30 L     214 W      3777 Ch     "plugins"                                                             
-000000005:   200        60 L     168 W      2985 Ch     "# This work is licensed under the Creative Commons"                  
-000000008:   200        60 L     168 W      2985 Ch     "# or send a letter to Creative Commons, 171 Second Street,"          
-000000002:   200        60 L     168 W      2985 Ch     "#"                                                                   
 000000075:   200        18 L     82 W       1353 Ch     "content"                                                             
 000000127:   200        20 L     104 W      1741 Ch     "themes"                                                              
 000000935:   200        27 L     181 W      3167 Ch     "languages"                                                           
@@ -485,8 +455,8 @@ Quiza el nombre del servicio sea una pista, probemos distintas combinaciones:
 ![](/assets/images/htb-writeup-nibbles/Captura8.png)
 
 Las contraseñas que use fueron:
-* usuario: admin
-* contraseña: nibbles
+* usuario: *admin*
+* contraseña: *nibbles*
 
 OJO, esto a lo mejor te puede funcionar en un ambiente real, no esta de más probarlo cuando puedas.
 
@@ -497,10 +467,7 @@ Ahora si, busquemos un Exploit, recuerda que ya tenemos la versión siendo esta 
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -508,7 +475,7 @@ Ahora si, busquemos un Exploit, recuerda que ya tenemos la versión siendo esta 
 <h2 id="Exploit">Buscando un Exploit</h2>
 
 En la búsqueda, encontré uno que nos puede servir.:
-* https://packetstormsecurity.com/files/133425/NibbleBlog-4.0.3-Shell-Upload.html
+* <a href="https://packetstormsecurity.com/files/133425/NibbleBlog-4.0.3-Shell-Upload.html" target="_blank">NibbleBlog 4.0.3 Shell Upload</a>
 
 Nos explica que podemos cargar un Payload de una **Reverse Shell** en un **archivo PHP** y nosotros ya conocemos uno, aunque es posible que si podemos ejecutar **archivos de PHP**, tengamos algunas formas de ganar acceso a la máquina.
 
@@ -528,7 +495,7 @@ Petición HTTP enviada, esperando respuesta... 200 OK
 Longitud: 5491 (5.4K) [text/plain]
 Grabando a: «php-reverse-shell.php»
 *
-php-reverse-shell.php  100%[=======================================================================================================================================>]   5.36K  --.-KB/s    en 0s      
+php-reverse-shell.php  100%[=================================================>]   5.36K  --.-KB/s    en 0s
 *
 (75.6 MB/s) - «php-reverse-shell.php» guardado [5491/5491]
 ```
@@ -558,9 +525,7 @@ listening on [any] 443 ...
 
 Se subió, pero para que funcione debemos saber en que parte se subio para poder ejecutar el archivo. 
 
-Por suerte, en el blog de esta vulnerabilidad, nos indica donde se esta guardando los archivos que carguemos, siendo en la siguiente ruta:
-
-* http://localhost/nibbleblog/content/private/plugins/my_image/
+Por suerte, en el blog de esta vulnerabilidad, nos indica donde se esta guardando los archivos que carguemos, siendo en la siguiente ruta: `http://localhost/nibbleblog/content/private/plugins/my_image/`
 
 Esto ya que el **plugin My Image** es el que es vulnerable y por lo que entiendo, los archivos que se suban ahí, tendran el nombre de **image.php**.
 
@@ -642,7 +607,7 @@ nibbler@Nibbles:/home/nibbler$ cat user.txt
 
 <h3 id="Forma2">Utilizando CMD de PHP para Ganar Acceso a la Máquina</h3>
 
-Como ya vimos que podemos cargar archivos PHP, se me ocurrio que tal vez podamos agregar un archivo que funcione como una CMD, esto ya lo hemos hecho antes, así que probemos si funciona.
+Como ya vimos que podemos cargar **archivos PHP**, se me ocurrio que tal vez podamos agregar un archivo que funcione como una **CMD**, esto ya lo hemos hecho antes, así que probemos si funciona.
 
 Vamos por pasos:
 
@@ -704,7 +669,7 @@ Ya solamente falta hacer la terminal más interactiva, pero ya sabes como.
 Resulta que ya existe una forma de subir archivos de forma automatizada con **Metasploit**, vamos a probar este exploit.
 
 Vamos por pasos:
-* Entra en Metasploit Framework:
+* Entra en **Metasploit Framework**:
 ```bash
 msfconsole
 ```
@@ -760,7 +725,7 @@ Y listo, ya podemos continuar viendo la forma de escalar privilegios.
 <h3 id="Forma4">Probando Exploit de GitHub del CVE-2015-6967</h3>
 
 Existe un Exploit de GitHub, que te automatiza la forma de subir los archivos y así poder acceder a la máquina. Lo único que necesitas es tener una **Reverse Shell** de **PHP** (como la de **pentestmonkey**) y usar el Exploit de GitHub que esta hecho en **Python** de este **GitHub**:
-* https://github.com/dix0nym/CVE-2015-6967
+* <a href="https://github.com/dix0nym/CVE-2015-6967" target="_blank">Repositorio de dix0nym: CVE-2015-6967</a>
 
 Lo malo es que ya viene con las credenciales para entrar, no esta mal, pero yo lo considero un poco tramposo porque ya te dieron un spoiler de como resolverla, pero lo puedes usar.
 
@@ -814,10 +779,7 @@ Supongo que con este Exploit, podemos subir también nuestro **archivo CMD en PH
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -895,7 +857,7 @@ root
 ```
 
 Esta forma, yo no la conocía, la encontré de aquí:
-* https://medium.com/schkn/linux-privilege-escalation-using-text-editors-and-files-part-1-a8373396708d
+* <a href="https://medium.com/schkn/linux-privilege-escalation-using-text-editors-and-files-part-1-a8373396708d" target="_blank">Linux Privilege Escalation exploiting Sudo Rights — Part I</a>
 
 <br>
 
@@ -991,10 +953,7 @@ bash-4.3# cat root.txt
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -1008,3 +967,48 @@ bash-4.3# cat root.txt
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
