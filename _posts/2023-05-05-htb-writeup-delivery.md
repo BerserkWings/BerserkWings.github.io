@@ -20,13 +20,15 @@ tags:
   - Information Leakage
   - MySQL Enumeration
   - Cracking Hash
+  - Privesc - Cracking Root Password Hash
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-delivery/delivery_logo.png)
 
-Esta fue una máquina bastante interesante, lo que hicimos fue analizar el **servicio HTTP** para descubrir que tienen un sistema de tickets y un servidor, a su vez usan **Virtual Hosting** por lo que registramos los dominios y aprovechamos un ticket creado que nos crea un correo temporal en **OS Ticket (su sistema de tickets)**, con esto usaremos el **servicio Mattermost** para crear una cuenta con el fin de entrar a este servicio. Una vez dentro de **Mattermost**, vemos mensajes del usuario Root, que nos indican el usuario y contraseña del **servicio SSH**, además nos dan una pista siendo que debemos ir a la **base de datos de Mattermost** dentro del **servicio SSH** para obtener el hash del Root, con esto podremos usar las **reglas de hashcat** para poder crear un diccionario y poder crackear el hash para autenticarnos como Root.
+Esta fue una máquina bastante interesante, lo que hicimos fue analizar el **servicio HTTP** para descubrir que tienen un sistema de tickets y un servidor, a su vez usan **Virtual Hosting** por lo que registramos los dominios y aprovechamos un ticket creado que nos crea un correo temporal en **OS Ticket (su sistema de tickets)**, con esto usaremos el **servicio Mattermost** para crear una cuenta con el fin de entrar a este servicio. Una vez dentro de **Mattermost**, vemos mensajes del usuario Root, que nos indican el usuario y contraseña del **servicio SSH**, además nos dan una pista siendo que debemos ir a la **base de datos de Mattermost** dentro del **servicio SSH** para obtener el **hash del Root**, con esto podremos usar las **reglas de hashcat** para poder crear un diccionario y poder crackear el hash para autenticarnos como **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -76,10 +78,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -228,14 +227,12 @@ Nmap done: 1 IP address (1 host up) scanned in 100.00 seconds
 
 Ese puerto 8065 se me hace curioso, puede que estemos contra un Virtual Hosting, pero analicemos primero el puerto HTTP.
 
+
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -282,7 +279,6 @@ Entremos a ambas para ver que podemos encontrar:
 </p>
 
 No vemos nada, esto indica que estan aplicando **Virtual Hosting**. Vamos a registrar el dominio y subdominio (el dominio del **HelpDesk**) en el **/etc/hosts**:
-
 ```bash
 nano /etc/hosts
 10.10.10.222 delivery.htb helpdesk.delivery.htb
@@ -325,7 +321,7 @@ Tratemos de abrir un nuevo ticket, para ver que pasa:
 <img src="/assets/images/htb-writeup-delivery/Captura8.png">
 </p>
 
-Nos pidió algunos datos como correo, nombre, asunto, etc. Unicamente recuerda los más importantes, que son los datos obligatorios que pide la página, esto para 
+Nos pidió algunos datos como correo, nombre, asunto, etc. Unicamente recuerda los más importantes, que son los datos obligatorios que pide la página, esto para usarlos más adelante.
 
 Y nos da este resultado. 
 
@@ -392,10 +388,7 @@ Estamos dentro, ahora podemos investigar lo que hay dentro.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -457,10 +450,7 @@ Listo, ahora busquemos la forma de escalar privilegios.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -474,7 +464,7 @@ Esto obviamente es una pista de lo que debemos hacer, lo principal sería buscar
 Busquemos información sobre donde estan estos hashes.
 
 Checa este blog sobre **Mattermost**:
-* https://www.drivemeca.com/mattermost-linux-server/
+* <a href="https://www.drivemeca.com/mattermost-linux-server/" target="_blank">Mattermost Linux Server</a>
 
 Hay un archivo llamado **config.json**, que se encuentra en el directorio **/opt/mattermost/**. 
 
@@ -490,7 +480,7 @@ cloud_defaults.json  config.json  README.md
 ```
 
 Veamos el interior:
-```bash
+```json
 maildeliverer@Delivery:/opt/mattermost/config$ cat config.json 
 {
     "ServiceSettings": {
@@ -532,7 +522,7 @@ Y buscando eso, encontramos algo importante y crítico:
 Tenemos un usuario y contraseña para conectarnos a la base de datos de **MySQL**.
 
 Si no sabes como se hace esto, checa este blog:
-* https://help.dreamhost.com/hc/es/articles/214882998-Conectarse-a-una-base-de-datos-v%C3%ADa-SSH
+* <a href="https://help.dreamhost.com/hc/es/articles/214882998-Conectarse-a-una-base-de-datos-v%C3%ADa-SSH" target="_blank">Conectarse a una base de datos vía SSH</a>
 
 Bien, conectémonos:
 ```bash
@@ -555,7 +545,7 @@ Ahora investiguemos la base de datos.
 <h3 id="Mysql">Enumeración de Base de Datos MySQL</h3>
 
 Veamos primero que bases de datos hay:
-```bahs
+```sql
 MariaDB [(none)]> show databases;
 +--------------------+
 | Database           |
@@ -567,7 +557,7 @@ MariaDB [(none)]> show databases;
 ```
 
 Usemos la BD **Mattermost** y veamos su contenido:
-```bash
+```sql
 MariaDB [(none)]> use mattermost
 Reading table information for completion of table and column names
 You can turn off this feature to get a quicker startup with -A
@@ -594,7 +584,7 @@ MariaDB [mattermost]> show tables;
 ```
 
 Tenemos varias tablas, pero me llama la atención la de **Users**, veamos su contenido:
-```bash
+```sql
 MariaDB [mattermost]> describe Users;
 +--------------------+--------------+------+-----+---------+-------+
 | Field              | Type         | Null | Key | Default | Extra |
@@ -629,7 +619,7 @@ MariaDB [mattermost]> describe Users;
 ```
 
 Excelente, ahí están las columnas del usuario y su contraseña por lo que podemos obtener las credenciales, veamos si se pueden ver:
-```bash
+```sql
 MariaDB [mattermost]> select Username, Password from Users;
 +----------------------------------+--------------------------------------------------------------+
 | Username                         | Password                                                     |
@@ -646,7 +636,7 @@ MariaDB [mattermost]> select Username, Password from Users;
 9 rows in set (0.000 sec)
 ```
 
-Muy bien, podemos ver la contraseña del Root, pero está encriptada por un tipo de hash que no conocemos, vamos a guardar el hash del Root y vamos a crackearlo.
+Muy bien, podemos ver la **contraseña del Root**, pero está encriptada por un tipo de hash que no conocemos, vamos a guardar el **hash del Root** y vamos a crackearlo.
 
 <h2 id="Hash">Creando Diccionario con Reglas de Hashcat y Crackeando Hash de Contraseña del Usuario Root</h2>
 
@@ -658,6 +648,7 @@ Analyzing '$2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO'
 [+] Woltlab Burning Board 4.x 
 [+] bcrypt
 ```
+
 El tipo de encriptado, es el que está al final. Por lo tanto, se encriptó usando **bcrypt**.
 
 | **Encriptación Bcrypt** |
@@ -668,14 +659,14 @@ El tipo de encriptado, es el que está al final. Por lo tanto, se encriptó usan
 
 Esto hace que sea complicado el crackear este hash, pero gracias a la pista que nos dieron y la contraseña que "ya no usan", es posible que se pueda crackear.
 
-Ahora lo que haremos, será crear un diccionario con variaciones de la contraseña que menciona el Root con la herramienta **hashcat**.
+Ahora lo que haremos, será crear un diccionario con variaciones de la contraseña que menciona el **Root** con la herramienta **hashcat**.
 
 Guardemos esa contraseña en un archivo:
 ```bash
 echo "PleaseSubscribe!" > passwd
 ```
 Para usar **hashcat**, te recomiendo que leas el siguiente blog:
-* https://jesux.es/cracking/passwords-cracking/
+* <a href="https://jesux.es/cracking/passwords-cracking/" target="_blank">Introducción al Password Cracking</a>
 
 Ahí, hay un apartado llamado **Metodologia** donde se ven como usar las reglas de **hashcat**. Lo interesante es esto:
 
@@ -712,7 +703,7 @@ PeSubs
 ```
 Son bastantes variaciones, muy bien.
 
-Por último, usemos la herramienta **John** para crackear al fin el hash del Root:
+Por último, usemos la herramienta **John** para crackear al fin el hash del **Root**:
 ```bash
 john -w=diccionario.txt hash                                                     
 Using default input encoding: UTF-8
@@ -770,10 +761,7 @@ Suscribete a su canal, gran maestro **Ippsec**.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -788,3 +776,48 @@ Suscribete a su canal, gran maestro **Ippsec**.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
