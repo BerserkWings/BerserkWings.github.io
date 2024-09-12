@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Active - Hack The Box
-excerpt: "Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de Active Directory. Tuve que investigar mucho sobre Active Directory, gracias a la herramienta smbclient y smbmap, se pudo enumerar el servicio Samba siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el ataque Kerberosasting para obtener credenciales de Root."
+excerpt: "Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de Active Directory. Tuve que investigar mucho sobre Active Directory, gracias a la herramienta smbclient y smbmap, se pudo enumerar el servicio SMB siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el ataque Kerberoasting para obtener credenciales de Root."
 date: 2023-05-02
 classes: wide
 header:
@@ -19,14 +19,15 @@ tags:
   - SYSVOL Mining
   - Exploiting GPP SYSVOL
   - Cracking Hash
-  - Kerberoasting Attack
+  - Privesc - Kerberoasting Attack
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-active/active_logo.png)
 
-Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de **Active Directory**. Tuve que investigar mucho sobre **Active Directory**, gracias a la herramienta **smbclient** y **smbmap**, se pudo enumerar el servicio **Samba** siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el **ataque Kerberosasting** para obtener credenciales de Root.
+Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de **Active Directory**. Tuve que investigar mucho sobre **Active Directory**, gracias a la herramienta **smbclient** y **smbmap**, se pudo enumerar el servicio **SMB** siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el **ataque Kerberoasting** para obtener credenciales de Root.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *crackmapexec*
 * *smbclient*
@@ -75,15 +76,13 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
 ```bash
 ping -c 4 10.10.10.100
@@ -100,6 +99,7 @@ rtt min/avg/max/mdev = 133.302/133.395/133.499/0.072 ms
 Por el TTL sabemos que la máquina usa Windows, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
+
 ```bash
 nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 10.10.10.100 -oG allPorts
 Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
@@ -178,6 +178,7 @@ Nmap done: 1 IP address (1 host up) scanned in 59.25 seconds
 Wow, son demasiados puertos abiertos, aunque algunos ya los conocemos. Veamos qué servicios nos arroja con el escaneo de servicios.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
+
 ```bash
 nmap -sC -sV -p53,88,135,139,389,445,464,593,3268,3269,9389,47001,49152,49153,49154,49155,49157,49158,49165,49166,49168 10.10.10.100 -oN targeted
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-02 15:31 CST
@@ -233,14 +234,12 @@ Nmap done: 1 IP address (1 host up) scanned in 119.08 seconds
 
 Está muy raro para mí, no había visto tantos puertos abiertos antes, no sé por qué presiento que estamos contra una máquina estilo **Active Directory**. Investiguemos algunos de los servicios para saber por donde comenzamos a buscar vulnerabilidades.
 
+
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -297,7 +296,7 @@ Primero que nada, veamos que nos reporta la herramienta nmap sobre el **servicio
 
 Realicemos unos escaneos.
 
-* Veamos que protocolos del SMB ocupa:
+* Veamos que protocolos del **SMB** ocupa:
 ```bash
 nmap -p 445 --script smb-protocols 10.10.10.100
 Starting Nmap 7.93 ( https://nmap.org ) at 2023-05-02 15:39 CST
@@ -342,7 +341,7 @@ nano /etc/hosts
 ```
 
 Bien, vamos a enumerar el **SMB** con las herramientas **smbclient** y **smbmap**. Te dejo un recurso que puede ser de utilidad:
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-smb
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-smb" target="_blank">HackTricks: 139,445 - Pentesting SMB</a>
 
 Lo principal, sería saber si podemos listar los recursos compartidos con un usuario nulo (null session), ya que con esto, podremos saber si nos podemos loguear como un usuario anónimo:
 ```bash
@@ -425,7 +424,7 @@ smbmap -H 10.10.10.100 -R
         dr--r--r--                0 Sat Jul 21 05:37:44 2018    USER
 ...
 ```
-Excelente, si nos aventuramos en el directorio {31B2F340...}, encontraremos un archivo interesante.
+Excelente, si nos aventuramos en el **directorio {31B2F340...}**, encontraremos un archivo interesante.
 
 Dentro del directorio **Policies**, hay dos directorios, si revisamos el primero, veremos que hay varios directorios, pero dos de ellos son de interés, el **USER** y el **MACHINE**. Entraremos directamente en **MACHINE** para seguir enumerando y de ahí, nos iremos a **Preferences** y por último a **Groups**:
 ```bash
@@ -452,7 +451,7 @@ mv 10.10.10.100-Replication_active.htb_Policies_\{31B2F340-016D-11D2-945F-00C04F
 Pero ¿de qué se trata este archivo? Investiguemos por su nombre como tal y veamos si aparece algo.
 
 Aquí dejo un link muy útil de lo que encontre:
-* https://adsecurity.org/?p=2288
+* <a href="https://adsecurity.org/?p=2288" target="_blank">Finding Passwords in SYSVOL & Exploiting Group Policy Preferences</a>
 
 En resumen de lo que menciona el blog, lo que hicimos fue minar **SYSVOL** para encontrar un archivo que se crea en el **Group Policy Preferences (GPP)**, siendo que este contiene las credenciales de usuarios.
 
@@ -479,10 +478,7 @@ Podemos ver un hash de una contraseña y un usuario llamado **SVC_TGS**. Intente
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -539,7 +535,7 @@ smbmap -H 10.10.10.100 -u 'SVC_TGS' -p 'GPPstillStandingStrong2k18' -r Users/SVC
 ```
 
 La descargamos y le cambiamos el nombre al archivo:
-```
+```bash
 smbmap -H 10.10.10.100 -u 'SVC_TGS' -p 'GPPstillStandingStrong2k18' --download Users/SVC_TGS/Desktop/user.txt
 [+] Starting download: Users\SVC_TGS\Desktop\user.txt (34 bytes)
 [+] File output to: **/**/**/content/10.10.10.100-Users_SVC_TGS_Desktop_user.txt
@@ -604,10 +600,7 @@ Con esto ya demostrado, es momento de buscar una forma de obtener acceso como Ro
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -627,7 +620,7 @@ Durante la busqueda, encontre el ataque Kerberoasting, pero ¿en qué consiste e
 En resumen, podemos robar un **boleto TGS** de un **SPN** cualquiera, por ejemplo del usuario **administrador** del directorio activo, esto para que podamos recopilar el hash de su contraseña y la podamos descifrar. Y como esto lo puede pedir un usuario, al cual ya tenemos acceso, podemos intentar aplicar este ataque.
 
 Para utilizar este ataque, necesitamos la herramienta **GetUserSPNs.py** que viene con la librería **Impacket**, si no lo tienes, aquí te dejo un link en donde puedas descargarlo, pero recomiendo que instales la librería **Impacket**:
-* https://github.com/fortra/impacket/blob/master/examples/GetUserSPNs.py
+* <a href="https://github.com/fortra/impacket/blob/master/examples/GetUserSPNs.py" target="_blank">Repositorio de fortra: GetUserSPNs.py</a>
 
 Vamos a usar este ataque, hagámoslo por pasos:
 
@@ -699,7 +692,7 @@ nt authority\system
 ```
 
 Por último, busca la flag:
-```shell
+```batch
 C:\> cd Users/Administrator/Desktop
 C:\Users\Administrator\Desktop>
 C:\Users\Administrator\Desktop> type root.txt
@@ -711,11 +704,9 @@ C:\Users\Administrator\Desktop> type root.txt
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.ngi.es/crackmapexec-post-explotacion-entornos-active-directory/
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-smb
@@ -732,3 +723,48 @@ C:\Users\Administrator\Desktop> type root.txt
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
