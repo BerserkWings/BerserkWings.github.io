@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Active - Hack The Box
-excerpt: "Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de Active Directory. Tuve que investigar mucho sobre Active Directory, gracias a la herramienta smbclient y smbmap, se pudo enumerar el servicio Samba siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el ataque Kerberosasting para obtener credenciales de Root."
+excerpt: "Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de Active Directory. Tuve que investigar mucho sobre Active Directory, gracias a la herramienta smbclient y smbmap, se pudo enumerar el servicio SMB siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el ataque Kerberoasting para obtener credenciales de Root."
 date: 2023-05-02
 classes: wide
 header:
@@ -24,7 +24,7 @@ tags:
 ---
 ![](/assets/images/htb-writeup-active/active_logo.png)
 
-Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de **Active Directory**. Tuve que investigar mucho sobre **Active Directory**, gracias a la herramienta **smbclient** y **smbmap**, se pudo enumerar el servicio **Samba** siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el **ataque Kerberosasting** para obtener credenciales de Root.
+Esta máquina fue algo complicada para mí, porque se trató de un ejercicio de **Active Directory**. Tuve que investigar mucho sobre **Active Directory**, gracias a la herramienta **smbclient** y **smbmap**, se pudo enumerar el servicio **SMB** siendo que encontramos un archivo que contiene credenciales de usuario, esto nos permitirá hacer el **ataque Kerberoasting** para obtener credenciales de Root.
 
 Herramientas utilizadas:
 * *ping*
