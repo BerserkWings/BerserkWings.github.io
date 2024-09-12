@@ -21,6 +21,7 @@ tags:
 
 Lo que haremos en esta ocasión, será resolver todos los niveles que se encuentran en la sección **Bandit**, esto como práctica de pentesting en entornos Linux.
 
+--------------
 **RECOMENDACIÓN**:
 
 Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por si continuaras haciendo niveles en otro dia o simplemente por si las dudas.
@@ -87,18 +88,6 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
                                 <li><a href="#Exp11">Descripción de Comandos</a></li>
                                 <li><a href="#Sol11">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel12">Nivel 12 a 13</a></li>
-		<li><a href="#Nivel13">Nivel 13 a 14</a></li>
-			<ul> 
-                                <li><a href="#Exp13">Descripción de Comandos</a></li>
-                                <li><a href="#Sol13">Solución</a></li>
-                        </ul>
-		<li><a href="#Nivel14">Nivel 14 a 15</a></li>
-		<li><a href="#Nivel15">Nivel 15 a 16</a></li>
-		<li><a href="#Nivel16">Nivel 16 a 17</a></li>
-		<li><a href="#Nivel17">Nivel 17 a 18</a></li>
-		<li><a href="#Nivel18">Nivel 18 a 19</a></li>
-		<li><a href="#Nivel19">Nivel 19 a 20</a></li>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
@@ -108,12 +97,10 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel0" style="text-align:center;">Nivel 0 a 1</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel0" style="text-align:center;">Nivel 0 a 1</h1>
 </div>
 <br>
+
 
 ----------------
 **INSTRUCCIONES**:
@@ -265,10 +252,7 @@ bandit0@bandit:~$ cat readme
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel1" style="text-align:center;">Nivel 1 a 2</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel1" style="text-align:center;">Nivel 1 a 2</h1>
 </div>
 <br>
 
@@ -349,7 +333,7 @@ bandit1@bandit:~$ cat -
 ```
 
 Ni me saco un error, por eso tuve que cancelar la acción. Para resolver esto, **Over The Wire** nos da una página con una solución:
-* https://www.webservertalk.com/dashed-filename
+* <a href="https://www.webservertalk.com/dashed-filename" target="_blank">Dashed Filename – Learn How to Create, Remove, List, Read & Copy!</a>
 
 En resumen, para leer el archivo, simplemente usamos el siguiente signo: **<**. 
 
@@ -360,7 +344,7 @@ bandit1@bandit:~$ cat < -
 ```
 ¡Muy bien! Ya tenemos la contraseña para el siguiente nivel. Antes de ir a otro nivel, hay otras formas para poder ver esta clase de archivos, te las mostrare a continuación:
 
-* Leer el archivo usando el PATH:
+* Leer el archivo usando el **PATH**:
 ```bash
 bandit1@bandit:~$ cat /home/bandit1/-
 ...
@@ -372,7 +356,7 @@ bandit1@bandit:~$ cat ./-
 ...
 ```
 
-* Usando el comando pwd:
+* Usando el comando **pwd**:
 ```bash
 bandit1@bandit:~$ cat $(pwd)/-
 ...
@@ -385,10 +369,7 @@ Ahora si ya terminamos, sal y entra al siguiente nivel.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel2" style="text-align:center;">Nivel 2 a 3</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel2" style="text-align:center;">Nivel 2 a 3</h1>
 </div>
 <br>
 
@@ -467,12 +448,10 @@ bandit2@bandit:~$ cat $(pwd)/*
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel3" style="text-align:center;">Nivel 3 a 4</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel3" style="text-align:center;">Nivel 3 a 4</h1>
 </div>
 <br>
+
 
 ----------------
 
@@ -494,7 +473,7 @@ cd nombre_directorio
 ```
 
 Ejemplos:
-* Moviendonos al un directorio /home:
+* Moviendonos al un directorio **/home**:
 ```bash
 cd
 ```
@@ -609,12 +588,12 @@ find archivo.txt | xargs comando
 ```
 
 Ejemplos:
-* Leyendo un archivo que se encontro con el comando find:
+* Leyendo un archivo que se encontro con el comando **find**:
 ```bash
 find . -type f | xargs cat
 ```
 
-* Eliminando un archivo encontrado con el comando find:
+* Eliminando un archivo encontrado con el comando **find**:
 ```bash
 find . --name "*.tmp" | xargs rm
 ```
@@ -623,7 +602,7 @@ find . --name "*.tmp" | xargs rm
 
 | **Tuberías** |
 |:-----------:|
-| *Representadas por el símbolo "|", se utilizan para conectar la salida de un comando directamente como entrada para otro comando. Esto permite encadenar varios comandos de manera eficiente y procesar datos en una secuencia.* |
+| *Representadas por el símbolo "\|", se utilizan para conectar la salida de un comando directamente como entrada para otro comando. Esto permite encadenar varios comandos de manera eficiente y procesar datos en una secuencia.* |
 
 Formas de uso: 
 ```bash
@@ -701,10 +680,7 @@ find . -type f | grep "hidden" | xargs cat
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel4" style="text-align:center;">Nivel 4 a 5</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel4" style="text-align:center;">Nivel 4 a 5</h1>
 </div>
 <br>
 
@@ -804,10 +780,7 @@ bandit4@bandit:~/inhere$ cat ./-file07
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel5" style="text-align:center;">Nivel 5 a 6</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel5" style="text-align:center;">Nivel 5 a 6</h1>
 </div>
 <br>
 
@@ -841,9 +814,9 @@ bandit5@bandit.labs.overthewire.org's password:
 La contraseña es la que encontraste en el nivel 4.
 
 Hay varias condiciones que tiene el archivo que contiene la contraseña, para buscarlo, usaremos el comando **find** con varios argumentos. Te comparto unos links con ejemplos de como usar el comando **find** y sobre los permisos de archivos:
-* https://itsfoss.com/es/comando-find-linux/#buscar-varios-archivos-con-varias-extensiones-o-condici%C3%B3n
-* https://www.hostinger.mx/tutoriales/como-usar-comando-find-locate-en-linux/#Busqueda_por_tipo
-* https://gospelidea.com/blog/que-son-los-permisos-chmod
+* <a href="https://itsfoss.com/es/comando-find-linux/#buscar-varios-archivos-con-varias-extensiones-o-condici%C3%B3n" target="_blank">15 ejemplos súper útiles del comando Find en Linux</a>
+* <a href="https://www.hostinger.mx/tutoriales/como-usar-comando-find-locate-en-linux/#Busqueda_por_tipo" target="_blank">Cómo usar los comandos find y locate en Linux</a>
+* <a href="https://gospelidea.com/blog/que-son-los-permisos-chmod" target="_blank">¿Qué son los permisos CHMOD en Linux?</a>
 
 Bien, ahora entremos:
 ```bash
@@ -876,11 +849,13 @@ drwxr-x---  2 root bandit5 4096 Apr 23 18:04 maybehere18
 drwxr-x---  2 root bandit5 4096 Apr 23 18:04 maybehere19
 ```
 
-Demasiados directorios, prodríamos buscar nuestro archivo, pero eso no es óptimo, así que usemos el comando **find**. Le agregaremos los siguientes parámetros:
-* -type f: Para que busque archivos.
-* -size 1033c: Para que busque los archivos con 1033 bytes de tamaño. 
-* -perm 640: Para que busque por archivos con permisos de no ejecución.
-* grep ASCII: Para que con **grep**, busque archivos que sean legibles por humanos.
+Demasiados directorios, prodríamos buscar nuestro archivo, pero eso no es óptimo, así que usemos el comando **find**. 
+
+Le agregaremos los siguientes parámetros:
+* *-type f*: Para que busque archivos.
+* *-size 1033c*: Para que busque los archivos con 1033 bytes de tamaño. 
+* *-perm 640*: Para que busque por archivos con permisos de no ejecución.
+* *grep ASCII*: Para que con **grep**, busque archivos que sean legibles por humanos.
 
 Quedaría así:
 ```bash
@@ -900,10 +875,7 @@ cat maybehere07/.file2
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel6" style="text-align:center;">Nivel 6 a 7</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel6" style="text-align:center;">Nivel 6 a 7</h1>
 </div>
 <br>
 
@@ -937,7 +909,7 @@ bandit6@bandit.labs.overthewire.org's password:
 La contraseña es la que encontraste en el nivel 5.
 
 Hay varias condiciones, igual usaremos el comando **find** y usemos las mismas páginas de referencia que puse en el nivel anterior para guiarnos. Aunque me sirvió más esta página:
-* https://www.ionos.mx/digitalguide/servidores/configuracion/comando-linux-find/
+* <a href="https://www.ionos.mx/digitalguide/servidores/configuracion/comando-linux-find/" target="_blank">Linux find comando</a>
 
 Veamos que hay dentro:
 ```bash
@@ -980,10 +952,7 @@ bandit6@bandit:~$ cat /var/lib/dpkg/info/bandit7.password
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel7" style="text-align:center;">Nivel 7 a 8</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel7" style="text-align:center;">Nivel 7 a 8</h1>
 </div>
 <br>
 
@@ -1014,7 +983,7 @@ bandit7@bandit.labs.overthewire.org's password:
 La contraseña es la que encontraste en el nivel 6.
 
 Como nos dice, hay un archivo llamado **data.txt** y la contraseña se encuentra junto a la palabra **millionth**, para encontrar esa palabra usaremos el comando **grep**, aquí te dejo este link con información muy útil sobre **grep**:
-* https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/
+* <a href="https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/" target="_blank">Uso del comando grep en Linux y UNIX con ejemplos</a>
 
 Veamos que contiene ese archivo:
 ```bash
@@ -1041,10 +1010,7 @@ Y ahí está. Ya tenemos la contraseña, sal y entra al siguiente.
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel8" style="text-align:center;">Nivel 8 a 9</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel8" style="text-align:center;">Nivel 8 a 9</h1>
 </div>
 <br>
 
@@ -1159,12 +1125,10 @@ bandit8@bandit:~$ sort data.txt | uniq -u
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel9" style="text-align:center;">Nivel 9 a 10</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel9" style="text-align:center;">Nivel 9 a 10</h1>
 </div>
 <br>
+
 
 ----------------
 **INSTRUCCIONES**:
@@ -1234,10 +1198,7 @@ strings data.txt | grep "==="
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel10" style="text-align:center;">Nivel 10 a 11</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel10" style="text-align:center;">Nivel 10 a 11</h1>
 </div>
 <br>
 
@@ -1274,7 +1235,6 @@ echo "Hola como estas?" | base64
 * Decodificando un archivo en **base64** y un texto en **base64**:
 ```bash
 base64 -d archivo_en_base64.txt > archivo.txt
-
 echo "SG9sYSBjb21vIGVzdGFzPwo=" | base64 -d
 ```
 
@@ -1324,12 +1284,10 @@ The password is *****
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Nivel11" style="text-align:center;">Nivel 11 a 12</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Nivel11" style="text-align:center;">Nivel 11 a 12</h1>
 </div>
 <br>
+
 
 ----------------
 **INSTRUCCIONES**:
@@ -1400,21 +1358,20 @@ The password is
 ```
 
 Si te fijas, lo que hicimos fue sustituir **'A-Za-z'** por **'N-ZA-Mn-za-m'**, en donde:
-* A-Z = N-ZA-M
-* a-z = n-za-m
+* *A-Z = N-ZA-M*
+* *a-z = n-za-m*
 
 ¡Muy bien! Ya tenemos la contraseña, sal y entra al siguiente.
 
 # CONTINUARA...
 
+
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://overthewire.org/wargames/bandit/
 * https://www.webservertalk.com/dashed-filename
@@ -1428,3 +1385,48 @@ Si te fijas, lo que hicimos fue sustituir **'A-Za-z'** por **'N-ZA-Mn-za-m'**, e
 <br>
 
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
