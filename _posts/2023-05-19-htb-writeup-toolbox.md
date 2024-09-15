@@ -14,12 +14,15 @@ categories:
 tags:
   - Windows
   - Linux
+  - FTP Enumeration
   - Docker Toolbox
   - PostgreSQL Injection
   - Remote Code Execution (RCE)
+  - PostgreSQLI (RCE)
   - BurpSuite
   - Pivoting
   - Default Credentials
+  - Privesc - Abusing boot2docker
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-toolbox/toolbox_logo.png)
@@ -27,6 +30,7 @@ tags:
 Esta fue una máquina, un poquito complicada, vamos a analizar varios servicios que tiene activo, siendo que el servicio **HTTPS** será la clave para resolver la máquina, pues podremos aplicar **PostgreSQL Injection** de dos formas, con **BurpSuite** y con **SQLMAP** para obtener una **Shell** de manera remota. Una vez dentro, descubrimos que estamos en una aplicación de varias, gracias a la herramienta **Docker Toolbox** que está usando, nos conectamos a la primera aplicación usando credenciales por defecto de esta herramienta y nos conectamos a una aplicación que copia todo el contenido de la máquina.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *ftp*
 * *smbclient*
@@ -254,7 +258,7 @@ Vamos a enunerar estos servicios para ver que encontramos, aunque es posible que
 <h3 id="FTP">Enumeración Servicio FTP</h3>
 
 Entremos:
-```bash
+```batch
 ftp 10.10.10.236
 Connected to 10.10.10.236.
 220-FileZilla Server 0.9.60 beta
@@ -272,7 +276,7 @@ ftp>
 Aun así, el escaneo de servicios, indica que hay un archivo llamado **docker-toolbox.exe**.
 
 Puedes verlo en el **FTP**:
-```bash
+```batch
 ftp> ls
 229 Entering Extended Passive Mode (|||58609|)
 150 Opening data channel for directory listing of "/"
@@ -492,8 +496,8 @@ Ahora, mandalo al **Repeater** con **ctrl + r**:
 </p>
 
 Si investigamos vulnerabilidades en **Postgresql**, encontramos que **Hacktricks** tiene algunas formas de ver si se pueden inyectar comandos:
-* https://book.hacktricks.xyz/pentesting-web/sql-injection/postgresql-injection
-* https://book.hacktricks.xyz/network-services-pentesting/pentesting-postgresql
+* <a href="https://book.hacktricks.xyz/pentesting-web/sql-injection/postgresql-injection" target="_blank">HackTricks: PostgreSQL injection</a>
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-postgresql" target="_blank">HackTricks: 5432,5433 - Pentesting Postgresql</a>
 
 Entonces probemos primero, si es posible la inyección, vamos a mandar una petición que dure 10 segundos en devolver un resultado:
 ```sql
@@ -765,11 +769,11 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
 ```
 
 Observa la **IP**, debería terminar en 1, pero no es así. Si recordamos la herramienta que están usando es **Docker-toolbox.exe**, por lo que pueden tener varias aplicaciones web abiertas y si investigamos más sobre esta herramienta, encontraremos que tiene contraseñas por defecto:
-* https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password
+* <a href="https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password" target="_blank">docker-machine boot2docker root password</a>
 
 Ahí nos dicen que tiene las siguientes credenciales:
-* user: docker
-* pwd: tcuser
+* user: *docker*
+* passwd: *tcuser*
 
 Vamos a usar estas credenciales para loguearnos al servicio **SSH** desde donde estamos:
 ```bash
@@ -806,6 +810,7 @@ docker@box:~$ sudo -l
 User docker may run the following commands on this host:
     (root) NOPASSWD: ALL
 ```
+
 Entonces, quiero pensar que ya somos **Root** o estamos en la máquina principal de **Windows**, no lo sé, hay que enumerar un poco a ver que encontramos.
 
 Enumerando la raíz, encontramos un directorio curioso, llamado **c**:
@@ -946,6 +951,7 @@ Listo, ya terminamos esta máquina.
 * https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password
 * https://www.revshells.com/
 * https://help.dreamhost.com/hc/es/articles/360001435926-Instalar-OpenSSL-localmente-dentro-de-tu-usuario
+
 
 <br>
 # FIN
