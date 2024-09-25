@@ -205,10 +205,56 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
                                 </ul>
                                 <li><a href="#Sol19">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel 20 a 21</a></li>
+		<li><a href="#Nivel20">Nivel 20 a 21</a></li>
+                        <ul> 
+                                <li><a href="#Sol20">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel21">Nivel 21 a 22</a></li>
+                        <ul> 
+                                <li><a href="#Exp21">Descripción de Comandos</a></li>
+                                <ul>
+					<li><a href="#cron">Servicio CRON</a></li>
+                                </ul>
+                                <li><a href="#Sol21">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel22">Nivel 22 a 23</a></li>
+                        <ul> 
+                                <li><a href="#Exp22">Descripción de Comandos</a></li>
+                                <ul>
+					<li><a href="#md5sum">Comando md5sum</a></li>
+                                </ul>
+                                <li><a href="#Sol22">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel23">Nivel 23 a 24</a></li>
+                        <ul> 
+                                <li><a href="#Exp23">Descripción de Comandos</a></li>
+                                <ul>
+					<li><a href="#cp">Comando cp</a></li>
+                                        <li><a href="#touch">Comando touch</a></li>
+                                        <li><a href="#watch">Comando watch</a></li>
+                                </ul>
+                                <li><a href="#Sol?">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel24">Nivel 24 a 25</a></li>
+                        <ul> 
+                                <li><a href="#Exp24">Descripción de Comandos</a></li>
+                                <ul>
+                                        <li><a href="#wc">Comando wc</a></li>
+                                </ul>
+                                <li><a href="#Sol24">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel25">Nivel 25 a 26 a 27</a></li>
+                        <ul> 
+                                <li><a href="#Exp25">Descripción de Comandos</a></li>
+                                <ul>
+                                        <li><a href="#more">Comando more</a></li>
+                                </ul>
+                                <li><a href="#Sol25">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel?">Nivel ? a ?</a></li>
                         <ul> 
                                 <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
+                                <ul> 
                                         <li><a href="#"></a></li>
                                 </ul>
                                 <li><a href="#Sol?">Solución</a></li>
@@ -216,7 +262,7 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
 		<li><a href="#Nivel?">Nivel ? a ?</a></li>
                         <ul> 
                                 <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
+                                <ul> 
                                         <li><a href="#"></a></li>
                                 </ul>
                                 <li><a href="#Sol?">Solución</a></li>
@@ -224,7 +270,7 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
 		<li><a href="#Nivel?">Nivel ? a ?</a></li>
                         <ul> 
                                 <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
+                                <ul> 
                                         <li><a href="#"></a></li>
                                 </ul>
                                 <li><a href="#Sol?">Solución</a></li>
@@ -232,7 +278,7 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
 		<li><a href="#Nivel?">Nivel ? a ?</a></li>
                         <ul> 
                                 <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
+                                <ul> 
                                         <li><a href="#"></a></li>
                                 </ul>
                                 <li><a href="#Sol?">Solución</a></li>
@@ -240,15 +286,7 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
 		<li><a href="#Nivel?">Nivel ? a ?</a></li>
                         <ul> 
                                 <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
-                                        <li><a href="#"></a></li>
-                                </ul>
-                                <li><a href="#Sol?">Solución</a></li>
-                        </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
-                        <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul>
+                                <ul> 
                                         <li><a href="#"></a></li>
                                 </ul>
                                 <li><a href="#Sol?">Solución</a></li>
@@ -3365,37 +3403,11 @@ Continuemos al siguiente nivel.
 
 **INSTRUCCIONES**:
 
-Hay un binario setuid en el homedirectory que hace lo siguiente: establece una conexión con localhost en el puerto que especifiques como argumento en la línea de comandos. Luego lee una línea de texto de la conexión y la compara con la contraseña del nivel anterior (bandit20). Si la contraseña es correcta, transmitirá la contraseña para el siguiente nivel (bandit21).
+Hay un **binario setuid** en el **homedirectory** que hace lo siguiente: establece una conexión con **localhost** en el puerto que especifiques como argumento en la línea de comandos. Luego lee una línea de texto de la conexión y la compara con **la contraseña del nivel anterior (bandit20)**. Si la contraseña es correcta, **transmitirá la contraseña para el siguiente nivel (bandit21)**.
 
-NOTA: Prueba a conectarte a tu propio demonio de red para ver si funciona como crees
+**NOTA**: Prueba a conectarte a tu propio demonio de red para ver si funciona como crees
 
 ----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
-
-<br>
-
-<h3 id="?">Comando ?</h3>
-
-| **Comando ** |
-|:-----------:|
-| ** |
-
-Formas de uso:
-```bash
-
-```
-
-Ejemplo:
-* 
-```bash
-
-```
-
-<br>
-
-**Continuemos con la solución.**
 
 <br>
 
@@ -3403,46 +3415,662 @@ Ejemplo:
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit20@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit20@bandit.labs.overthewire.org's password:
 ```
 La contraseña es la que encontraste en el **nivel 19**.
 
+La idea es que establescamos una conexión en el nivel actual y nuestra máquina (aunque supongo que podemos realizar la conexión dentro del mismo nivel, pero en otra terminal), una vez realizada la conexión, debemos dar la contraseña del nivel actual para que nos responda con la contraseña del siguiente nivel.
+
+Vamos a probarlo:
+
+* Ejecutemos el binario para ver su uso:
+```bash
+bandit20@bandit:~$ ls
+suconnect
+bandit20@bandit:~$ ls -la
+total 36
+drwxr-xr-x  2 root     root      4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root      4096 Sep 19 07:09 ..
+-rw-r--r--  1 root     root       220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root      3771 Mar 31 08:41 .bashrc
+-rw-r--r--  1 root     root       807 Mar 31 08:41 .profile
+-rwsr-x---  1 bandit21 bandit20 15604 Sep 19 07:08 suconnect
+bandit20@bandit:~$ ./suconnect 
+Usage: ./suconnect <portnumber>
+This program will connect to the given port on localhost using TCP. If it receives the correct password from the other side, the next password is transmitted back.
+```
+Ya vimos que es un binario que se conecta a un puerto que específiquemos dentro de **localhost**.
+
+* Usando el **comando nc** pongamonos en modo escucha por un puerto random:
+```bash
+bandit20@bandit:~$ nc -nlvp 4444
+Listening on 0.0.0.0 4444
+```
+
+* En otra terminal, entremos al mismo nivel y usemos el binario para conectarnos al puerto que esta en modo escucha:
+```bash
+bandit20@bandit:~$ ./suconnect 4444
+...
+```
+
+* Ahora, pasemos la contraseña del nivel actual en la primer terminal y veamos si nos responde:
+```bash
+bandit20@bandit:~$ nc -nlvp 4444
+Listening on 0.0.0.0 4444
+Connection received on 127.0.0.1 43858
+contraseña_nivel_actual
+contraseña_siguiente_nivel
+```
+
+* Nos dio la contraseña del siguiente nivel, observa lo que menciona la segunda terminal:
+```bash
+bandit20@bandit:~$ ./suconnect 4444
+Read: contraseña_nivel_actual
+Password matches, sending next password
+```
+
+Y listo, pasemos al siguiente nivel.
 
 
 <br>
 <br>
 <hr> 
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+        <h1 id="Nivel21" style="text-align:center;">Nivel 21 a 22</h1>
 </div>
 <br>
 
 
 **INSTRUCCIONES**:
 
-texto 
+Un programa se está ejecutando automáticamente a intervalos regulares desde **cron**, el programador de trabajos basado en el tiempo. Busque en **/etc/cron.d/** la configuración y vea qué comando se está ejecutando.
+
 ----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
 
 <br>
 
-<h3 id="?">Comando ?</h3>
+<h2 id="Exp21">Descripción de Comandos</h2>
 
-| **Comando ** |
+<br>
+
+<h3 id="cron">Servicio CRON</h3>
+
+| **Servicio CRON** |
 |:-----------:|
-| ** |
+| *cron es un servicio en sistemas Unix y Linux que se utiliza para programar la ejecución de tareas de manera periódica o en un momento específico. Este demonio ejecuta trabajos en segundo plano a intervalos regulares según lo configurado en el archivo crontab.* |
+
+<br>
+
+| **Comando crontab** |
+|:-----------:| 
+| *crontab (abreviatura de cron table) es un archivo que contiene la lista de tareas a ejecutar por cron, junto con los tiempos y fechas en que se deben ejecutar. También es el nombre del comando que permite al usuario editar su tabla de trabajos cron.* |
 
 Formas de uso:
 ```bash
+* * * * * comando
+```
+Cada asterisco representa un valor de tiempo:
 
+* Minuto (0-59)
+
+* Hora (0-23)
+
+* Día del mes (1-31)
+
+* Mes (1-12 o abreviaturas de mes como jan, feb, etc.)
+
+* Día de la semana (0-6, donde 0 es domingo, o abreviaturas como mon, tue, etc.)
+
+Ejemplo:
+* Ver el archivo crontab del usuario:
+```bash
+crontab -l
+```
+Muestra los **trabajos cron** configurados para el usuario actual.
+
+* Editar el archivo crontab del usuario:
+```bash
+crontab -e
+```
+
+* Eliminar el archivo crontab del usuario:
+```bash
+crontab -r
+```
+
+Ejemplos de configuración:
+
+* Ejecutar un script todos los días a las 2:30 AM:
+```bash
+30 2 * * * /ruta/al/script.sh
+```
+Esto ejecutará el **script script.sh** todos los días a las 2:30 de la madrugada.
+
+* Ejecutar un comando cada 5 minutos:
+```bash
+*/5 * * * * /ruta/al/comando.sh
+```
+El */5 significa "cada 5 minutos". Este trabajo se ejecutará cada 5 minutos.
+
+* Enviar un recordatorio por correo electrónico todos los viernes a las 4:00 PM:
+```bash
+0 16 * * 5 echo "Recordatorio de reunión" | mail -s "Reunión semanal" user@example.com
+```
+Este trabajo enviará un correo con el recordatorio a las 4:00 PM todos los viernes.
+
+<br>
+
+**Continuemos con la solución.**
+
+<br>
+
+<h2 id="Sol21">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+ssh bandit21@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit21@bandit.labs.overthewire.org's password:
+```
+La contraseña es la que encontraste en el **nivel 20**.
+
+Debemos buscar que se esta ejecutando en las **tareas cron**, una vez que identifiquemos que se esta ejecutando, debemos seguir ese hilo hasta obtener la contraseña.
+
+Probemos:
+
+* Veamos que tareas estan ejecutandose en la ruta que nos menciona las instrucciones:
+```bash
+bandit21@bandit:~$ ls -l /etc/cron.d/
+total 24
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit22
+-rw-r--r-- 1 root root 122 Sep 19 07:08 cronjob_bandit23
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit24
+-rw-r--r-- 1 root root 201 Apr  8 14:38 e2scrub_all
+-rwx------ 1 root root  52 Sep 19 07:10 otw-tmp-dir
+-rw-r--r-- 1 root root 396 Jan  9  2024 sysstat
+```
+Observa que hay tareas para los siguientes dos niveles.
+
+* Veamos el contenido de la tarea de **bandit22**:
+
+```bash
+bandit21@bandit:~$ cat /etc/cron.d/cronjob_bandit22
+@reboot bandit22 /usr/bin/cronjob_bandit22.sh &> /dev/null
+* * * * * bandit22 /usr/bin/cronjob_bandit22.sh &> /dev/null
+```
+Se esta ejecutando un binario, al parecer cada minuto.
+
+* Veamos el contenido del binario que se esta ejecutando:
+```bash
+bandit21@bandit:~$ cat /usr/bin/cronjob_bandit22.sh
+#!/bin/bash
+chmod 644 /tmp/t7O6lds9S0RqQh9aMcz6ShpAoZKF7fgv
+cat /etc/bandit_pass/bandit22 > /tmp/t7O6lds9S0RqQh9aMcz6ShpAoZKF7fgv
+```
+Parece que esta creando un archivo temporal y guarda la contraseña de **bandit22** dentro de este archivo temporal, esto cada minuto.
+
+* Veamos el contenido del archivo dentro del directorio temporal:
+```bash
+bandit21@bandit:~$ cat /tmp/t7O6lds9S0RqQh9aMcz6ShpAoZKF7fgv
+contraseña_siguiente_nivel
+```
+
+Y listo, ya tenemos la contraseña del siguiente nivel.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel22" style="text-align:center;">Nivel 22 a 23</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Un programa se está ejecutando automáticamente a intervalos regulares desde **cron**, el programador de trabajos basado en el tiempo. Busque en **/etc/cron.d/** la configuración y vea qué comando se está ejecutando.
+
+**NOTA**: Mirar scripts de shell escritos por otras personas es una habilidad muy útil. El script para este nivel está hecho intencionalmente fácil de leer. Si tienes problemas para entender lo que hace, intenta ejecutarlo para ver la información de depuración que imprime.
+
+----------------
+<br>
+
+<h2 id="Exp22">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="md5sum">Comando md5sum</h3>
+
+| **Comando md5sum** |
+|:-----------:|
+| *El comando md5sum se utiliza en sistemas Unix y Linux para generar y verificar sumas de verificación MD5 de archivos. MD5 (Message Digest Algorithm 5) es un algoritmo de hash criptográfico que produce un hash de 128 bits, típicamente representado como una cadena de 32 caracteres hexadecimales. Esta suma se utiliza comúnmente para verificar la integridad de los archivos, ya que cualquier cambio en un archivo genera una suma MD5 diferente.* |
+
+Formas de uso:
+```bash
+md5sum [opciones] archivo
 ```
 
 Ejemplo:
-* 
-```bash
 
+* Generar la **suma MD5 de un archivo**:
+```bash
+md5sum archivo.txt
+```
+Esto genera y muestra la **suma MD5 de archivo.txt: d41d8cd98f00b204e9800998ecf8427e**. La salida consta del **hash MD5** seguido del nombre del archivo.
+
+* Guardar la **suma MD5 en un archivo**:
+```bash
+md5sum archivo.txt > archivo.md5
+```
+Esto genera la **suma MD5 de archivo.txt** y la guarda en el **archivo archivo.md5**.
+
+* Verificar la integridad de un archivo usando un **archivo de suma MD5**:
+```bash
+md5sum -c archivo.md5
+```
+Si la suma coincide, mostrará: **archivo.txt: OK**.
+
+<br>
+
+**Continuemos con la solución.**
+
+<br>
+
+<h2 id="Sol22">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+ssh bandit22@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit22@bandit.labs.overthewire.org's password:
+```
+La contraseña es la que encontraste en el **nivel 21**.
+
+La solución es muy similar al nivel anterior, pero aquí vamos a analizar el script que se esta ejecutando.
+
+Probemos:
+
+* Veamos que tareas estan ejecutandose en la ruta que nos menciona las instrucciones:
+```bash
+bandit22@bandit:~$ ls -l /etc/cron.d/
+total 24
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit22
+-rw-r--r-- 1 root root 122 Sep 19 07:08 cronjob_bandit23
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit24
+-rw-r--r-- 1 root root 201 Apr  8 14:38 e2scrub_all
+-rwx------ 1 root root  52 Sep 19 07:10 otw-tmp-dir
+-rw-r--r-- 1 root root 396 Jan  9  2024 sysstat
+```
+
+* Veamos el contenido de la tarea de **bandit23**:
+
+```bash
+bandit22@bandit:~$ cat /etc/cron.d/cronjob_bandit23
+@reboot bandit23 /usr/bin/cronjob_bandit23.sh  &> /dev/null
+* * * * * bandit23 /usr/bin/cronjob_bandit23.sh  &> /dev/null
+```
+Se esta ejecutando un binario, al parecer cada minuto.
+
+* Veamos el contenido del binario que se esta ejecutando:
+```bash
+bandit22@bandit:~$ cat /usr/bin/cronjob_bandit23.sh
+#!/bin/bash
+myname=$(whoami)
+mytarget=$(echo I am user $myname | md5sum | cut -d ' ' -f 1)
+echo "Copying passwordfile /etc/bandit_pass/$myname to /tmp/$mytarget"
+cat /etc/bandit_pass/$myname > /tmp/$mytarget
+```
+El script ocupa 2 variables, en la primer variable guarda el nombre del usuario (que es el usuario **bandit23**), en la segunda variable imprime una frase junto al contenido de la primer variable, el resultado lo convierte a **md5** y elimina los espacios. Después, imprime un mensaje que indica que se esta copiando la contraseña del archivo **/etc/bandit_pass/bandit23**, en un archivo con el nombre resultante de la segunda variable dentro del **directorio /tmp** y al final ocurre lo que menciona el mensaje, es decir, copia la contraseña de **bandit23** al archivo mencionado.
+
+* Debemos encontrar el nombre de este archivo, para esto, vamos a copiar el comando que se ejecuta en la segunda variable y vamos a modificarlo, cambiando el comando para agregar el nombre **bandit23**:
+```bash
+bandit22@bandit:~$ echo I am user bandit23 | md5sum | cut -d ' ' -f 1
+8ca319486bfbbc3663ea0fbe81326349
+```
+
+* Ya tenemos el nombre del archivo, ya solamente comprobamos si existe este archivo existe apuntando al **directorio /tmp**:
+```bash
+bandit22@bandit:~$ file /tmp/8ca319486bfbbc3663ea0fbe81326349
+/tmp/8ca319486bfbbc3663ea0fbe81326349: ASCII text
+```
+
+* Si existe, ya solo ve el contenido para obtener la contraseña del siguiente nivel:
+```bash
+bandit22@bandit:~$ cat /tmp/8ca319486bfbbc3663ea0fbe81326349
+...
+```
+Y listo.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel23" style="text-align:center;">Nivel 23 a 24</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Un programa se está ejecutando automáticamente a intervalos regulares desde **cron**, el programador de trabajos basado en el tiempo. Busque en **/etc/cron.d/** la configuración y vea qué comando se está ejecutando.
+
+**NOTA**: **Este nivel requiere que crees tu primer shell-script**. Este es un gran paso y deberías estar orgulloso de ti mismo cuando superes este nivel.
+
+**NOTA 2**: Ten en cuenta que tu shell script es eliminado una vez ejecutado, así que quizás quieras mantener una copia...
+
+----------------
+<br>
+
+<h2 id="Exp23">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="cp">Comando cp</h3>
+
+| **Comando cp** |
+|:-----------:|
+| *El comando cp (abreviatura de copy) se utiliza en sistemas Unix y Linux para copiar archivos y directorios de un lugar a otro. Puedes copiar uno o varios archivos a una ubicación nueva, o copiar directorios completos, dependiendo de las opciones que utilices.* |
+
+Formas de uso:
+```bash
+cp [opciones] origen destino
+```
+* **origen**: Archivo o directorio que deseas copiar.
+* **destino**: Lugar donde deseas copiar el archivo o directorio.
+
+Ejemplo:
+* Copiar un archivo a otra ubicación:
+```bash
+cp archivo.txt /ruta/destino/
+```
+
+* Copiar y renombrar un archivo:
+```bash
+cp archivo.txt archivo_copia.txt
+```
+
+* Copiar un directorio y su contenido:
+```bash
+cp -r /directorio_origen /ruta/destino/
+```
+
+<h3 id="touch">Comando touch</h3>
+
+| **Comando touch** |
+|:-----------:|
+| *El comando touch se utiliza en sistemas Unix y Linux principalmente para crear archivos vacíos o actualizar las marcas de tiempo de archivos y directorios ya existentes, como la fecha y hora de modificación o acceso.* |
+
+Formas de uso:
+```bash
+touch [opciones] archivo
+```
+
+Ejemplo:
+* Creando un archivo vacío:
+```bash
+touch archivo.txt
+```
+
+* Actualizando la fecha y hora de acceso de un archivo:
+```bash
+touch -a archivo.txt
+```
+
+* Modificando solo la fecha de modificación:
+```bash
+touch -m archivo.txt
+```
+
+<br>
+
+<h3 id="watch">Comando watch</h3>
+
+| **Comando watch** |
+|:-----------:|
+| *El comando watch en sistemas Unix y Linux se utiliza para ejecutar periódicamente otro comando y mostrar su salida en la terminal. Es útil para monitorear cambios en tiempo real, ya que permite ejecutar un comando a intervalos regulares, actualizando la salida cada pocos segundos.* |
+
+Formas de uso:
+```bash
+watch [opciones] comando
+```
+* **comando**: El comando que deseas ejecutar repetidamente.
+
+Ejemplo:
+
+* Monitorear el uso del disco:
+```bash
+watch df -h
+```
+Esto ejecuta el **comando df -h** cada 2 segundos y muestra el uso de disco en tiempo real.
+
+* Monitorear los archivos en un directorio:
+```bash
+watch ls -l /ruta/del/directorio
+```
+Este comando ejecutará **ls -l** cada 2 segundos para mostrar los archivos de un directorio y actualizar la lista si hay cambios.
+
+* Cambiar el intervalo de actualización:
+```bash
+watch -n 5 uptime
+```
+Esto ejecutará **uptime** cada 5 segundos, mostrando el tiempo que el sistema lleva activo y la carga promedio del sistema.
+
+<br>
+
+**Continuemos con la solución.**
+
+<br>
+
+<h2 id="Sol23">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+ssh bandit23@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit23@bandit.labs.overthewire.org's password:
+```
+La contraseña es la que encontraste en el **nivel 22**.
+
+Igual que el nivel anterior, debemos ver que binario se esta ejecutando y analizar lo que hace.
+
+Probemos:
+
+* Veamos que tareas estan ejecutandose en la ruta que nos menciona las instrucciones:
+```bash
+bandit23@bandit:~$ ls -l /etc/cron.d/
+total 24
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit22
+-rw-r--r-- 1 root root 122 Sep 19 07:08 cronjob_bandit23
+-rw-r--r-- 1 root root 120 Sep 19 07:08 cronjob_bandit24
+-rw-r--r-- 1 root root 201 Apr  8 14:38 e2scrub_all
+-rwx------ 1 root root  52 Sep 19 07:10 otw-tmp-dir
+-rw-r--r-- 1 root root 396 Jan  9  2024 sysstat
+```
+
+* Veamos el contenido de la tarea de **bandit24**:
+
+```bash
+bandit23@bandit:~$ cat /etc/cron.d/cronjob_bandit24
+@reboot bandit24 /usr/bin/cronjob_bandit24.sh &> /dev/null
+* * * * * bandit24 /usr/bin/cronjob_bandit24.sh &> /dev/null
+```
+Se esta ejecutando un binario, al parecer cada minuto.
+
+* Veamos el contenido del binario que se esta ejecutando:
+```bash
+bandit23@bandit:~$ cat /usr/bin/cronjob_bandit24.sh
+#!/bin/bash
+myname=$(whoami)
+cd /var/spool/$myname/foo
+echo "Executing and deleting all scripts in /var/spool/$myname/foo:"
+for i in * .*;
+do
+    if [ "$i" != "." -a "$i" != ".." ];
+    then
+        echo "Handling $i"
+        owner="$(stat --format "%U" ./$i)"
+        if [ "${owner}" = "bandit23" ]; then
+            timeout -s 9 60 ./$i
+        fi
+        rm -f ./$i
+    fi
+done
+```
+Analizando el script, esta eliminando todo el contenido dentro del **directorio /var/spool/bandit24/foo**, pero si el usuario **bandit23** crea un archivo dentro de este directorio, tiene 60 segundos para ejecutarse antes de que sea terminado y eliminado ese archivo.
+
+* Veamos que hay en el directorio **/var/spool** y **/var/spool/bandit24**:
+```bash
+bandit23@bandit:/tmp/tmp.IRhdxLMm05$ ls -la /var/spool
+total 20
+drwxr-xr-x  5 root     root     4096 Sep 19 07:08 .
+drwxr-xr-x 13 root     root     4096 Sep 20 18:37 ..
+dr-xr-x---  3 bandit24 bandit23 4096 Sep 19 07:08 bandit24
+drwxr-xr-x  3 root     root     4096 Sep  6 09:22 cron
+lrwxrwxrwx  1 root     root        7 Sep  6 09:22 mail -> ../mail
+drwx------  2 syslog   adm      4096 Apr  8 14:49 rsyslog
+bandit23@bandit:/tmp/tmp.IRhdxLMm05$ ls -la /var/spool/bandit24
+total 12
+dr-xr-x--- 3 bandit24 bandit23 4096 Sep 19 07:08 .
+drwxr-xr-x 5 root     root     4096 Sep 19 07:08 ..
+drwxrwx-wx 5 root     bandit24 4096 Sep 24 21:32 foo
+```
+
+* Vamos a crear un directorio de trabajo, le daremos permisos para que cualquiera pueda entrar, crear y leer y aquí crearemos un script que copie la contraseña de **bandit24** y la guarde en nuestro directorio de trabajo:
+```bash
+bandit23@bandit:~$ mktemp -d
+/tmp/tmp.2ztZyiMlEo
+bandit23@bandit:~$ cd /tmp/tmp.2ztZyiMlEo
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ chmod o+wx ../tmp.2ztZyiMlEo
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ nano script.sh
+------
+#!/bin/bash
+cat /etc/bandit_pass/bandit24 > /tmp/tmp.2ztZyiMlEo/hackeado.txt
+------
+```
+
+* Solo por si las dudas, vamos a crear un archivo random y lo vamos a copiar en el **directorio /var/spool/bandit24/foo** para comprobar que podemos guardar archivo ahí:
+```bash
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ touch ejemplo.txt
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ cp ejemplo.txt /var/spool/bandit24/foo
+```
+Si nos dejo, entonces no hay problema.
+
+* Una vez creado el script, vamos a darle permisos de ejecución y lo mandamos al **directorio /var/spool/bandit24/foo** y ahí también le daremos permisos de ejecución:
+```bash
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ chmod +x script.sh 
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ cp script.sh /var/spool/bandit24/foo/script.sh
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ chmod +x /var/spool/bandit24/foo/script.sh 
+```
+
+* Con el **comando watch** esperamos alrededor de 1 minuto para ver si se copia el archivo con la contraseña en nuestro directorio de trabajo **(para salir del comando, usa CTRL + C)**:
+```bash
+Every 1.0s: ls -l                                        
+total 4
+-rw-rw-r-- 1 bandit23 bandit23  0 Sep 24 21:53 ejemplo.txt
+-rw-rw-r-- 1 bandit24 bandit24 33 Sep 24 21:56 hackeado.txt
+-rwxrwxr-x 1 bandit23 bandit23 82 Sep 24 21:54 script.sh
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ ls -la
+total 168
+drwx----wx    2 bandit23 bandit23   4096 Sep 24 21:56 .
+drwxrwx-wt 1101 root     root     159744 Sep 24 21:56 ..
+-rw-rw-r--    1 bandit23 bandit23      0 Sep 24 21:53 ejemplo.txt
+-rw-rw-r--    1 bandit24 bandit24     33 Sep 24 21:56 hackeado.txt
+-rwxrwxr-x    1 bandit23 bandit23     82 Sep 24 21:54 script.sh
+bandit23@bandit:/tmp/tmp.2ztZyiMlEo$ cat hackeado.txt
+...
+```
+
+Y listo, ya tenemos la contraseña para el siguiente nivel.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel24" style="text-align:center;">Nivel 24 a 25</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Un **demonio** está escuchando en el **puerto 30002** y te dará la contraseña para **bandit25** si se le da la contraseña para **bandit24** y un **código secreto numérico de 4 dígitos**. No hay forma de recuperar el código PIN excepto **repasando todas las 10000 combinaciones**, lo que se denomina **forzar de forma bruta**.
+No es necesario crear nuevas conexiones cada vez.
+
+----------------
+<br>
+
+<h2 id="Exp24">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="wc">Comando wc</h3>
+
+| **Comando wc** |
+|:-----------:|
+| *El comando wc (abreviatura de word count) en sistemas Unix y Linux se utiliza para contar el número de líneas, palabras y caracteres en un archivo o en la entrada estándar. Es una herramienta útil para obtener estadísticas rápidas de texto.* |
+
+Formas de uso:
+```bash
+wc [opciones] archivo
+```
+
+Ejemplo:
+* Contando las líneas, palabras y caracteres de un archivo:
+```bash
+wc archivo.txt
+```
+La salida será algo como: `10  50 300 archivo.txt`
+
+* Contando solo las líneas de un archivo:
+```bash
+wc -l archivo.txt
+```
+
+* Contar solo las palabras de un archivo:
+```bash
+wc -w archivo.txt
 ```
 
 <br>
@@ -3451,14 +4079,312 @@ Ejemplo:
 
 <br>
 
-<h2 id="Sol?">Solución</h2>
+<h2 id="Sol24">Solución</h2>
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit24@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit24@bandit.labs.overthewire.org's password:
 ```
-La contraseña es la que encontraste en el **nivel ?**.
+La contraseña es la que encontraste en el **nivel 23**.
 
+Tenemos que aplicar fuerza bruta al **puerto 30002** para que nos de la contraseña del siguiente nivel, entonces debemos crear un diccionario que contenga las 10000 combinaciones que se necesitan, para encontrar la combinación correcta.
+
+Probemos:
+
+* Primero, probemos la respuesta que obtenemos, al proporcionar la **contraseña del nivel actual y un PIN random** al **puerto 30002 del localhost**:
+```bash
+bandit24@bandit:~$ cat "contraseña_nivel_actual 1234" | nc localhost 30002
+I am the pincode checker for user bandit25. Please enter the password for user bandit24 and the secret pincode on a single line, separated by a space.
+Wrong! Please enter the correct current password and pincode. Try again.
+^C
+```
+
+* Vamos a crear un directorio temporal y ahí trabajaremos:
+```bash
+bandit24@bandit:~$ mktemp -d
+/tmp/tmp.sol9uLgkKS
+bandit24@bandit:~$ cd /tmp/tmp.sol9uLgkKS
+```
+
+* Utilizando **programación en bash**, podemos imprimir 10 digitos ocupando un **bucle for** de la siguiente manera:
+```bash
+bandit24@bandit:/tmp/tmp.sol9uLgkKS$ for pin in {00..10}; do echo "$pin"; done
+00
+01
+02
+03
+04
+05
+06
+07
+08
+09
+10
+```
+
+* Con esto, solamente cambiamos la cantidad de digitos a imprimir para que den 10000, pasamos la contraseña del nivel actual y lo guardamos todo en un archivo:
+```bash
+bandit24@bandit:/tmp/tmp.sol9uLgkKS$ for pin in {0000..9999}; do echo "gb8KRRCsshuZXI0tUuR6ypOFjiZbf3G8 bandit24 $pin"; done > pins.txt
+bandit24@bandit:/tmp/tmp.sol9uLgkKS$ ls
+pins.txt
+```
+
+* Podemos comprobar la cantidad de lineas que tiene el archivo con el **comando wc**:
+```bash
+bandit24@bandit:/tmp/tmp.sol9uLgkKS$ wc -l pins.txt
+10000 pins.txt
+```
+
+* Ya solamente le pasamos estos datos al **puerto 30002** y con el **comando grep** filtramos los resultados para solo obtener el resultado que queremos:
+```bash
+bandit24@bandit:/tmp/tmp.sol9uLgkKS$ cat pins.txt | nc localhost 30002 | grep -v -E "Wrong|Please"
+Correct!
+The password of user bandit25 is contraseña_siguiente_nivel
+```
+
+Y listo, ya completamos este nivel.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel25" style="text-align:center;">Nivel 25 a 26 a 27</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Entrar en **bandit26** desde **bandit25** debería ser bastante fácil... El shell para el usuario **bandit26** no es /bin/bash, sino otra cosa. Averigua qué es, cómo funciona y cómo salir de él.
+
+**NOTA**: si eres un usuario de Windows y normalmente usas Powershell para hacer ssh en bandit: Powershell es conocido por causar problemas con la solución prevista a este nivel. Deberías usar símbolo del sistema en su lugar.
+
+----------------
+
+<br>
+
+<h2 id="Exp25">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="more">Comando more</h3>
+
+| **Comando more** |
+|:-----------:|
+| *El comando more en Unix y Linux se utiliza para visualizar el contenido de archivos de texto de manera paginada. A diferencia de comandos como cat que muestran todo el contenido del archivo de una vez, more permite navegar por el archivo de forma progresiva, lo cual es útil para leer archivos largos.* |
+
+Formas de uso:
+```bash
+more [opciones] archivo
+```
+
+Ejemplo:
+* Ver el contenido de un archivo:
+```bash
+more archivo.txt
+```
+
+* Mostrar desde una línea específica:
+```bash
+more +20 archivo.txt
+```
+
+* Combinar con otros comandos:
+```bash
+dmesg | more
+```
+
+<br>
+
+**Continuemos con la solución.**
+
+<br>
+
+<h2 id="Sol25">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+ssh bandit25@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit25@bandit.labs.overthewire.org's password:
+```
+La contraseña es la que encontraste en el **nivel 24**.
+
+Esto será un poco complicado, ya que vamos a obtener la contraseña para **bandit 26 y bandit27**.
+
+La idea principal es averiguar porque al conectarnos a **bandit26** nos saca al instante.
+
+Probemos:
+
+* Veamos que encontramos dentro del nivel actual:
+```bash
+bandit25@bandit:~$ ls -la
+total 40
+drwxr-xr-x  2 root     root     4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root     4096 Sep 19 07:09 ..
+-rw-r-----  1 bandit25 bandit25   33 Sep 19 07:08 .bandit24.password
+-r--------  1 bandit25 bandit25 1679 Sep 19 07:08 bandit26.sshkey
+-rw-r-----  1 bandit25 bandit25  151 Sep 19 07:08 .banner
+-rw-r--r--  1 root     root      220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root     3771 Mar 31 08:41 .bashrc
+-rw-r-----  1 bandit25 bandit25   66 Sep 19 07:08 .flag
+-rw-r-----  1 bandit25 bandit25    4 Sep 19 07:08 .pin
+-rw-r--r--  1 root     root      807 Mar 31 08:41 .profile
+bandit25@bandit:~$ file bandit26.sshkey 
+bandit26.sshkey: PEM RSA private key
+```
+Tenemos una llave privada para conectarnos al siguiente nivel.
+
+* Intentemos conectarnos al siguiente nivel:
+```bash
+bandit25@bandit:~$ ssh -i bandit26.sshkey bandit26@localhost -p 2220
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit25/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit25/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+...
+...
+For support, questions or comments, contact us on discord or IRC.
+*
+  Enjoy your stay!
+  _                     _ _ _   ___   __  
+ | |                   | (_) | |__ \ / /  
+ | |__   __ _ _ __   __| |_| |_   ) / /_  
+ | '_ \ / _` | '_ \ / _` | | __| / / '_ \ 
+ | |_) | (_| | | | | (_| | | |_ / /| (_) |
+ |_.__/ \__,_|_| |_|\__,_|_|\__|____\___/ 
+Connection to localhost closed.
+```
+Nos saca al instante.
+
+* Veamos que nos dice el **archivo /etc/passwd**, quizá nos de una pista:
+```bash
+bandit25@bandit:~$ cat /etc/passwd | grep "bandit26"
+bandit26:x:11026:11026:bandit level 26:/home/bandit26:/usr/bin/showtext
+```
+Aparece un binario **/usr/bin/showtext** que el que se ejecuta al inicar sesión.
+
+* Veamos que es ese binario:
+```bash
+bandit25@bandit:~$ cat /usr/bin/showtext
+#!/bin/sh
+export TERM=linux
+exec more ~/text.txt
+exit 0
+```
+Parece que se ejecuta el **comando more** en un archivo llamado **text.txt** cuando inicia sesión.
+
+* Tenemos que escapar del **comando more** que se esta ejecutando cuando iniciamos sesión en **bandit26**, lo que podemos hacer primero es dividir nuestra terminal en horizontal de tal modo que indique que **more** esta activo en la sesión actual.
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura1.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura2.png">
+</p>
+
+* Ya aparece la **etiqueta more**, podemos escapar de este si presionamos la tecla `V` y luego presionamos las teclas `Esc + SHIFT + :` y es como si estuvieramos en **vim o vi**:
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura3.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura4.png">
+</p>
+
+* Ahora indicamos que queremos cargar una **shell de Bash** con la instrucción `set shell=/bin/bash`:
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura5.png">
+</p>
+
+* Y ahora si, indicamos que nos meta en una **shell de Bash** con las teclas `Esc + SHIFT + :shell + ENTER`:
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura6.png">
+</p>
+
+* Y con esto ya tenemos una **sesión interactiva en bandit26**, igual podemos obtener la contraseña del nivel actual:
+```bash
+:shell
+[No write since last change]
+bandit26@bandit:~$ cat /etc/bandit_pass/bandit26
+contraseña_nivel_actual
+```
+
+Excelente, tenemos la contraseña de este nivel.
+
+Y de paso, podemos obtener la contraseña para **bandit27**.
+
+* Veamos que encontramos en **bandit 26**:
+```bash
+bandit26@bandit:~$ ls -la
+total 44
+drwxr-xr-x  3 root     root      4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root      4096 Sep 19 07:09 ..
+-rwsr-x---  1 bandit27 bandit26 14880 Sep 19 07:08 bandit27-do
+-rw-r--r--  1 root     root       220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root      3771 Mar 31 08:41 .bashrc
+-rw-r--r--  1 root     root       807 Mar 31 08:41 .profile
+drwxr-xr-x  2 root     root      4096 Sep 19 07:08 .ssh
+-rw-r-----  1 bandit26 bandit26   258 Sep 19 07:08 text.txt
+```
+
+* Veamos que hace ese binario:
+```bash
+bandit26@bandit:~$ ./bandit27-do 
+Run a command as another user.
+  Example: ./bandit27-do id
+```
+
+* Es un binario similar a otro nivel en el que ocupamos un binario similar para obtener la contraseña del siguiente nivel, hagamos lo mismo aquí:
+```bash
+bandit26@bandit:~$ ./bandit27-do cat /etc/bandit_pass/bandit27
+...
+```
+
+Y listo, ya tenemos la contraseña para **bandit27**.
+
+Si queremos salir de todo, escribimos **exit** y presionamos las teclas `Esc + SHIFT + :` y escribirmos **qa!**, de esta forma ya solo presionamos **ENTER** y nos sacara a **bandit25**.
+
+<p align="center">
+<img src="/assets/images/otw-writeups/bandit/Captura7.png">
+</p>
+
+Ahora si, vayamos a **bandit27**.
 
 
 <br>
@@ -3512,62 +4438,6 @@ Primero entremos al **servicio SSH**:
 La contraseña es la que encontraste en el **nivel ?**.
 
 
-
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
-</div>
-<br>
-
-
-**INSTRUCCIONES**:
-
-texto
-----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
-
-<br>
-
-<h3 id="?">Comando ?</h3>
-
-| **Comando ** |
-|:-----------:|
-| ** |
-
-Formas de uso:
-```bash
-
-```
-
-Ejemplo:
-* 
-```bash
-
-```
-
-<br>
-
-**Continuemos con la solución.**
-
-<br>
-
-<h2 id="Sol?">Solución</h2>
-
-Primero entremos al **servicio SSH**:
-```bash
-
-```
-La contraseña es la que encontraste en el **nivel ?**.
-
-
-
-
-
 <br>
 <br>
 <hr>
@@ -3669,6 +4539,56 @@ Primero entremos al **servicio SSH**:
 ```
 La contraseña es la que encontraste en el **nivel ?**.
 
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+texto
+----------------
+<br>
+
+<h2 id="Exp?">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="?">Comando ?</h3>
+
+| **Comando ** |
+|:-----------:|
+| ** |
+
+Formas de uso:
+```bash
+
+```
+
+Ejemplo:
+* 
+```bash
+
+```
+
+<br>
+
+**Continuemos con la solución.**
+
+<br>
+
+<h2 id="Sol?">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+
+```
+La contraseña es la que encontraste en el **nivel ?**.
 
 
 
