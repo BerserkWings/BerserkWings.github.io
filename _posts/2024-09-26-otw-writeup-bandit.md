@@ -2,7 +2,7 @@
 layout: single
 title: Bandit - Over The Wire
 excerpt: "Lo que haremos en esta ocasión, será resolver todos los niveles que se encuentran en la sección **Bandit**, esto como práctica de pentesting en entornos Linux."
-date: 2024-07-10
+date: 2024-09-26
 classes: wide
 header:
   teaser: /assets/images/otw-writeups/overthewire-logo.jpg
@@ -233,7 +233,7 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
                                         <li><a href="#touch">Comando touch</a></li>
                                         <li><a href="#watch">Comando watch</a></li>
                                 </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol23">Solución</a></li>
                         </ul>
 		<li><a href="#Nivel24">Nivel 24 a 25</a></li>
                         <ul> 
@@ -251,45 +251,37 @@ Guarda las contraseñas que vayas encontrando, por si vas haciendo notas o por s
                                 </ul>
                                 <li><a href="#Sol25">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
+		<li><a href="#Nivel27">Nivel 27 a 28</a></li>
                         <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
+                                <li><a href="#Exp27">Descripción de Comandos</a></li>
                                 <ul> 
-                                        <li><a href="#"></a></li>
+                                        <li><a href="#git">Comando git</a></li>
                                 </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol27">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
+		<li><a href="#Nivel28">Nivel 28 a 29</a></li>
                         <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul> 
-                                        <li><a href="#"></a></li>
-                                </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol28">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
+		<li><a href="#Nivel29">Nivel 29 a 30</a></li>
                         <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul> 
-                                        <li><a href="#"></a></li>
-                                </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol29">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
+		<li><a href="#Nivel30">Nivel 30 a 31</a></li>
                         <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
-                                <ul> 
-                                        <li><a href="#"></a></li>
-                                </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol30">Solución</a></li>
                         </ul>
-		<li><a href="#Nivel?">Nivel ? a ?</a></li>
+		<li><a href="#Nivel31">Nivel 31 a 32</a></li>
                         <ul> 
-                                <li><a href="#Exp?">Descripción de Comandos</a></li>
+                                <li><a href="#Sol31">Solución</a></li>
+                        </ul>
+		<li><a href="#Nivel32">Nivel 32 a 33</a></li>
+                        <ul> 
+                                <li><a href="#Exp32">Descripción de Comandos</a></li>
                                 <ul> 
-                                        <li><a href="#"></a></li>
+                                        <li><a href="#argumentos">Argumentos Posicionales en Bash</a></li>
                                 </ul>
-                                <li><a href="#Sol?">Solución</a></li>
+                                <li><a href="#Sol32">Solución</a></li>
                         </ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -2647,7 +2639,7 @@ Listo, ya terminamos con este nivel.
 <br>
 <hr>
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel 15 a 16</h1>
+        <h1 id="Nivel15" style="text-align:center;">Nivel 15 a 16</h1>
 </div>
 <br>
 
@@ -4378,7 +4370,7 @@ bandit26@bandit:~$ ./bandit27-do cat /etc/bandit_pass/bandit27
 
 Y listo, ya tenemos la contraseña para **bandit27**.
 
-Si queremos salir de todo, escribimos **exit** y presionamos las teclas `Esc + SHIFT + :` y escribirmos **qa!**, de esta forma ya solo presionamos **ENTER** y nos sacara a **bandit25**.
+Si queremos salir de todo, escribimos **exit** y presionamos las teclas `Esc + SHIFT + :` y escribimos **qa!**, de esta forma ya solo presionamos **ENTER** y nos sacara a **bandit25**.
 
 <p align="center">
 <img src="/assets/images/otw-writeups/bandit/Captura7.png">
@@ -4391,36 +4383,97 @@ Ahora si, vayamos a **bandit27**.
 <br>
 <hr>
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+        <h1 id="Nivel27" style="text-align:center;">Nivel 27 a 28</h1>
 </div>
 <br>
 
 
 **INSTRUCCIONES**:
 
-texto
+Hay un **repositorio git** en `ssh://bandit27-git@localhost/home/bandit27-git/repo` a través del **puerto 2220**. La contraseña para el **usuario bandit27-git** es la misma que para el **usuario bandit27**.
+
+Clona el repositorio y encuentra la contraseña para el siguiente nivel.
+
 ----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
 
 <br>
 
-<h3 id="?">Comando ?</h3>
+<h2 id="Exp27">Descripción de Comandos</h2>
 
-| **Comando ** |
+<br>
+
+<h3 id="git">Comando git</h3>
+
+| **Comando git** |
 |:-----------:|
-| ** |
+| *git es un sistema de control de versiones distribuido utilizado para gestionar proyectos de software. Permite a los desarrolladores realizar un seguimiento de los cambios en el código, colaborar en equipo y gestionar diferentes versiones de un proyecto de manera eficiente. Git se utiliza para almacenar, compartir y coordinar cambios en repositorios de código.* |
 
 Formas de uso:
 ```bash
-
+git [comando] [opciones]
 ```
 
-Ejemplo:
-* 
+**Comandos comunes de git**:
+* Clonar un repositorio (git clone): Copia un repositorio existente en tu máquina local.
 ```bash
+git clone https://github.com/usuario/repositorio.git
+```
 
+* Ver el estado del repositorio **(git status)**: Muestra el estado actual de los archivos en el repositorio, es decir, si están modificados, en seguimiento, etc.
+```bash
+git status
+```
+
+* Agregar archivos al área de preparación **(git add)**: Añade archivos o cambios al área de preparación para que puedan ser confirmados.
+```bash
+git add archivo.txt
+# o para añadir todos los cambios:
+git add .
+```
+
+* Confirmar cambios **(git commit)**: Guarda los cambios preparados en el repositorio local. Cada confirmación tiene un mensaje asociado que describe los cambios realizados.
+```bash
+git commit -m "Mensaje de confirmación"
+```
+
+* Enviar cambios a un repositorio remoto **(git push)**: Sube los cambios locales a un repositorio remoto, como **GitHub o GitLab**.
+```bash
+git push origin main
+```
+
+* Ver el historial de commits **(git log)**: Muestra el historial de commits en el proyecto.
+```bash
+git log
+```
+
+* Crear ramas para el proyecto **(git branch)**:
+```bash
+git branch nombre_nueva_rama
+```
+
+* Moviendonos entre ramas **(git checkout)**:
+```bash
+git checkout nombre_rama
+```
+
+* Clonando repositorio almacenado en **servidor SSH**:
+```bash
+git clone ssh://developer@example.com:2222/home/developer/repo.git
+```
+
+* Mostrando las diferencias entre tu directorio de trabajo y el área de preparación (o entre commits):
+```bash
+git diff
+```
+
+* Listando todas las etiquetas:
+```bash
+git tag
+```
+
+* Mostrando detalles de una etiqueta o commit:
+```bash
+git show nombre_etiqueta_o_commit
 ```
 
 <br>
@@ -4429,152 +4482,715 @@ Ejemplo:
 
 <br>
 
-<h2 id="Sol?">Solución</h2>
+<h2 id="Sol27">Solución</h2>
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit27@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit27@bandit.labs.overthewire.org's password:
 ```
-La contraseña es la que encontraste en el **nivel ?**.
+La contraseña es la que encontraste en el **nivel 26**.
+
+A partir de este nivel, es recomendable que te avientes un cursito de git, aunque puse algunos de los comandos más comunes y útiles, pienso que es mejor que lo practiques creando tu propio repositorio y jugando con el para entender su funcionamiento.
+
+La idea es simple para este nivel, tan solo hay que clonar el repositorio que nos menciona las instrucciones y ahí se encontrara la contraseña para el siguiente nivel.
+
+Probemos:
+
+* Creando un directorio temporal como nuestro directorio de trabajo:
+```bash
+bandit27@bandit:~$ mktemp -d
+/tmp/tmp.zkF49m44SS
+bandit27@bandit:~$ cd /tmp/tmp.zkF49m44SS
+bandit27@bandit:/tmp/tmp.zkF49m44SS$
+```
+
+* Clonando el repositor especificando el puerto:
+
+```bash
+bandit27@bandit:/tmp/tmp.zkF49m44SS$ git clone ssh://bandit27-git@localhost:2220/home/bandit27-git/repo
+Cloning into 'repo'...
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit27/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit27/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit27-git@localhost's password: 
+remote: Enumerating objects: 3, done.
+remote: Counting objects: 100% (3/3), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
+Receiving objects: 100% (3/3), done.
+```
+
+* Navegando en el repositorio y leyendo el **archivo README**:
+
+```bash
+bandit27@bandit:/tmp/tmp.zkF49m44SS$ ls -la
+total 168
+drwx------    3 bandit27 bandit27   4096 Sep 25 23:21 .
+drwxrwx-wt 2670 root     root     159744 Sep 25 23:21 ..
+drwxrwxr-x    3 bandit27 bandit27   4096 Sep 25 23:21 repo
+bandit27@bandit:/tmp/tmp.zkF49m44SS$ cd repo/
+bandit27@bandit:/tmp/tmp.zkF49m44SS/repo$ ls -la
+total 16
+drwxrwxr-x 3 bandit27 bandit27 4096 Sep 25 23:21 .
+drwx------ 3 bandit27 bandit27 4096 Sep 25 23:21 ..
+drwxrwxr-x 8 bandit27 bandit27 4096 Sep 25 23:21 .git
+-rw-rw-r-- 1 bandit27 bandit27   68 Sep 25 23:21 README
+bandit27@bandit:/tmp/tmp.zkF49m44SS/repo$ cat README 
+The password to the next level is: contraseña_siguiente_nivel.
+```
+
+Listo, ya completamos este nivel.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+        <h1 id="Nivel28" style="text-align:center;">Nivel 28 a 29</h1>
 </div>
 <br>
 
 
 **INSTRUCCIONES**:
 
-texto
+Hay un **repositorio git** en `ssh://bandit28-git@localhost/home/bandit28-git/repo` a través del **puerto 2220**. La contraseña para el **usuario bandit28-git** es la misma que para el **usuario bandit28**.
+
+Clona el repositorio y encuentra la contraseña para el siguiente nivel.
+
 ----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
 
 <br>
 
-<h3 id="?">Comando ?</h3>
-
-| **Comando ** |
-|:-----------:|
-| ** |
-
-Formas de uso:
-```bash
-
-```
-
-Ejemplo:
-* 
-```bash
-
-```
-
-<br>
-
-**Continuemos con la solución.**
-
-<br>
-
-<h2 id="Sol?">Solución</h2>
+<h2 id="Sol28">Solución</h2>
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit28@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit28@bandit.labs.overthewire.org's password:
 ```
-La contraseña es la que encontraste en el **nivel ?**.
+La contraseña es la que encontraste en el **nivel 27**.
+
+Debemos descargar el repositorio y encontrar la contraseña, el chiste aquí es que no estará la contraseña sino una pista.
+
+Probemos:
+
+* Creando directorio temporal como nuestro directorio de trabajo:
+```bash
+bandit28@bandit:~$ mktemp -d
+/tmp/tmp.4aIUGcxtoj
+bandit28@bandit:~$ cd /tmp/tmp.4aIUGcxtoj
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj$
+```
+
+* Clonando el repositor especificando el puerto:
+```bash
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj$ git clone ssh://bandit28-git@localhost:2220/home/bandit28-git/repo
+Cloning into 'repo'...
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit28/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit28/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit28-git@localhost's password: 
+remote: Enumerating objects: 9, done.
+remote: Counting objects: 100% (9/9), done.
+remote: Compressing objects: 100% (6/6), done.
+remote: Total 9 (delta 2), reused 0 (delta 0), pack-reused 0
+Receiving objects: 100% (9/9), done.
+Resolving deltas: 100% (2/2), done.
+```
+
+* Navegando en el repositorio y revisando pistas:
+
+```bash
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj$ ls -la
+total 168
+drwx------    3 bandit28 bandit28   4096 Sep 25 23:56 .
+drwxrwx-wt 2694 root     root     159744 Sep 25 23:56 ..
+drwxrwxr-x    3 bandit28 bandit28   4096 Sep 25 23:56 repo
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj$ cd repo/
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj/repo$ ls -la
+total 16
+drwxrwxr-x 3 bandit28 bandit28 4096 Sep 25 23:56 .
+drwx------ 3 bandit28 bandit28 4096 Sep 25 23:56 ..
+drwxrwxr-x 8 bandit28 bandit28 4096 Sep 25 23:56 .git
+-rw-rw-r-- 1 bandit28 bandit28  111 Sep 25 23:56 README.md
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj/repo$ cat README.md 
+# Bandit Notes
+Some notes for level29 of bandit.
+## credentials
+- username: bandit29
+- password: xxxxxxxxxx
+```
+Esto me da a entender que se cambio el archivo original, pero podemos ver las distintas versiones de este archivo con el parámetro log.
+
+* Revisando el historial de cambios realizados con el parámetro `log`:
+```bash
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj/repo$ git log
+commit 817e303aa6c2b207ea043c7bba1bb7575dc4ea73 (HEAD -> master, origin/master, origin/HEAD)
+Author: Morla Porla <morla@overthewire.org>
+Date:   Thu Sep 19 07:08:39 2024 +0000
+*
+    fix info leak
+*
+commit 3621de89d8eac9d3b64302bfb2dc67e9a566decd
+Author: Morla Porla <morla@overthewire.org>
+Date:   Thu Sep 19 07:08:39 2024 +0000
+*
+    add missing data
+*
+commit 0622b73250502618babac3d174724bb303c32182
+Author: Ben Dover <noone@overthewire.org>
+Date:   Thu Sep 19 07:08:39 2024 +0000
+*
+    initial commit of README.md
+```
+
+* Revisando esos cambios con el parámetro `show id_commit`:
+
+```bash
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj/repo$ git show 817e303aa6c2b207ea043c7bba1bb7575dc4ea73
+commit 817e303aa6c2b207ea043c7bba1bb7575dc4ea73 (HEAD -> master, origin/master, origin/HEAD)
+Author: Morla Porla <morla@overthewire.org>
+Date:   Thu Sep 19 07:08:39 2024 +0000
+*
+    fix info leak
+*
+diff --git a/README.md b/README.md
+index d4e3b74..5c6457b 100644
+--- a/README.md
++++ b/README.md
+@@ -4,5 +4,5 @@ Some notes for level29 of bandit.
+ ## credentials
+ - username: bandit29
+-- password: contraseña_siguiente_nivel
++- password: xxxxxxxxxx
+bandit28@bandit:/tmp/tmp.4aIUGcxtoj/repo$ git show 3621de89d8eac9d3b64302bfb2dc67e9a566decd
+commit 3621de89d8eac9d3b64302bfb2dc67e9a566decd
+Author: Morla Porla <morla@overthewire.org>
+Date:   Thu Sep 19 07:08:39 2024 +0000
+*
+    add missing data
+*
+diff --git a/README.md b/README.md
+index 7ba2d2f..d4e3b74 100644
+--- a/README.md
++++ b/README.md
+@@ -4,5 +4,5 @@ Some notes for level29 of bandit.
+ ## credentials
+ - username: bandit29
+-- password: <TBD>
++- password: contraseña_siguiente_nivel
+```
+
+Listo, ya tenemos la contraseña para el siguiente nivel.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+        <h1 id="Nivel29" style="text-align:center;">Nivel 29 a 30</h1>
 </div>
 <br>
 
 
 **INSTRUCCIONES**:
 
-texto
+Hay un **repositorio git** en `ssh://bandit29-git@localhost/home/bandit29-git/repo` a través del **puerto 2220**. La contraseña para el **usuario bandit29-git** es la misma que para el **usuario bandit29**.
+
+Clona el repositorio y encuentra la contraseña para el siguiente nivel.
+
 ----------------
-<br>
-
-<h2 id="Exp?">Descripción de Comandos</h2>
 
 <br>
 
-<h3 id="?">Comando ?</h3>
-
-| **Comando ** |
-|:-----------:|
-| ** |
-
-Formas de uso:
-```bash
-
-```
-
-Ejemplo:
-* 
-```bash
-
-```
-
-<br>
-
-**Continuemos con la solución.**
-
-<br>
-
-<h2 id="Sol?">Solución</h2>
+<h2 id="Sol29">Solución</h2>
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit29@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit29@bandit.labs.overthewire.org's password:
 ```
-La contraseña es la que encontraste en el **nivel ?**.
+La contraseña es la que encontraste en el **nivel 28**.
+
+Debemos descargar el repositorio y encontrar la contraseña, el chiste aquí es que no estará la contraseña sino una pista.
+
+Probemos:
+
+* Creando directorio temporal como nuestro directorio de trabajo:
+```bash
+bandit29@bandit:~$ mktemp -d
+/tmp/tmp.CZmVcR6wWk
+bandit29@bandit:~$ cd /tmp/tmp.CZmVcR6wWk
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk$
+```
+
+* Clonando el repositor especificando el puerto:
+```bash
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk$ git clone ssh://bandit29-git@localhost:2220/home/bandit29-git/repo
+Cloning into 'repo'...
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes     
+Could not create directory '/home/bandit29/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit29/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit29-git@localhost's password: 
+remote: Enumerating objects: 16, done.
+remote: Counting objects: 100% (16/16), done.
+remote: Compressing objects: 100% (11/11), done.
+remote: Total 16 (delta 2), reused 0 (delta 0), pack-reused 0
+Receiving objects: 100% (16/16), done.
+Resolving deltas: 100% (2/2), done.
+```
+
+* Navegando en el repositorio, buscando pistas:
+
+```bash
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk$ ls -la
+total 168
+drwx------    3 bandit29 bandit29   4096 Sep 26 00:17 .
+drwxrwx-wt 2711 root     root     159744 Sep 26 00:17 ..
+drwxrwxr-x    3 bandit29 bandit29   4096 Sep 26 00:17 repo
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk$ cd repo/
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ ls -a
+.  ..  .git  README.md
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ ls -la
+total 16
+drwxrwxr-x 3 bandit29 bandit29 4096 Sep 26 00:17 .
+drwx------ 3 bandit29 bandit29 4096 Sep 26 00:17 ..
+drwxrwxr-x 8 bandit29 bandit29 4096 Sep 26 00:17 .git
+-rw-rw-r-- 1 bandit29 bandit29  131 Sep 26 00:17 README.md
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ cat README.md 
+# Bandit Notes
+Some notes for bandit30 of bandit.
+## credentials
+- username: bandit30
+- password: <no passwords in production!>
+```
+Esto me da a entender que pueden existir ramas en este proyecto, ya que menciona que **no hay contraseñas en producción**, por lo que deben existir una rama por ahí que si la tenga.
+
+* Revisando si existen más ramas:
+
+```bash
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ git branch -a
+* master
+  remotes/origin/HEAD -> origin/master
+  remotes/origin/dev
+  remotes/origin/master
+  remotes/origin/sploits-dev
+```
+
+* Investigando que rama tiene la contraseña para el siguiente nivel:
+
+```bash
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ git checkout dev
+branch 'dev' set up to track 'origin/dev'.
+Switched to a new branch 'dev'
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ ls -la
+total 20
+drwxrwxr-x 4 bandit29 bandit29 4096 Sep 26 00:18 .
+drwx------ 3 bandit29 bandit29 4096 Sep 26 00:17 ..
+drwxrwxr-x 2 bandit29 bandit29 4096 Sep 26 00:18 code
+drwxrwxr-x 8 bandit29 bandit29 4096 Sep 26 00:18 .git
+-rw-rw-r-- 1 bandit29 bandit29  134 Sep 26 00:18 README.md
+bandit29@bandit:/tmp/tmp.CZmVcR6wWk/repo$ cat README.md 
+# Bandit Notes
+Some notes for bandit30 of bandit.
+## credentials
+- username: bandit30
+- password: contraseña_siguiente_nivel
+```
+
+Listo, completamos este nivel.
 
 
 <br>
 <br>
 <hr>
 <div style="position: relative;">
-        <h1 id="Nivel?" style="text-align:center;">Nivel ? a ?</h1>
+        <h1 id="Nivel30" style="text-align:center;">Nivel 30 a 31</h1>
 </div>
 <br>
 
 
 **INSTRUCCIONES**:
 
-texto
+Hay un **repositorio git** en `ssh://bandit30-git@localhost/home/bandit30-git/repo` a través del **puerto 2220**. La contraseña para el **usuario bandit30-git** es la misma que para el **usuario bandit30**.
+
+Clona el repositorio y encuentra la contraseña para el siguiente nivel.
+
 ----------------
 <br>
 
-<h2 id="Exp?">Descripción de Comandos</h2>
+<h2 id="Sol30">Solución</h2>
+
+Primero entremos al **servicio SSH**:
+```bash
+ssh bandit30@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit30@bandit.labs.overthewire.org's password:
+```
+La contraseña es la que encontraste en el **nivel 29**.
+
+Debemos descargar el repositorio y encontrar la contraseña, el chiste aquí es que no estará la contraseña sino una pista.
+
+Probemos:
+
+* Creando directorio temporal como nuestro directorio de trabajo:
+```bash
+bandit30@bandit:~$ mktemp -d
+/tmp/tmp.4NWua6xgyt
+bandit30@bandit:~$ cd /tmp/tmp.4NWua6xgyt
+bandit30@bandit:/tmp/tmp.4NWua6xgyt$
+```
+
+* Clonando el repositorio especificando el puerto:
+```bash
+bandit30@bandit:/tmp/tmp.4NWua6xgyt$ git clone ssh://bandit30-git@localhost:2220/home/bandit30-git/repo
+Cloning into 'repo'...
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit30/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit30/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit30-git@localhost's password: 
+remote: Enumerating objects: 4, done.
+remote: Counting objects: 100% (4/4), done.
+remote: Total 4 (delta 0), reused 0 (delta 0), pack-reused 0
+Receiving objects: 100% (4/4), done.
+```
+
+* Navegando dentro del repositorio, buscando pistas:
+```bash
+bandit30@bandit:/tmp/tmp.4NWua6xgyt$ ls -la
+total 168
+drwx------    3 bandit30 bandit30   4096 Sep 26 00:59 .
+drwxrwx-wt 2747 root     root     159744 Sep 26 00:59 ..
+drwxrwxr-x    3 bandit30 bandit30   4096 Sep 26 00:59 repo
+bandit30@bandit:/tmp/tmp.4NWua6xgyt$ cd repo/
+bandit30@bandit:/tmp/tmp.4NWua6xgyt/repo$ ls -la
+total 16
+drwxrwxr-x 3 bandit30 bandit30 4096 Sep 26 00:59 .
+drwx------ 3 bandit30 bandit30 4096 Sep 26 00:59 ..
+drwxrwxr-x 8 bandit30 bandit30 4096 Sep 26 00:59 .git
+-rw-rw-r-- 1 bandit30 bandit30   30 Sep 26 00:59 README.md
+bandit30@bandit:/tmp/tmp.4NWua6xgyt/repo$ cat README.md 
+just an epmty file... muahaha
+```
+Según la pista no hay nada más que un archivo vacio, si buscamos los logs o si hay ramas, no encontraremos nada por lo que lo único que faltaría es revisar si no hay etiquetas.
+
+* Revisando si hay etiquetas en el repositorio:
+```bash
+bandit30@bandit:/tmp/tmp.4NWua6xgyt/repo$ git tag
+secret
+```
+
+* Mostrando el contenido de la etiqueta encontrada:
+```bash
+bandit30@bandit:/tmp/tmp.4NWua6xgyt/repo$ git show secret
+contrasñe_siguiente_nivel
+```
+
+Listo, ya completamos este nivel.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel31" style="text-align:center;">Nivel 31 a 32</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Hay un **repositorio** git en `ssh://bandit31-git@localhost/home/bandit31-git/repo` a través del **puerto 2220**. La contraseña para el **usuario bandit31-git** es la misma que para el **usuario bandit31**.
+
+Clona el repositorio y encuentra la contraseña para el siguiente nivel.
+
+----------------
 
 <br>
 
-<h3 id="?">Comando ?</h3>
+<h2 id="Sol31">Solución</h2>
 
-| **Comando ** |
-|:-----------:|
-| ** |
-
-Formas de uso:
+Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit31@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit31@bandit.labs.overthewire.org's password:
 ```
+La contraseña es la que encontraste en el **nivel 30**.
+
+Debemos descargar el repositorio y encontrar la contraseña, el chiste aquí es que no estará la contraseña sino una pista.
+
+Probemos:
+
+* Creando directorio temporal como nuestro directorio de trabajo:
+```bash
+bandit31@bandit:~$ mktemp -d
+/tmp/tmp.osHpu3TtW8
+bandit31@bandit:~$ cd /tmp/tmp.osHpu3TtW8
+bandit31@bandit:/tmp/tmp.osHpu3TtW8$
+```
+
+* Clonando repositorio especificando el puerto:
+```bash
+bandit31@bandit:/tmp/tmp.osHpu3TtW8$ git clone ssh://bandit31-git@localhost:2220/home/bandit31-git/repo
+Cloning into 'repo'...
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit31/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit31/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit31-git@localhost's password: 
+remote: Enumerating objects: 4, done.
+remote: Counting objects: 100% (4/4), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 4 (delta 0), reused 0 (delta 0), pack-reused 0
+Receiving objects: 100% (4/4), 381 bytes | 127.00 KiB/s, done.
+```
+
+* Navegando en el repositorio, buscando pistas:
+```bash
+bandit31@bandit:/tmp/tmp.osHpu3TtW8$ ls -la
+total 168
+drwx------    3 bandit31 bandit31   4096 Sep 26 01:11 .
+drwxrwx-wt 2757 root     root     159744 Sep 26 01:11 ..
+drwxrwxr-x    3 bandit31 bandit31   4096 Sep 26 01:11 repo
+bandit31@bandit:/tmp/tmp.osHpu3TtW8$ cd repo/
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ ls -la
+total 20
+drwxrwxr-x 3 bandit31 bandit31 4096 Sep 26 01:11 .
+drwx------ 3 bandit31 bandit31 4096 Sep 26 01:11 ..
+drwxrwxr-x 8 bandit31 bandit31 4096 Sep 26 01:11 .git
+-rw-rw-r-- 1 bandit31 bandit31    6 Sep 26 01:11 .gitignore
+-rw-rw-r-- 1 bandit31 bandit31  147 Sep 26 01:11 README.md
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ cat README.md 
+This time your task is to push a file to the remote repository.
+Details:
+    File name: key.txt
+    Content: 'May I come in?'
+    Branch: master
+```
+Ya nos dieron la respuesta, debemos crear un archivo de texto que contenga la frase **"May I come in?"** y luego intentar agregar ese archivo al repositorio en la rama de **master** (que es en la que nos encontramos), haciendo esto nos daran la contraseña para el último nivel.
+
+* Creando el archivo, agregandolo al repo y haciendo un **commit** para agregar nuestro archivo con un comentario random:
+```bash
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ echo "May I come in?" > key.txt
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ ls
+key.txt  README.md
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ git add -f key.txt
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ git status
+On branch master
+Your branch is up to date with 'origin/master'.
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+        new file:   key.txt
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ git commit -m "Denme la contraseña plox, tenkiu"
+[master e38c923] Denme la contraseña plox, tenkiu
+ 1 file changed, 1 insertion(+)
+ create mode 100644 key.txt
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ git status
+On branch master
+Your branch is ahead of 'origin/master' by 1 commit.
+  (use "git push" to publish your local commits)
+```
+
+* Subiendo nuestro archivo al repositorio remoto:
+```bash 
+bandit31@bandit:/tmp/tmp.osHpu3TtW8/repo$ git push -u origin master
+The authenticity of host '[localhost]:2220 ([127.0.0.1]:2220)' can't be established.
+ED25519 key fingerprint is SHA256:C2ihUBV7ihnV1wUXRb4RrEcLfXC5CXlhmAAM/urerLY.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Could not create directory '/home/bandit31/.ssh' (Permission denied).
+Failed to add the host to the list of known hosts (/home/bandit31/.ssh/known_hosts).
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+*
+bandit31-git@localhost's password: 
+Enumerating objects: 4, done.
+Counting objects: 100% (4/4), done.
+Delta compression using up to 2 threads
+Compressing objects: 100% (2/2), done.
+Writing objects: 100% (3/3), 348 bytes | 348.00 KiB/s, done.
+Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
+remote: ### Attempting to validate files... ####
+remote: 
+remote: .oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.
+remote: 
+remote: Well done! Here is the password for the next level:
+remote: contraseña_siguiente_nivel
+remote: 
+remote: .oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.oOo.
+remote: 
+To ssh://localhost:2220/home/bandit31-git/repo
+ ! [remote rejected] master -> master (pre-receive hook declined)
+error: failed to push some refs to 'ssh://localhost:2220/home/bandit31-git/repo'
+```
+
+Listo, ya completamos este nivel.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+        <h1 id="Nivel32" style="text-align:center;">Nivel 32 a 33</h1>
+</div>
+<br>
+
+
+**INSTRUCCIONES**:
+
+Después de tanto **git**, es hora de otra escapada. ¡Buena suerte!
+
+----------------
+<br>
+
+<h2 id="Exp32">Descripción de Comandos</h2>
+
+<br>
+
+<h3 id="argumentos">Argumentos Posicionales en Bash</h3>
+
+| **Argumentos Posicionales en Bash** |
+|:-----------:|
+| *En Bash, los argumentos posicionales son los valores que pasas a un script o comando cuando lo ejecutas. Estos argumentos se almacenan en variables especiales con un número correspondiente a su posición.* | 
+
+Variables de argumentos posicionales:
+* `$0`: Representa el nombre del script o comando que se está ejecutando.
+* `$1, $2, $3, etc.`: Son los argumentos que se pasan al script, donde `$1` es el primer argumento, `$2` el segundo, y así sucesivamente.
+* `$#`: Muestra la cantidad de argumentos posicionales que se han pasado al script.
+* `$@`: Representa todos los argumentos pasados al script, separados por espacios.
+* `$*`: Similar a `$@`, pero trata los argumentos como una sola cadena.
+* `$?`: Devuelve el código de salida del último comando ejecutado.
 
 Ejemplo:
-* 
+* En tu terminal, escribe el argumento `echo $0`:
 ```bash
-
+echo $0
+> zsh
 ```
+
+* Abre una sesión de **Bash** (esto si es que tienes **zsh**) y aplica el mismo comando:
+```bash
+bash
+echo $0
+> bash
+exit
+```
+Observa que lo que nos devuelve, nos servira en este nivel.
 
 <br>
 
@@ -4582,14 +5198,117 @@ Ejemplo:
 
 <br>
 
-<h2 id="Sol?">Solución</h2>
+<h2 id="Sol32">Solución</h2>
 
 Primero entremos al **servicio SSH**:
 ```bash
+ssh bandit32@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
 
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit32@bandit.labs.overthewire.org's password:
 ```
-La contraseña es la que encontraste en el **nivel ?**.
+La contraseña es la que encontraste en el **nivel 31**.
 
+No nos dan ninguna pista, pero una vez que entramos, cualquier comando que intentemos ejecutar nos lo cambia a texto en mayúsculas. Esto nos complica un poco la forma de poder escapar, pero para eso tenemos los argumentos posicionales.
+
+En teoría, los comandos si se estarían ejecutando, el problema es que los convierte a mayúsculas y si nosotros usamos el argumento `$0` que ejecuta una **Bash**, podría ayudarnos a escapar.
+
+Probemos:
+
+* Intentando ejecutar comandos:
+```bash
+WELCOME TO THE UPPERCASE SHELL
+>> ls
+sh: 1: LS: Permission denied
+>> mktemp -d
+sh: 1: MKTEMP: Permission denied
+>>
+```
+
+* Usando argumento posicional `$0`:
+```bash
+>> $0
+$ ls
+uppershell
+$ pwd
+/home/bandit32
+$ ls -la
+total 36
+drwxr-xr-x  2 root     root      4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root      4096 Sep 19 07:09 ..
+-rw-r--r--  1 root     root       220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root      3771 Mar 31 08:41 .bashrc
+-rw-r--r--  1 root     root       807 Mar 31 08:41 .profile
+-rwsr-x---  1 bandit33 bandit32 15136 Sep 19 07:08 uppershell
+```
+
+* Obteniendo una sesión de Bash y obtenemos la contraseña de **bandit33**:
+```bash
+$ bash
+bandit33@bandit:~$ ls -la
+total 36
+drwxr-xr-x  2 root     root      4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root      4096 Sep 19 07:09 ..
+-rw-r--r--  1 root     root       220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root      3771 Mar 31 08:41 .bashrc
+-rw-r--r--  1 root     root       807 Mar 31 08:41 .profile
+-rwsr-x---  1 bandit33 bandit32 15136 Sep 19 07:08 uppershell
+bandit33@bandit:~$ cat /etc/bandit_pass/bandit33
+última_contraseña
+```
+
+Y listo, completamos este nivel.
+
+Este fue el último nivel de **Bandit** que podemos probar, pero aun así podemos entrar a **bandit33**.
+
+Veamos que nos enseñan si entramos en **bandit33**.
+```bash
+ssh bandit33@bandit.labs.overthewire.org -p2220
+                         _                     _ _ _   
+                        | |__   __ _ _ __   __| (_) |_ 
+                        | '_ \ / _` | '_ \ / _` | | __|
+                        | |_) | (_| | | | | (_| | | |_ 
+                        |_.__/ \__,_|_| |_|\__,_|_|\__|
+                                                       
+
+                      This is an OverTheWire game server. 
+            More information on http://www.overthewire.org/wargames
+
+bandit33@bandit.labs.overthewire.org's password:
+...
+...
+...
+Enjoy your stay!
+bandit33@bandit:~$ ls -la
+total 24
+drwxr-xr-x  2 root     root     4096 Sep 19 07:08 .
+drwxr-xr-x 70 root     root     4096 Sep 19 07:09 ..
+-rw-r--r--  1 root     root      220 Mar 31 08:41 .bash_logout
+-rw-r--r--  1 root     root     3771 Mar 31 08:41 .bashrc
+-rw-r--r--  1 root     root      807 Mar 31 08:41 .profile
+-rw-------  1 bandit33 bandit33  430 Sep 19 07:08 README.txt
+bandit33@bandit:~$ cat README.txt 
+Congratulations on solving the last level of this game!
+
+At this moment, there are no more levels to play in this game. However, we are constantly working
+on new levels and will most likely expand this game with more levels soon.
+Keep an eye out for an announcement on our usual communication channels!
+In the meantime, you could play some of our other wargames.
+
+If you have an idea for an awesome new level, please let us know!
+```
+
+Un mensaje final que nos felicita por completar el último nivel.
+
+Muchas gracias si llegaste hasta aquí viendo mi guía, espero que te haya servido Uwu.
 
 
 <br>
@@ -4607,6 +5326,7 @@ La contraseña es la que encontraste en el **nivel ?**.
 * https://www.ionos.mx/digitalguide/servidores/configuracion/comando-linux-find/
 * https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/
 * https://geekland.eu/uso-del-comando-grep-en-linux-y-unix-con-ejemplos/
+
 
 <br>
 
