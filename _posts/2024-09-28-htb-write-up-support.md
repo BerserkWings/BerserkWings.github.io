@@ -20,8 +20,9 @@ tags:
   - SMB Enumeration
   - Information Leakage
   - Kerberos Enumeration
-  - Binary Analisys
-  - DNSpy with Debbuging
+  - Binary Analysis
+  - Analysis with DNSpy
+  - Debbuging with DNSpy
   - LDAP Enumeration
   - Password Spraying
   - SharpHound and BloodHound Enumeration
@@ -47,6 +48,7 @@ Herramientas utilizadas:
 * *unzip*
 * *kerbrute_linux_amd64*
 * *python3*
+* *máquina virtual Windows*
 * *openvpn client*
 * *dnspy.exe*
 * *rpcclient*
