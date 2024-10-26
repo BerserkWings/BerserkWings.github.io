@@ -28,8 +28,8 @@ tags:
   - SharpHound and BloodHound Enumeration
   - Resource-based Constrained Delegation Attack (RBCD Attack)
   - S4U Attack
-  - Privesc - (RBCD Attack)
-  - Privesc - (S4U Attack)
+  - Privesc - RBCD Attack
+  - Privesc - S4U Attack
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-support/Support.png)
@@ -53,9 +53,9 @@ Herramientas utilizadas:
 * *dnspy.exe*
 * *rpcclient*
 * *evil-winrm*
-* *BloodHound v4.3.1*
-* *SharpHound v1.1.1*
-* *Neo4j v4x*
+* *BloodHound 4.3.1*
+* *SharpHound 1.1.1*
+* *Neo4j 4x*
 * *Powermad.ps1*
 * *PowerView.ps1*
 * *Rubeus.exe*

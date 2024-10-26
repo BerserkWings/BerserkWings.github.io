@@ -63,7 +63,7 @@ Herramientas utilizadas:
 * *adPEAS*
 * *BloodHound 4.3.1*
 * *SharpHound 1.1.1*
-* *evil-winrm*
+* *Evil-WinRM*
 * *certipy*
 * *ntpdate*
 

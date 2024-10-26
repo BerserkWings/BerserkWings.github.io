@@ -24,8 +24,8 @@ tags:
   - AS-REP Roasting Attack
   - SharpHound and BloodHound Enumeration
   - Abusing Account Operators Group
-  - DNSync Attack
-  - Privesc - DNSync Attack
+  - DCSync Attack
+  - Privesc - DCSync Attack
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-forest/Forest.png)
@@ -1210,11 +1210,11 @@ Lo que nos menciona, es que vamos a aplicar el **DNSync Attack**.
 
 <h2 id="dcsync">Creando Usuario para el Grupo Account Operators, Asignandolo al Grupo Exchange Windows Permissions y Aplicando DCSync Attack</h2>
 
-¿Qué es el **DNSync Attack**?
+¿Qué es el **DCSync Attack**?
 
-| **DNSync Attack** |
+| **DCSync Attack** |
 |:-----------:|
-| *El DNSync attack es una técnica utilizada en la explotación de Active Directory que permite a un atacante extraer una copia completa de las credenciales de los usuarios (hashes de contraseñas) del controlador de dominio (DC). Este ataque se aprovecha de la funcionalidad del protocolo DRSUAPI (Directory Replication Service Remote Protocol), que es utilizada por los controladores de dominio para sincronizar bases de datos de directorio.* |
+| *El DCSync attack es una técnica utilizada en la explotación de Active Directory que permite a un atacante extraer una copia completa de las credenciales de los usuarios (hashes de contraseñas) del controlador de dominio (DC). Este ataque se aprovecha de la funcionalidad del protocolo DRSUAPI (Directory Replication Service Remote Protocol), que es utilizada por los controladores de dominio para sincronizar bases de datos de directorio.* |
 
 <br>
 
