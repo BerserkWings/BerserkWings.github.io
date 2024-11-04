@@ -786,7 +786,6 @@ Por lo que leÃ­ en **GTFOBins**, se puede escalar usando chown, yum y service. Â
 * https://stackoverflow.com/questions/63111167/ssl-error-unsupported-version-when-attempting-to-debug-with-iis-express
 * https://www.exploit-db.com/exploits/18650
 * https://github.com/OJ/gobuster/issues/129
-* https://www.offsec.com/vulndev/freepbx-exploit-phone-home/
 * https://www.kali.org/tools/sipvicious/
 * https://github.com/infosecjunky/FreePBX-2.10.0---Elastix-2.2.0---Remote-Code-Execution
 * https://gtfobins.github.io/

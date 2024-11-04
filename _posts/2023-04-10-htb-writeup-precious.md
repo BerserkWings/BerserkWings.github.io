@@ -936,9 +936,7 @@ Y listo, ya tenemos las flags.
 * https://portswigger.net/web-security/request-smuggling
 * https://snyk.io/test/docker/nginx%3A1.18.0
 * https://vuldb.com/?id.155282
-* https://cwe.mitre.org/data/definitions/444.html
 * https://book.hacktricks.xyz/v/es/pentesting-web/deserialization/python-yaml-deserialization
-* https://swisskyrepo.github.io/PayloadsAllTheThings/Insecure%20Deserialization/YAML/#ruby
 * https://es.wikipedia.org/wiki/Nginx
 * https://www.phusionpassenger.com/docs/tutorials/what_is_passenger/
 * https://kodigo.org/hablemos-de-ruby-on-rails-ruby-on-rails-que-es-y-para-que-sirve/

@@ -952,7 +952,6 @@ bash-5.0# cat root.txt
 * https://github.com/pentestmonkey/php-reverse-shell
 * https://rayhan0x01.github.io/ctf/2021/04/02/blind-sqli-over-websocket-automation.html
 * https://linuxhint.com/sql-injection-kali-linux/
-* https://kali-linux.net/article/sqlsus/
 * https://github.com/carlospolop/PEASS-ng/tree/master/linPEAS
 * https://github.com/carlospolop/PEASS-ng/releases/tag/20230409
 * https://underc0de.org/foro/gnulinux/doas-una-alternativa-a-sudo-simple-ligera-y-segura/

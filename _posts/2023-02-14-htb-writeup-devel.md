@@ -1033,8 +1033,6 @@ Con esto terminamos esta máquina y como mencione antes, prueba si puedes escala
 
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services#internal-ip-address-disclosure
 * https://medium.com/@kubotortech/pentesting-exploiting-ftp-cba8ec81968e
-* https://soroush.secproject.com/blog/2014/07/upload-a-web-config-file-for-fun-profit/
-* https://www.infosecmatter.com/nessus-plugin-library/?id=108808
 * https://victorroblesweb.es/2013/12/02/comandos-ftp-en-la-consola/
 * https://www.exploit-db.com/exploits/40564
 * https://www.rapid7.com/db/vulnerabilities/WINDOWS-HOTFIX-MS11-046/

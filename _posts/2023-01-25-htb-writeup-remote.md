@@ -1163,8 +1163,7 @@ Para este, necesitamos utilizar una **Reverse Shell** y tener descargado el **Ju
 Para descargarlo, utiliza el siguiente link:
 * <a href="https://github.com/ohpe/juicy-potato/releases" target="_blank">Repositorio de ohpe: Juicy Potato - releases</a>
 
-Y necesitamos tener un **CLSID**, para este caso, podemos utilizar el **CLSID** que tiene el **servicio UsoSvc**. Prueba si no es necesario modificar el **UsoSvc** antes de usar el **Juicy Potato**, no deberías tener problemas, pero si es el caso, modificalo como en la forma anterior. El **CLSID** lo podemos obtener de la siguiente página:
-* <a href="https://ohpe.it/juicy-potato/CLSID/Windows_10_Enterprise/" target="_blank">Juicy Potato CLSID Windows 10 Enterprise</a>
+Y necesitamos tener un **CLSID**, para este caso, podemos utilizar el **CLSID** que tiene el **servicio UsoSvc**. Prueba si no es necesario modificar el **UsoSvc** antes de usar el **Juicy Potato**, no deberías tener problemas, pero si es el caso, modificalo como en la forma anterior. El **CLSID** lo podemos obtener desde una página del mismo repositorio de **GitHub**.
 
 Ahora, podemos utilizar la misma **Reverse Shell** que ya hicimos, entonces, carguemos el **Juicy Potato** en la máquina víctima y ejecutemoslo:
 
@@ -1362,7 +1361,6 @@ De esta forma, obtuvimos la contraseña que necesitamos para poder conectarnos a
 * https://gist.github.com/rishdang/442d355180e5c69e0fcb73fecd05d7e0
 * https://bobbyhadz.com/blog/python-no-module-named-crypto
 * https://book.hacktricks.xyz/windows-hardening/windows-local-privilege-escalation#services
-* https://ohpe.it/juicy-potato/CLSID/Windows_10_Enterprise/
 * https://medium.com/r3d-buck3t/impersonating-privileges-with-juicy-potato-e5896b20d505
 * https://github.com/carlospolop/PEASS-ng/releases/tag/20240324-2c3cd766
 

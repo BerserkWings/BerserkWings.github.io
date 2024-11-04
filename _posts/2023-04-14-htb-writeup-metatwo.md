@@ -1507,7 +1507,6 @@ root@meta2:~# cat root.txt
 * https://www.kolibers.com/blog/hash_cracking_con_john_the_ripper.html
 * https://github.com/motikan2010/CVE-2021-29447
 * https://tryhackme.com/room/wordpresscve202129447
-* https://www.ubuntuvibes.com/2012/10/recover-your-gpg-passphrase-using-john.html
 * https://vulners.com/kitploit/KITPLOIT:7430529944893678297
 * https://passpie.readthedocs.io/en/latest/
 * https://usersinsights.com/wordpress-user-database-tables/

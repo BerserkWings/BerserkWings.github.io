@@ -604,7 +604,6 @@ Solamente busca las flags en el directorio **Documents and Settings**, cada flag
 
 
 * https://www.exploit-db.com/exploits/41738
-* https://www.google.com/search?client=firefox-b-e&q=WebDAV+que+es
 * https://github.com/g0rx/iis6-exploit-2017-CVE-2017-7269
 * https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS11-062
 * https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS14-070

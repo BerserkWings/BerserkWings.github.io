@@ -975,7 +975,6 @@ a...Bueno, ya quedaron todas las flags.
 </div>
 
 
-* https://www.google.com/search?client=firefox-b-e&q=ISC+BIND+9.9.5-3ubuntu0.14 https://neoattack.com/neowiki/dns/
 * https://linube.com/ayuda/articulo/267/que-es-un-virtualhost
 * https://www.reydes.com/d/?q=Solicitar_una_Transferencia_de_Zona_utilizando_el_Script_dns_zone_transfer_de_Nmap
 * https://www.welivesecurity.com/la-es/2015/06/17/trata-ataque-transferencia-zona-dns/

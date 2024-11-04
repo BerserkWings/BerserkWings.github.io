@@ -641,8 +641,6 @@ Y si, con esto terminamos esta máquina.
 </div>
 
 
-* https://f1uffygoat.com/privesc/
-* https://www.revshells.com/
 * https://github.com/pentestmonkey/php-reverse-shell
 * https://esgeeks.com/post-explotacion-transferir-archivos-windows-linux/
 * https://ironhackers.es/tutoriales/como-conseguir-tty-totalmente-interactiva/

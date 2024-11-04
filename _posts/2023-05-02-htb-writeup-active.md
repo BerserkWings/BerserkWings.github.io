@@ -545,7 +545,7 @@ mv 10.10.10.100-Users_SVC_TGS_Desktop_user.txt user.txt
 Ya tenemos la flag del usuario, pero podemos hacer más cosillas como tratar de entrar en el **servicio MSRPC** con el usuario y contraseña, esto lo realizamos con la herramienta **rpcclient**.
 
 Intentémoslo:
-```bash
+```batch
 rpcclient -U 'SVC_TGS%GPPstillStandingStrong2k18' 10.10.10.100                                                                
 rpcclient $>
 ```
@@ -553,7 +553,7 @@ rpcclient $>
 Aquí igual podemos enumerar algunas cosillas, por ejemplo:
 
 * Enumerar los usuarios:
-```bash
+```batch
 rpcclient $> enumdomusers
 user:[Administrator] rid:[0x1f4]
 user:[Guest] rid:[0x1f5]
@@ -562,7 +562,7 @@ user:[SVC_TGS] rid:[0x44f]
 ```
 
 * Enumerar los grupos del dominio:
-```bash
+```batch
 enumdomgroups
 group:[Enterprise Read-only Domain Controllers] rid:[0x1f2]
 group:[Domain Admins] rid:[0x200]
@@ -578,7 +578,7 @@ group:[DnsUpdateProxy] rid:[0x44e]
 ```
 
 * Enumerar descripciones de usuarios:
-```bash
+```batch
 rpcclient $> querydispinfo
 index: 0xdea RID: 0x1f4 acb: 0x00000210 Account: Administrator  Name: (null)    Desc: Built-in account for administering the computer/domain
 index: 0xdeb RID: 0x1f5 acb: 0x00000215 Account: Guest  Name: (null)    Desc: Built-in account for guest access to the computer/domain
@@ -587,7 +587,7 @@ index: 0xeb2 RID: 0x44f acb: 0x00000210 Account: SVC_TGS        Name: SVC_TGS   
 ```
 
 * Enumerar los dominios activos:
-```bash
+```batch
 rpcclient $> enumdomains
 name:[ACTIVE] idx:[0x0]
 name:[Builtin] idx:[0x0]
@@ -715,7 +715,7 @@ C:\Users\Administrator\Desktop> type root.txt
 * https://www.kali.org/tools/smbmap/
 * https://adsecurity.org/?p=2288
 * https://underc0de.org/foro/herramientas-hacking/smbmap-enumerador-de-recursos-de-compartidos-samba/
-* https://access.redhat.com/documentation/es-es/red_hat_enterprise_linux/8/html/deploying_different_types_of_servers/assembly_using-th>
+* https://docs.redhat.com/es/documentation/red_hat_enterprise_linux/8/html/deploying_different_types_of_servers/assembly_verifying-the-samba-configuration_assembly_using-samba-as-a-server
 * https://www.netwrix.com/cracking_kerberos_tgs_tickets_using_kerberoasting.html
 * https://github.com/fortra/impacket/issues/1482
 * https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/dn581922(v=ws.11)

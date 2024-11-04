@@ -1854,8 +1854,6 @@ Con esto, hemos completado la máquina.
 </div>
 
 
-* https://ppn.snovvcrash.rocks/pentest/infrastructure/ad/rid-cycling
-* https://www.thehacker.recipes/ad/recon/ms-rpc
 * https://medium.com/@nantysean/enumerating-a-corporate-network-with-netexec-7be7537b537d
 * https://github.com/ropnop/kerbrute
 * https://www.sqlops.com/what-is-xp_dirtree/
