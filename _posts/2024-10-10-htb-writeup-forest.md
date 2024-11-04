@@ -1388,7 +1388,6 @@ Hemos completado la máquina.
 </div>
 
 
-* https://www.hackplayers.com/2020/11/asreproast-o-as-rep-roasting.html
 * https://linube.com/ayuda/articulo/287/como-utilizar-el-comando-dig
 * https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups#account-operators
 * https://book.hacktricks.xyz/windows-hardening/active-directory-methodology/dcsync

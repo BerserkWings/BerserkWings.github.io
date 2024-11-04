@@ -779,7 +779,6 @@ Bien podríamos probar los Exploits del **Eternal Blue** que son exclusivos de *
 * https://github.com/worawit/MS17-010
 * https://ivanitlearning.wordpress.com/2019/02/24/exploiting-ms17-010-without-metasploit-win-xp-sp3/
 * https://github.com/helviojunior/MS17-010
-* https://www.google.com/search?q=named+pipe+browser&client=firefox-b-e&ei=3gciZLTqDYbCkPIPt9y5uAY&oq=named+pipes+browser&gs_lcp=Cgxnd3Mtd2l6L>
 * https://malwaretips.com/blogs/browser-exe-what-it-is-should-i-remove-it/
 * https://www.processlibrary.com/es/directory/files/spoolss/24800/
 

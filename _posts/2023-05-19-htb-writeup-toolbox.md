@@ -949,7 +949,6 @@ Listo, ya terminamos esta máquina.
 * https://book.hacktricks.xyz/pentesting-web/sql-injection/postgresql-injection
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-postgresql
 * https://stackoverflow.com/questions/32646952/docker-machine-boot2docker-root-password
-* https://www.revshells.com/
 * https://help.dreamhost.com/hc/es/articles/360001435926-Instalar-OpenSSL-localmente-dentro-de-tu-usuario
 
 

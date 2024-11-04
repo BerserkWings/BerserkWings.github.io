@@ -937,15 +937,12 @@ Y por fin, terminamos esta máquina.
 </div>
 
 
-* http://www.jtech.ua.es/j2ee/2003-2004/modulos/srv/sesion03-apuntes.htm
 * https://askubuntu.com/questions/135824/what-is-the-tomcat-installation-directory
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/tomcat
-* https://comoinstalar.me/como-instalar-tomcat-en-centos-7/
 * https://tomcat.apache.org/tomcat-9.0-doc/html-host-manager-howto.html
 * https://www.ibm.com/docs/es/rsas/7.5.0?topic=projects-web-archive-war-files
 * https://tomcat.apache.org/security-9.html
 * https://es.wikipedia.org/wiki/Alpine_Linux
-* https://dit.gonzalonazareno.org/gestiona/proyectos/2022-23/Introducci%C3%B3n_LXD_MariaJesusBP.pdf
 * https://codingfactsblog.wordpress.com/2020/10/12/escalada-local-de-privilegios-mediante-lxd/
 * https://book.hacktricks.xyz/v/es/linux-hardening/privilege-escalation/interesting-groups-linux-pe/lxd-privilege-escalation
 

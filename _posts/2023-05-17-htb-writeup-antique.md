@@ -288,8 +288,7 @@ Y nos muestra un puerto abierto, que es del servicio **SNMP**, busquemos informa
 
 <br>
 
-Excelente, ya sabemos por donde comenzaremos a vulnerar la máquina. En el siguiente blog, se explica como enumerar este servicio:
-* <a href="https://hackinglethani.com/es/protocolo-snmp/" target="_blank">Protocolo SNMP</a>
+Excelente, ya sabemos por donde comenzaremos a vulnerar la máquina. 
 
 
 <br>
@@ -1212,7 +1211,6 @@ Y listo, tremendo este Exploit.
 
 * https://nmap.org/book/scan-methods-udp-scan.html
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-snmp
-* https://hackinglethani.com/es/protocolo-snmp/
 * https://www.ionos.mx/digitalguide/servidores/know-how/tutorial-de-snmp/
 * https://github.com/p1ckzi/CVE-2012-5519
 * https://blog.invgate.com/es/snmpwalk

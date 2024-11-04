@@ -772,7 +772,6 @@ Y listo, hemos vuelto a ganar acceso y completado la máquina.
 * https://www.exploit-db.com/exploits/43560
 * https://www.weweb.cat/es/silverstripe-cms/
 * https://www.proteansec.com/linux/pfsense-vulnerabilities-part-2-command-injection/
-* https://www.revshells.com/
 * https://pentestmonkey.net/cheat-sheet/shells/reverse-shell-cheat-sheet
 * https://www.youtube.com/watch?v=mWTmXpQlgCs
 

@@ -566,7 +566,6 @@ He notado que otras personan han usado **Juicy Potato** o **Churraskito** que es
 
 * https://www.mailjet.com/es/blog/emailing/servidor-smtp/
 * https://github.com/0xkasra/CVE-2009-2265
-* https://www.google.com/search?client=firefox-b-e&q=Microsoft+Windows+Server+2008+R2+Standard++6.1.7600+N%2FA+Build+7600+exploit
 * https://www.infosecmatter.com/nessus-plugin-library/?id=51911
 * https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS10-059
 * https://github.com/egre55/windows-kernel-exploits

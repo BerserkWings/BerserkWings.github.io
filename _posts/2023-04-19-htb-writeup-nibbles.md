@@ -961,7 +961,6 @@ bash-4.3# cat root.txt
 * https://www.exploit-db.com/exploits/38489
 * https://www.tecmint.com/linux-server-health-monitoring-script/
 * https://medium.com/schkn/linux-privilege-escalation-using-text-editors-and-files-part-1-a8373396708d
-* https://berserkwings.github.io/PentestNotes/#
 * https://github.com/dix0nym/CVE-2015-6967
 
 

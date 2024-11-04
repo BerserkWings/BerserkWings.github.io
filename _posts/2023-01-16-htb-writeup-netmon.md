@@ -736,7 +736,6 @@ Y listo, nos hemos conectado a la máquina:
 
 * https://www.cvedetails.com/cve/CVE-2018-9276/
 * https://www.cvedetails.com/vulnerability-list/vendor_id-5034/product_id-35656/Paessler-Prtg-Network-Monitor.html
-* https://packetstormsecurity.com/files/148334/PRTG-Command-Injection.html 
 * https://codewatch.org/2018/06/25/prtg-18-2-39-command-injection-vulnerability/
 * https://www.mundodeportivo.com/urbantecno/windows/agrega-un-usuario-al-grupo-de-administradores-local-en-windows-via-comando
 * https://www.ngi.es/crackmapexec-post-explotacion-entornos-active-directory/

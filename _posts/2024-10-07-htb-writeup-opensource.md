@@ -1542,7 +1542,6 @@ Hemos terminado la máquina.
 </div>
 
 
-* https://www.revshells.com/
 * https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/werkzeug#werkzeug-console-pin-exploit
 * https://github.com/pallets/werkzeug/blob/main/src/werkzeug/debug/__init__.py
 * https://linuxhandbook.com/scan-ports-netcat/
