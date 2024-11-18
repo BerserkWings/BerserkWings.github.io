@@ -1,0 +1,104 @@
+---
+layout: single
+title:  - Nombre titulo
+excerpt: "."
+date: 202x-xx-xx
+classes: wide
+header:
+  teaser: /assets/images/directorio/_logo.png
+  teaser_home_page: true
+  icon: /assets/images/otro_icono
+categories:
+  - 
+  - 
+tags:
+  - 
+  - 
+  - 
+  - 
+---
+![](/assets/images/directorio/_logo.png)
+
+texto
+
+
+<br>
+<hr>
+<div id="Indice">
+	<h1>Índice</h1>
+	<ul>
+		<li><a href="#"></a></li>
+                <li><a href="#"></a></li>
+	</ul>
+</div>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="nombre_id" style="text-align:center;">Titulo</h1>
+</div>
+<br>
+
+texto
+
+
+
+<br>
+<br>
+<div style="position: relative;">
+	<h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+</div>
+
+
+links
+
+
+<br>
+# FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>

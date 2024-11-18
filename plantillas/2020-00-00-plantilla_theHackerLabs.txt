@@ -1,0 +1,220 @@
+---
+layout: single
+title:  - TheHackerLabs
+excerpt: "."
+date: 202x-xx-xx
+classes: wide
+header:
+  teaser: /assets/images/THL-writeup-/_logo.png
+  teaser_home_page: true
+  icon: /assets/images/thehackerslabs.jpeg
+categories:
+  - TheHackerLabs
+  - 
+tags:
+  - 
+  - 
+  - 
+  - 
+---
+![](/assets/images/THL-writeup-/_logo.png)
+
+texto
+
+Herramientas utilizadas:
+* *ping*
+* *nmap*
+* **
+* **
+* **
+* **
+
+
+<br>
+<hr>
+<div id="Indice">
+	<h1>Índice</h1>
+	<ul>
+		<li><a href="#Recopilacion">Recopilación de Información</a></li>
+			<ul>
+				<li><a href="#Ping">Traza ICMP</a></li>
+				<li><a href="#Puertos">Escaneo de Puertos</a></li>
+				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+			</ul>
+		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Links">Links de Investigación</a></li>
+	</ul>
+</div>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
+</div>
+<br>
+
+
+<h2 id="Ping">Traza ICMP</h2>
+
+Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
+```bash
+
+```
+Por el TTL sabemos que la máquina usa *****, hagamos los escaneos de puertos y servicios.
+
+<h2 id="Puertos">Escaneo de Puertos</h2>
+
+```bash
+
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Texto
+
+<h2 id="Servicios">Escaneo de Servicios</h2>
+
+```bash
+
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Texto
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id=""></h2>
+
+
+<p align="center">
+<img src="/assets/images/THL-writeup-/Captura#.png">
+</p>
+
+
+<a href="link" target="_blank">titulo_del_link</a>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id=""></h2>
+
+
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+</div>
+<br>
+
+
+<h2 id=""></h2>
+
+
+
+
+
+<br>
+<br>
+<div style="position: relative;">
+  <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+</div>
+
+
+links
+
+
+<br>
+# FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
