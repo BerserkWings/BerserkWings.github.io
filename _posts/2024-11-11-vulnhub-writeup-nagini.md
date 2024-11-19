@@ -1091,7 +1091,7 @@ Encontramos una contraseña y parece que está cifrada en **base64**.
 La podemos descifrar con la herramienta **base64**:
 ```bash
 echo "TG92ZUBsaWxseQ==" | base64 -d
-Love@lilly
+...
 ```
 
 Probemos la contraseña:
@@ -1295,7 +1295,7 @@ python3 firefox_decrypt.py Firefox_creds/.mozilla/firefox
 
 Website:   http://nagini.hogwarts
 Username: 'root'
-Password: '@Alohomora#123'
+Password: '...'
 ```
 Muy bien, tenemos las credenciales del **Root**.
 
@@ -1354,7 +1354,7 @@ globalSalt: b'db8e223cef34f55b9458f52286120b8fb5293c95'
 entrySalt: b'11c73a5fe855de5d96e9a06a8503019d00efa9e4'
 b'233bb64646075d9dfe8c464f94f4df235234d94f4c2334940808080808080808'
 decrypting login/password pairs
-http://nagini.hogwarts:b'root',b'@Alohomora#123'
+http://nagini.hogwarts:b'root',b'...'
 ```
 Al final, volvimos a obtener las credenciales del **Root**.
 
@@ -1393,6 +1393,22 @@ Here is your third hocrux: horcrux_{NTogRGlhZGVtIG9mIFJhdmVuY2xhdyBkZXN0cm95ZWQg
 # For any queries/suggestions feel free to ping me at email: time4ster@protonmail.com
 ```
 Con esto, ya completamos la máquina.
+
+Veamos qué dicen los horocruxes:
+```bash
+# Horocrux 3:
+echo -n "MzogU2x5dGhFcmlOJ3MgTG9jS0VldCBkRXN0cm9ZZUQgYlkgUm9O" | base64 -d
+3: SlythEriN's LocKEet dEstroYeD bY RoN
+
+# Horocrux 4:
+echo -n "NDogSGVsZ2EgSHVmZmxlcHVmZidzIEN1cCBkZXN0cm95ZWQgYnkgSGVybWlvbmU=" | base64 -d
+4: Helga Hufflepuff's Cup destroyed by Hermione
+
+# Horocrux 5:
+echo -n "NTogRGlhZGVtIG9mIFJhdmVuY2xhdyBkZXN0cm95ZWQgYnkgSGFycnk=" | base64 -d
+5: Diadem of Ravenclaw destroyed by Harry
+```
+Completado.
 
 
 <br>
