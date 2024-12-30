@@ -270,3 +270,6 @@ defaults:
       comments: false
       share: false
       related: true
+
+# Habilitar la visualización de publicaciones futuras
+future: true
