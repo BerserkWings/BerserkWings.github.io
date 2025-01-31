@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Mortadela - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina fácil, pero que requiere bastante talacha(trabajo) para resolverla. Descubrimos que tiene una página web activa en el puerto 80 y tiene expuesto el servicio MySQL en el puerto 3306. Analizando y aplicando Fuzzing a la página web, descubrimos que fue realizada con WordPress. Buscando plugins vulnerables, encontramos que usa el plugin wpDiscuz que es vulnerable al permitir subida de archivos, por lo que realizamos dos formas de explotar esta vulnerabilidad. Aparte, aplicamos fuerza bruta al servicio MySQL que nos permite loguearnos y enumerar el servicio, encontrando las credenciales de un usuario con el que nos podemos loguear al servicio SSH. Dentro, encontramos un archivo ZIP que tuvimos que crackear para encontrar su contraseña. El archivo ZIP contenía archivos de KeePass a los que les aplicamos un volcado de memoria para obtener la contraseña maestra, pues ahí se encuentra la contraseña del Root."
 date: 2025-01-30
 classes: wide
 header:
@@ -16,20 +16,24 @@ tags:
   - Apache
   - WordPress
   - Web Enumeration
+  - WordPress Enumeration
   - Fuzzing
-  - Brute Force
+  - Brute Force Attack
   - Cracking Hash
-  - 
+  - CVE-2020-24186 (Unauthenticated RCE)
+  - WordPress Plugin Vulnerability
   - MySQL Enumeration
-  - 
-  - 
-  - Privesc - 
+  - BurpSuite
+  - System Recognition (Linux)
+  - Memory Dump (Volcado de Memoria)
+  - CVE-2023-32784 (Memory Dump)
+  - Privesc - CVE-2023-32784
   - OSCP Style
   - Metasploit Framework
 ---
 ![](/assets/images/THL-writeup-mortadela/Mortadela.jpg)
 
-texto
+Esta fue una máquina fácil, pero que requiere bastante talacha(trabajo) para resolverla. Descubrimos que tiene una página web activa en el **puerto 80** y tiene expuesto el **servicio MySQL** en el **puerto 3306**. Analizando y aplicando **Fuzzing** a la página web, descubrimos que fue realizada con **WordPress**. Buscando plugins vulnerables, encontramos que usa el **plugin wpDiscuz** que es vulnerable al permitir subida de archivos, por lo que realizamos dos formas de explotar esta vulnerabilidad. Aparte, aplicamos **fuerza bruta** al **servicio MySQL** que nos permite loguearnos y enumerar el servicio, encontrando las credenciales de un usuario con el que nos podemos loguear al **servicio SSH**. Dentro, encontramos un **archivo ZIP** que tuvimos que crackear para encontrar su contraseña. El **archivo ZIP** contenía archivos de **KeePass** a los que les aplicamos un volcado de memoria para obtener la contraseña maestra, pues ahí se encuentra la contraseña del **Root**.
 
 Herramientas utilizadas:
 * *ping*
@@ -166,7 +170,7 @@ Nmap done: 1 IP address (1 host up) scanned in 7.35 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Bastante curioso, estoy viendo que esta abierto el **puerto 3306** que es del **servicio MySQL**, además, podemos ver que hay una página web activa en el **puerto 80**.
+Bastante curioso, estoy viendo que está abierto el **puerto 3306** que es del **servicio MySQL**, además, podemos ver que hay una página web activa en el **puerto 80**.
 
 <br>
 
@@ -261,7 +265,7 @@ Requests/sec.: 913.2215
 
 <br>
 
-Excelente, hemos encontrado un directorio que alparecer es de **WordPress**.
+Excelente, hemos encontrado un directorio que al parecer es de **WordPress**.
 
 Vamos a aplicar **Fuzzing** a este directorio para ver que podemos encontrar.
 
@@ -347,7 +351,7 @@ Finished
 
 <br>
 
-Genial, hemos encontrados muchos directorios y archivos que podemos revisar, pero primero vamos a ver el primero que encontramos llamado **wordpress**.
+Genial, hemos encontrado muchos directorios y archivos que podemos revisar, pero primero vamos a ver el primero que encontramos llamado **WordPress**.
 
 <br>
 
@@ -367,9 +371,9 @@ Veamos que nos dice **Wappalizer**:
 <img src="/assets/images/THL-writeup-mortadela/Captura2.png">
 </p>
 
-Bien, tenemos bastante información como la versión que están usando de **WordPress**, que esta ocupando **MySQL y PHP**.
+Bien, tenemos bastante información como la versión que están usando de **WordPress**, que está ocupando **MySQL y PHP**.
 
-Si bajamos, encontramos una publicación que podemos intentar visitar, pero no se podra ver nada ni aunque registres la IP que nos redirecciona en el `/etc/hosts` (esto en mi caso):
+Si bajamos, encontramos una publicación que podemos intentar visitar, pero no se podrá ver nada ni aunque registres la IP que nos redirecciona en el `/etc/hosts` (esto en mi caso):
 
 <p align="center">
 <img src="/assets/images/THL-writeup-mortadela/Captura3.png">
@@ -383,7 +387,7 @@ De igual forma, podemos visitar una página de ejemplo que ofrecen, pero igual n
 <img src="/assets/images/THL-writeup-mortadela/Captura4.png">
 </p>
 
-No veo algo más por aquí, así que veamos que veamos si hay algo más en los directorios y archivos que encontramos.
+No veo algo más por aquí, así que veamos si hay algo más en los directorios y archivos que encontramos.
 
 <br>
 
@@ -411,7 +415,7 @@ Por último, revisemos el archivo `xmlrpc.php`:
 <img src="/assets/images/THL-writeup-mortadela/Captura7.png">
 </p>
 
-Tardo bastante, pero pudimos entrar. Podríamos tratar de aplicar fuerza bruta, pero parece que la conexión no es estable, porque cada recarga es muy tardada, por lo que no lo veo optimo de realizar.
+Tardo bastante, pero pudimos entrar. Podríamos tratar de aplicar fuerza bruta, pero parece que la conexión no es estable, porque cada recarga es muy tardada, por lo que no lo veo óptimo de realizar.
 
 <br>
 
@@ -431,7 +435,7 @@ Vamos a capturar una petición de inicio de sesión con **BurpSuite** con un cor
 <img src="/assets/images/THL-writeup-mortadela/Captura9.png">
 </p>
 
-Pero, al momento de ejecutar la petición, no tendremos respuesta e incluso si mandamos la petición por el **Repeater**, nos reportara que no se pudo conectar:
+Pero, al momento de ejecutar la petición, no tendremos respuesta e incluso si mandamos la petición por el **Repeater**, nos reportará que no se pudo conectar:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-mortadela/Captura10.png">
@@ -537,7 +541,7 @@ Interesting Finding(s):
 
 <br>
 
-No encontro un plugin que podamos explotar, pero si encontro la ruta de carga de archivo que puedes visitar.
+No encontró un plugin que podamos explotar, pero si encontró la ruta de carga de archivo que puedes visitar.
 
 Vamos a usar un módulo de **Metasploit** para comprobar que no hay un plugin vulnerable.
 
@@ -568,7 +572,7 @@ msf6 auxiliary(scanner/http/wordpress_scanner) > exploit
 [*] Scanned 1 of 1 hosts (100% complete)
 [*] Auxiliary module execution completed
 ```
-Parece que ahora si encontramos un plugin vulnerable que es `wpdiscuz version 7.0.4`, además ha identificado una versión distinta de **WordPress** a la que nos reporto **Wappalizer**.
+Parece que ahora sí encontramos un plugin vulnerable que es `wpdiscuz version 7.0.4`, además ha identificado una versión distinta de **WordPress** a la que nos reportó **Wappalizer**.
 
 Si buscamos el plugin con **searchsploit**, encontraremos 3 versiones que podemos usar:
 ```bash
@@ -596,7 +600,7 @@ Procedamos a explotar el plugin.
 
 <h2 id="Exploit1">Probando Exploit: WordPress Plugin wpDiscuz 7.0.4 - Remote Code Execution (Unauthenticated) versión Python</h2>
 
-Investigando la vulnerabilidad, me encontre con este blog de **INE Security**, en donde realizaron un laboratorio que explota esta vulnerabilidad:
+Investigando la vulnerabilidad, me encontré con este blog de **INE Security**, en donde realizaron un laboratorio que explota esta vulnerabilidad:
 * <a href="https://ine.com/blog/vulnerability-lab-wordpress-plugin-wpdiscuz-unauthenticated-rce?_x_tr_hist=true" target="_blank">INE Security - Vulnerability Lab: WordPress Plugin wpDiscuz Unauthenticated RCE</a>
 
 Como ya tenemos el Exploit dentro de Kali, solamente vamos a copiarlo en nuestro directorio de trabajo.
@@ -624,7 +628,7 @@ python3 49967.py
 ```
 Bien, parece que tenemos que indicarle la URL que da al **WordPress** y un blog que se haya publicado. 
 
-Ya tenemos ambos, así que vamos a indicarselo al Exploit y ejecutemoslo:
+Ya tenemos ambos, así que vamos a indicárselo al Exploit y ejecutémoslo:
 ```bash
 python3 49967.py -u http://192.168.1.60/wordpress -p /index.php/2024/04/01/hola-mundo/
 ---------------------------------------------------------------
@@ -660,7 +664,7 @@ O eso pensaba porque cuando ejecute uno, se genera un fallo y se cierra el Explo
 
 [x] Failed to execute PHP code...
 ```
-Podriamos decir que fallo, pero recuerda que se subio una **webshell de PHP** al **WordPress** y nos indica la ruta donde se subio.
+Podríamos decir que fallo, pero recuerda que se subió una **webshell de PHP** al **WordPress** y nos indica la ruta donde se subió.
 
 Vamos a visitarla:
 
@@ -668,7 +672,7 @@ Vamos a visitarla:
 <img src="/assets/images/THL-writeup-mortadela/Captura11.png">
 </p>
 
-Ahí esta, la identificamos por el nombre que le asigno el Exploit que nos mostro en su ejecución.
+Ahí está, la identificamos por el nombre que le asigno el Exploit que nos mostró en su ejecución.
 
 Nada más entramos en ella y le indicamos que ejecute un comando:
 
@@ -752,9 +756,9 @@ Muy bien, obtuvimos una sesión de **Meterpreter**.
 
 <br>
 
-<h2 id="MySQL">Aplicando Fuerza Bruta y Aplicando Enumeración al Servicio MySQL</h2>
+<h2 id="MySQL">Aplicando Fuerza Bruta y Enumeración al Servicio MySQL</h2>
 
-Si recordamos, habíamos visto que esta activo el **servicio MySQL** y se encuentra expuesto.
+Si recordamos, habíamos visto que está activo el **servicio MySQL** y se encuentra expuesto.
 
 De igual forma, ya tenemos un usuario llamado **mortadela**, pero no va a funcionar este usuario para aplicarle fuerza bruta.
 
@@ -880,7 +884,7 @@ mortadela@mortadela:~$ cat user.txt
 
 <h2 id="CrackZip">Enumeración de Máquina Víctima y Crackeo de Archivo Zip</h2>
 
-Veamos que privilegios tenemos:
+Veamos qué privilegios tenemos:
 ```bash
 mortadela@mortadela:~$ sudo -l
 [sudo] contraseña para mortadela: 
@@ -1013,7 +1017,7 @@ Session completed.
 ```
 No tardo ni un segundo.
 
-Ahora si, descomprimimos ese archivo:
+Ahora sí, descomprimimos ese archivo:
 ```bash
 unzip muyconfidencial.zip
 Archive:  muyconfidencial.zip
@@ -1101,9 +1105,9 @@ Unknown characters are displayed as "●"
 14.:	*, 
 Combined: ●{a, Ï, §, ñ, D, , \, #, y, k, 9, ;, H, [,  , f}********
 ```
-Funciono bien, pero parece que falto por obtener el primer caracter de la contraseña.
+Funciono bien, pero parece que falto por obtener el primer carácter de la contraseña.
 
-Tan solo nos falta obtener ese caracter.
+Tan solo nos falta obtener ese carácter.
 
 Gracias a nuestra biblia **HackTricks**, nos enseña a aplicar fuerza bruta a **KeePass**:
 * <a href="https://book.hacktricks.wiki/en/generic-hacking/brute-force.html?highlight=keepass#keepass" target="_blank">HackTricks: Brute Force - CheatSheet - KeePass</a>
@@ -1112,7 +1116,7 @@ Ahora, debemos crear un diccionario que tenga variaciones de la contraseña inco
 
 Primero, vamos a crear el diccionario y esto lo haremos con la herramienta **crunch**.
 
-Debemos indicarle un minimo y un máximo de caracteres (la contraseña es de 14 caracteres), luego los caracteres que serán usados (podemos usar minusculas, mayusculas y números), le podemos indicar una palabra que puede ser usada para crear las variaciones en conjunto con los caracteres seleccionados (usamos la contraseña incompleta) y le decimos que guarde los resultados en un archivo de texto:
+Debemos indicarle un mínimo y un máximo de caracteres (la contraseña es de 14 caracteres), luego los caracteres que serán usados (podemos usar minúsculas, mayúsculas y números), le podemos indicar una palabra que puede ser usada para crear las variaciones en conjunto con los caracteres seleccionados (usamos la contraseña incompleta) y le decimos que guarde los resultados en un archivo de texto:
 ```batch
 crunch 14 14 abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -t @aritrini12345 -o diccionario.txt
 Crunch will now generate the following amount of data: 930 bytes
@@ -1145,9 +1149,9 @@ Press 'q' or Ctrl-C to abort, almost any other key for status
 Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
 ```
-Super, ya tenemos la contraseña.
+Súper, ya tenemos la contraseña.
 
-Vamos a comprobar si es correcta, abriendo el archivo con **KeePass**. Yo lo hare desde una máquina Windows:
+Vamos a comprobar si es correcta, abriendo el archivo con **KeePass**. Yo lo haré desde una máquina Windows:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-mortadela/Captura13.png">
@@ -1207,6 +1211,7 @@ Y con esto terminamos la máquina.
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">

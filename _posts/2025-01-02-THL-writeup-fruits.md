@@ -7,7 +7,7 @@ classes: wide
 header:
   teaser: /assets/images/THL-writeup-fruits/Fruits.png
   teaser_home_page: true
-  icon: /assets/images/thehackerslabs.jpeg
+  icon: /assets/images/thehackerlabs.jpeg
 categories:
   - TheHackerLabs
   - Easy Machine

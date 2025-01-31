@@ -7,7 +7,7 @@ classes: wide
 header:
   teaser: /assets/images/THL-writeup-bridgenton/Bridgenton.png
   teaser_home_page: true
-  icon: /assets/images/thehackerslabs.jpeg
+  icon: /assets/images/thehackerlabs.jpeg
 categories:
   - TheHackerLabs
   - Medium Machine
