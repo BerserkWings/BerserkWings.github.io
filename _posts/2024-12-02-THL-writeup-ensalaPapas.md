@@ -16,7 +16,7 @@ tags:
   - Microsoft IIS
   - Fuzzing
   - BurpSuite
-  - Spider Attack
+  - Sniper Attack
   - Abusing File Upload
   - Malicious web.config File
   - ASP/ASPX Payload
@@ -72,7 +72,7 @@ Herramientas utilizadas:
 				<li><a href="#SMB">Analizando Servicio SMB</a></li>
 				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#fuzz">Fuzzing</a></li>
-                                <li><a href="#BurpSuite">Aplicando Ataque Spider con BurpSuite</a></li>
+                                <li><a href="#BurpSuite">Aplicando Sniper Attack con BurpSuite</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -389,7 +389,7 @@ Finished
 
 En ambos obtuvimos un resultado que podemos investigar.
 
-<h2 id="BurpSuite">Aplicando Ataque Spider con BurpSuite</h2>
+<h2 id="BurpSuite">Aplicando Sniper Attack con BurpSuite</h2>
 
 Veamos esa ruta que encontramos:
 
@@ -399,7 +399,7 @@ Veamos esa ruta que encontramos:
 
 Parece que podemos subir archivos, pero no sabemos de qué clase es el correcto.
 
-Vamos a aplicar un **ataque Spider** con **BurpSuite** para identificar los archivos que sí acepta.
+Vamos a aplicar un **ataque Sniper** con **BurpSuite** para identificar los archivos que sí acepta.
 
 Puedes descargar el siguiente **wordlist**:
 * <a href="https://github.com/InfoSecWarrior/Offensive-Payloads/blob/main/File-Extensions-Wordlist.txt" target="_blank">Respositorio de InfoSecWarrior: File-Extensions-Wordlist.txt</a>
@@ -410,7 +410,7 @@ Ahora la idea es capturar una subida de archivos, tan solo crea un archivo de te
 <img src="/assets/images/THL-writeup-ensalaPapas/Captura4.png">
 </p>
 
-Aquí estoy mostrando el campo en el que se aplicará el **ataque Spider**, que es `filename=` seleccionando la extensión del archivo. Se carga como payload nuestro **wordlist** que ya descargamos y le quitamos la opción que **URL Encodea** cada petición, ya que nos puede dar conflictos al aplicar el ataque.
+Aquí estoy mostrando el campo en el que se aplicará el **ataque Sniper**, que es `filename=` seleccionando la extensión del archivo. Se carga como payload nuestro **wordlist** que ya descargamos y le quitamos la opción que **URL Encodea** cada petición, ya que nos puede dar conflictos al aplicar el ataque.
 
 Y lo iniciamos:
 

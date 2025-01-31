@@ -91,7 +91,7 @@ Herramientas utilizadas:
 			<ul>
 				<li><a href="#Exploit1">Probando Exploit: WordPress Plugin wpDiscuz 7.0.4 - Remote Code Execution (Unauthenticated) versión Python</a></li>
 				<li><a href="#Exploit2">Probando Módulo de Metasploit: exploit/unix/webapp/wp_wpdiscuz_unauthenticated_file_upload</a></li>
-				<li><a href="#MySQL">Aplicando Fuerza Bruta y Aplicando Enumeración al Servicio MySQL</a></li>
+				<li><a href="#MySQL">Aplicando Fuerza Bruta y Enumeración al Servicio MySQL</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
