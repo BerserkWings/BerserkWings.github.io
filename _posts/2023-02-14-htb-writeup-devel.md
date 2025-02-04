@@ -13,11 +13,15 @@ categories:
   - Easy Machine
 tags:
   - Windows
+  - Microsoft IIS
+  - FTP
   - FTP Enumeration
   - Abusing FTP Service
   - Local File Inclusion (LFI)
   - Reverse Shell
   - Abusing IIS Service
+  - ASPX WebShell
+  - System Recognition (Windows)
   - Local Privilege Escalation (LPE)
   - Privesc - MS11-046 (LPE)
   - Privesc - MS13-053 (LPE)

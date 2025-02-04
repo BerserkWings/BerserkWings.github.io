@@ -1118,7 +1118,7 @@ Primero, vamos a crear el diccionario y esto lo haremos con la herramienta **cru
 
 Debemos indicarle un mínimo y un máximo de caracteres (la contraseña es de 14 caracteres), luego los caracteres que serán usados (podemos usar minúsculas, mayúsculas y números), le podemos indicar una palabra que puede ser usada para crear las variaciones en conjunto con los caracteres seleccionados (usamos la contraseña incompleta) y le decimos que guarde los resultados en un archivo de texto:
 ```batch
-crunch 14 14 abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -t @aritrini12345 -o diccionario.txt
+crunch 14 14 abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -t @********** -o diccionario.txt
 Crunch will now generate the following amount of data: 930 bytes
 0 MB
 0 GB

