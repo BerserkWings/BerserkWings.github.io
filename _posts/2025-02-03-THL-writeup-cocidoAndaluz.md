@@ -18,7 +18,7 @@ tags:
   - FTP
   - SMB
   - FTP Enumeration
-  - Brute Force
+  - Brute Force Attack
   - ASP/ASPX Payload
   - Abusing FTP Service
   - Abusing IIS Service
