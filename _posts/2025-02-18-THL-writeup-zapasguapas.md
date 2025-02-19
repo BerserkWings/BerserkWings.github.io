@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Zapasguapas - TheHackerLabs
+title: Zapas Guapas - TheHackerLabs
 excerpt: "Fue una máquina sencilla que requiere un poquito de trabajo. Al descubrir solamente dos puertos abiertos, nos vamos a analizar la página web activa en el puerto 80. Al no encontrar mucho, aplicamos Fuzzing con lo que descubrimos una página que sirve como login. Dicha página, permite la ejecución de comandos desde el campo contraseña que aprovechamos usando BurpSuite para obtener una Reverse Shell. Dentro de la máquina, ubicamos y descargamos un archivo ZIP que logramos crackear, siendo que contiene la contraseña de un usuario de la máquina víctima. Convirtiéndonos en ese usuario, descubrimos que tiene privilegios para usar el comando apt de otro usuario de la máquina. Utilizando GTFOBins, logramos obtener una sesión como el segundo usuario de la máquina. Por último, dicho usuario también tiene privilegios sobre el binario aws del usuario Root que, de igual forma, logramos escalar privilegios usando GTFOBins y nos convertimos en Root."
 date: 2025-02-18
 classes: wide
