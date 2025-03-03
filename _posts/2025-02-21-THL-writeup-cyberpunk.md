@@ -18,7 +18,7 @@ tags:
   - FTP Enumeration
   - Abusing File Upload
   - PHP Reverse Shell
-  - Brainfuck Decryption
+  - Brainfuck Decoding
   - Python Library Hijacking
   - Script Hijacking
   - Privesc - Python Library Hijacking
