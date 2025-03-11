@@ -1,7 +1,7 @@
 ---
 layout: single
 title: MobyDick - TheHackerLabs
-excerpt: "."
+excerpt: "Una máquina no tan complicada, pero que necesita bastante trabajo resolverla. Después de ver el escaneo y no ver más que solo la página por defecto de Apache2, aplicamos Fuzzing, que descubre un archivo con un mensaje dirigido a un usuario, indicando que existe un contenedor de Docker que tiene activo Grafana 8.3.0 y un archivo de texto con una contraseña para una base de datos. Aplicamos fuerza bruta al usuario encontrado y logramos obtener su contraseña, con lo que entramos al servicio SSH. Dentro, encontramos un nuevo usuario y un archivo que es una base de datos de KeePass. Aplicando Ping Sweep con un script, encontramos la IP que está utilizando el contenedor de Docker. Aplicamos Port Forwarding de varías maneras, para poder ver la página de Grafana. Investigando la versión de Grafana usada, encontramos que tiene la vulnerabilidad Path Traversal, que aprovechamos para ver el archivo que contiene la contraseña de la base de datos de KeePass. Dentro de esa base de datos, encontramos la contraseña del otro usuario del SSH y al convertirnos en este, descubrimos que tiene todos los privilegios, así que podemos convertimos en Root."
 date: 2025-03-10
 classes: wide
 header:
@@ -27,9 +27,11 @@ tags:
   - Privesc - Abusing Sudoers Privilege
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-mobydick/mobydick.webp)
+<p align="center">
+<img src="/assets/images/THL-writeup-mobydick/mobydick.webp">
+</p>
 
-texto
+Una máquina no tan complicada, pero que necesita bastante trabajo resolverla. Después de ver el escaneo y no ver más que solo la página por defecto de **Apache2**, aplicamos **Fuzzing**, que descubre un archivo con un mensaje dirigido a un usuario, indicando que existe un **contenedor de Docker** que tiene activo **Grafana 8.3.0** y un archivo de texto con una contraseña para una base de datos. Aplicamos **Fuerza Bruta** al usuario encontrado y logramos obtener su contraseña, con lo que entramos al **servicio SSH**. Dentro, encontramos un nuevo usuario y un archivo que es una base de datos de **KeePass**. Aplicando **Ping Sweep** con un script, encontramos la IP que está utilizando el **contenedor de Docker**. Aplicamos **Port Forwarding** de varías maneras, para poder ver la página de **Grafana**. Investigando la versión de **Grafana** usada, encontramos que tiene la vulnerabilidad **Path Traversal**, que aprovechamos para ver el archivo que contiene la contraseña de la base de datos de **KeePass**. Dentro de esa base de datos, encontramos la contraseña del otro usuario del **SSH** y al convertirnos en este, descubrimos que tiene todos los privilegios, así que podemos convertimos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
@@ -42,8 +44,9 @@ Herramientas utilizadas:
 * *bash*
 * *scp*
 * *chisel*
+* *gunzip*
 * *proxychains*
-* *SOCKS proxy*
+* *proxy SOCKS*
 * *ssh*
 * *curl*
 * *cat*
@@ -111,6 +114,8 @@ PING 192.168.1.160 (192.168.1.160) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.888/1.002/1.273/0.157 ms
 ```
 Por el TTL sabemos que la máquina usa **Linux**, hagamos los escaneos de puertos y servicios.
+
+<br>
 
 <h2 id="Puertos">Escaneo de Puertos</h2>
 
@@ -186,7 +191,7 @@ Nmap done: 1 IP address (1 host up) scanned in 7.05 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Parece que la página web esta mostrando la página por defecto de **Apache2**.
+Parece que la página web está mostrando la página por defecto de **Apache2**.
 
 Si la revisamos, no encontraremos nada, por lo que será mejor aplicar **Fuzzing** para ver que podemos encontrar.
 
@@ -289,11 +294,11 @@ Tenemos varios puntos ahí.
 
 * Segundo, nos está diciendo que están utilizando **Docker**.
 
-* Tercero, esta ocupando **Grafana 8.3.0**, al que podemos buscar un Exploit, ya que nos esta dando la versión que están ocupando.
+* Tercero, está ocupando **Grafana 8.3.0**, al que podemos buscar un Exploit, ya que nos está dando la versión que están ocupando.
 
 * Cuarto, hay un archivo que parece que contiene la contraseña de una base de datos, esto dentro del directorio `/tmp`.
 
-Se me ocurre comprobar si ese usuario existe, aplicandole fuerza bruta junto al **servicio SSH**.
+Se me ocurre comprobar si ese usuario existe, aplicándole fuerza bruta junto al **servicio SSH**.
 
 
 <br>
@@ -326,10 +331,10 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2025-03-10 19:46:
 ```
 Excelente, tenemos la contraseña.
 
-Probemosla:
+Probémosla:
 ```bash
-ssh pinguinito@192.168.100.38
-pinguinito@192.168.100.38's password: 
+ssh pinguinito@192.168.1.160
+pinguinito@192.168.1.160's password: 
 Welcome to Ubuntu 22.04.4 LTS (GNU/Linux 5.15.0-100-generic x86_64)
 ...
 ...
@@ -368,7 +373,7 @@ drwxr-xr-x 20 root       root       4096 mar 12  2024 ..
 drwxr-x---  5 ballenasio ballenasio 4096 mar 12  2024 ballenasio
 drwxr-x---  4 pinguinito pinguinito 4096 abr 16  2024 pinguinito
 ```
-Ya estamos dentro de **pinguinito**, pero no podremos entrar al de **ballenasio** y que deseguro es otro usuario.
+Ya estamos dentro de **pinguinito**, pero no podremos entrar al de **ballenasio** y que de seguro es otro usuario.
 
 Además de encontrar la flag dentro de **pinguinito**, podemos encontrar un archivo que parece ser una base de datos de contraseñas de **KeePass**:
 ```bash
@@ -385,9 +390,9 @@ drwxrwxr-x 3 pinguinito pinguinito 4096 mar 12  2024 .local
 -rw-r--r-- 1 pinguinito pinguinito  807 mar 12  2024 .profile
 -r-------- 1 root       root         33 abr 16  2024 user.txt
 ```
-Pero no podremos ni crackearlo, ni aplicarle un **volcado de memoria**, por lo que tenemos que hayar la forma de obtener la contraseña de acceso.
+Pero no podremos ni crackearlo, ni aplicarle un **volcado de memoria**, por lo que tenemos que hallar la forma de obtener la contraseña de acceso.
 
-Vamos a descargalo para más adelante:
+Vamos a descargarlo para más adelante:
 ```bash
 scp pinguinito@192.168.1.160:/home/pinguinito/Database.kdbx .
 pinguinito@192.168.1.160's password: 
@@ -400,8 +405,8 @@ Si revisamos la interfaz, podemos ver la interfaz de **Docker**:
 pinguinito@ballenasio:~$ ifconfig
 docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
-        inet6 fe80::42:f7ff:fec0:3afc  prefixlen 64  scopeid 0x20<link>
-        ether 02:42:f7:c0:3a:fc  txqueuelen 0  (Ethernet)
+        inet6 XX  prefixlen 64  scopeid 0x20<link>
+        ether XX  txqueuelen 0  (Ethernet)
         RX packets 389  bytes 30042 (30.0 KB)
         RX errors 0  dropped 0  overruns 0  frame 0
         TX packets 365  bytes 112744 (112.7 KB)
@@ -427,7 +432,7 @@ is_alive_ping $i & disown
 done
 ```
 
-Ejecutalo y observa el resultado:
+Ejecútalo y observa el resultado:
 ```bash
 pinguinito@ballenasio:~$ ./ips.sh 
 Node with IP: 172.17.0.1 is up.
@@ -435,7 +440,7 @@ Node with IP: 172.17.0.2 is up.
 ```
 Ahí está.
 
-Ahora, veamos que puertos tiene abiertos, utilizando el siguiente oneliner:
+Ahora, veamos qué puertos tiene abiertos, utilizando el siguiente one-liner:
 ```bash
 pinguinito@ballenasio:~$ for port in {1..65535}; do echo > /dev/tcp/172.17.0.2/$port && echo "Port: $port open"; done 2>/dev/null
 Port: 3000 open
@@ -511,7 +516,7 @@ Ahí está.
 
 <h3 id="proxychains">Aplicando Port Forwarding Dinámico con Proxy SOCKS y proxychains</h3>
 
-Para utilizar los **proxychains**, necesitamos crear un tunel dinámico desde el **servicio SSH**, usando un **proxy SOCKS**.
+Para utilizar los **proxychains**, necesitamos crear un túnel dinámico desde el **servicio SSH**, usando un **proxy SOCKS**.
 
 Para hacer esto, debemos indicarle un puerto que será usado para el **proxy SOCKS** (**-D**) y podemos indicarle que no abra una shell interactiva (**-N**):
 ```bash
@@ -556,7 +561,7 @@ Bien, para poder ver la página, debemos agregar el proxy al (en caso de que lo 
 <img src="/assets/images/THL-writeup-mobydick/Captura3.png">
 </p>
 
-Una vez agregado, podemos visitar el contenedos desde nuestro navegador:
+Una vez agregado, podemos visitar la página desde nuestro navegador:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-mobydick/Captura4.png">
@@ -572,8 +577,8 @@ Esta es una forma bastante sencilla, tan solo hay que indicarle que un puerto qu
 
 Pero, como es un puerto de un contenedor el que queremos exponer, vamos a indicarle la IP del contenedor:
 ```bash
-ssh -L 8080:172.17.0.2:3000 pinguinito@192.168.100.38 -N
-pinguinito@192.168.100.38's password:
+ssh -L 8080:172.17.0.2:3000 pinguinito@192.168.1.160 -N
+pinguinito@192.168.1.160's password:
 ```
 Listo, eso era todo.
 
@@ -583,7 +588,7 @@ Visitemos la página web en el **puerto 8080**:
 <img src="/assets/images/THL-writeup-mobydick/Captura5.png">
 </p>
 
-Ahí esta, con esto terminamos de aplicar **Port Forwarding Local**.
+Ahí está, con esto terminamos de aplicar **Port Forwarding Local**.
 
 <br>
 
@@ -628,9 +633,9 @@ grafana:x:472:0::/home/grafana:/usr/sbin/nologin
 ```
 Funciona.
 
-Recordando un poco, al descubrir y ver un archivo de **PHP** de la página principal, nos indica que hay un archivo de texto dentro del directiorio `/tmp` que contiene la contraseña de una base de datos.
+Recordando un poco, al descubrir y ver un archivo de **PHP** de la página principal, nos indica que hay un archivo de texto dentro del directorio `/tmp` que contiene la contraseña de una base de datos.
 
-Supongamos que dicho archivo, esta dentro del contenedor.
+Supongamos que dicho archivo, está dentro del contenedor.
 
 Veamos si existe:
 ```bash
