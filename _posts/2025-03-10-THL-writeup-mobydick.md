@@ -23,8 +23,8 @@ tags:
   - Dynamic Port Forwarding
   - Local Port Forwarding
   - Path Traversal
-  - Abusing Sudoers Privilege
-  - Privesc - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 <p align="center">

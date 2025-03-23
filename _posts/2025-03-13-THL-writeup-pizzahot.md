@@ -18,9 +18,9 @@ tags:
   - Web Enumeration
   - Information Leakage
   - Brute Force Attack
-  - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
   - User Pivoting
-  - Privesc - Abusing Sudoers Privilege
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/THL-writeup-pizzahot/pizzahot.webp)

@@ -14,7 +14,7 @@ categories:
 tags:
   - Linux
   - SSH
-  - Brufe Force Attack
+  - Brute Force Attack
   - Abusing Sudoers Privilege
   - Abusing puttygen Binary
   - SSH Key Injection

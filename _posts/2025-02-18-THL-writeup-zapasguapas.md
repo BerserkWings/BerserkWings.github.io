@@ -17,9 +17,9 @@ tags:
   - Remote Command Execution (RCE)
   - Command Injection
   - Cracking Hash
-  - ZIP Cracking
-  - Abusing Sudoers Privilege
-  - Privesc - Abusing Sudoers Privilege
+  - Cracking ZIP
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 <p align="center">

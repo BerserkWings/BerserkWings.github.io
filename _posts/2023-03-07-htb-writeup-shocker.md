@@ -17,7 +17,8 @@ tags:
   - Fuzzing
   - Remote Code Execution (RCE)
   - Reverse Shell
-  - Privesc - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - Local Privilege Escalation (LPE)
   - System Recognition (Linux)
   - Remote Command Injection (RCI)
