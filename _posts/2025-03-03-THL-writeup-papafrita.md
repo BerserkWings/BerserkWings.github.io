@@ -18,8 +18,8 @@ tags:
   - Web Steganography
   - Brainfuck Decoding
   - Brute Force Attack
-  - Abusing Sudoers Privilege
-  - Privesc - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/THL-writeup-papafrita/Papafrita.jpg)

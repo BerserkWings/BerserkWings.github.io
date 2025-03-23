@@ -19,7 +19,8 @@ tags:
   - Fuzzing
   - Local File Inclusion (LFI)
   - Brute Force Attack
-  - Privesc - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
   - Metasploit Framework
 ---

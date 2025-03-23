@@ -17,7 +17,8 @@ tags:
   - BurpSuite
   - XXE Injection 
   - Python Vulnerability
-  - Privesc - Abusing Sudoers Privilege
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
 ---
 ![](/assets/images/htb-writeup-bountyhunter/bounty_logo.png)

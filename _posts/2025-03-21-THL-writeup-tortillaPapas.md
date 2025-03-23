@@ -21,7 +21,7 @@ tags:
   - Cracking SSH Private Key
   - Cracking ZIP
   - User Pivoting
-  - Shell Escape
+  - Applying Shell Escape
   - Abusing LXD Group
   - Privesc - Abusing LXD Group
   - OSCP Style
@@ -345,7 +345,7 @@ Ahí mismo, podemos ver la versión que están ocupando:
 </p>
 
 Buscando un Exploit para esta versión, encontramos que es vulnerable a una **condición de carrera**:
-* <a href="https://bugs.gentoo.org/602652" target="_blank"></a>
+* <a href="https://bugs.gentoo.org/602652" target="_blank">CVE-2016-20015</a>
 
 Pero para aplicar esto, necesitamos estar dentro de la máquina víctima, por lo que vamos a descartar este servicio de momento.
 
