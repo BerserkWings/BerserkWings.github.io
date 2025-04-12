@@ -1,11 +1,11 @@
 ---
 layout: single
-title: JaulaCon 2025 - TheHackerLabs
-excerpt: "."
+title: JaulaCon2025 - TheHackerLabs
+excerpt: "Esta fue una máquina sencilla, pero que necesita su trabajo. Después de analizar los escaneos, entramos a la página web activa en el puerto 80, que vemos que utiliza Virtual Hosting. Aplicando Hovering y registrando el dominio en el /etc/hosts, identificamos que la página es el CMS Bludit. Aplicando Fuzzing, descubrimos el login del CMS Bludit y lo analizamos para ver como se tramita la data del login, para aplicarle fuerza bruta. Al notar que la fuerza bruta será complicada de aplicar, buscamos algún Exploit que se le pueda aplicar, encontrando así un Exploit que aplica fuerza bruta. Utilizamos este Exploit para ganar acceso al login del CMS Bludit. Entre los Exploits encontrados, también encontramos uno que aplica Directory Traversal, que utilizamos para cargar una WebShell y con esto nos mandamos una Reverse Shell para ganar acceso a la máquina víctima. Enumerando la máquina, encontramos un archivo del CMS Bludit que contiene los hashes de las contraseñas de los usuarios, siendo que uno de estos hashes de un usuario es posible crackearlo en la página crackstation. Utilizamos la contraseña crackeada y su usuario, para ganar acceso a la máquina mediante el servicio SSH. Revisando los privilegios de nuestro usuario, descubrimos que podemos usar el binario busctl como Root, siendo esté binario que ocupamos para escalar privilegios, gracias a la guía de GTFOBins."
 date: 2025-04-11
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-jaulaCon2025/_logo.png
+  teaser: /assets/images/THL-writeup-jaulaCon2025/jaulaCon2025.jpeg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,51 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - CMS Bludit
+  - Web Enumeration
+  - Fuzzing
+  - Brute Force Attack
+  - Authentication Bruteforce Mitigation Bypass
+  - CVE-2019-17240
+  - Directory Traversal
+  - CVE-2019-16113 
+  - System Recognition (Linux)
+  - Cracking Hash
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
   - OSCP Style
+  - Metasploit Framework
 ---
-![](/assets/images/THL-writeup-jaulaCon2025/)
+<p align="center">
+<img src="/assets/images/THL-writeup-jaulaCon2025/jaulaCon2025.jpeg">
+</p>
 
-texto
+Esta fue una máquina sencilla, pero que necesita su trabajo. Después de analizar los escaneos, entramos a la página web activa en el **puerto 80**, que vemos que utiliza **Virtual Hosting**. Aplicando **Hovering** y registrando el dominio en el `/etc/hosts`, identificamos que la página es el **CMS Bludit**. Aplicando **Fuzzing**, descubrimos el login del **CMS Bludit** y lo analizamos para ver como se tramita la data del login, para aplicarle fuerza bruta. Al notar que la fuerza bruta será complicada de aplicar, buscamos algún Exploit que se le pueda aplicar, encontrando así un Exploit que aplica fuerza bruta. Utilizamos este Exploit para ganar acceso al login del **CMS Bludit**. Entre los Exploits encontrados, también encontramos uno que aplica **Directory Traversal**, que utilizamos para cargar una **WebShell** y con esto nos mandamos una **Reverse Shell** para ganar acceso a la máquina víctima. Enumerando la máquina, encontramos un archivo del **CMS Bludit** que contiene los hashes de las contraseñas de los usuarios, siendo que uno de estos hashes de un usuario es posible crackearlo en la **página Crackstation**. Utilizamos la contraseña crackeada y su usuario, para ganar acceso a la máquina mediante el **servicio SSH**. Revisando los privilegios de nuestro usuario, descubrimos que podemos usar el **binario busctl** como **Root**, siendo esté binario que ocupamos para escalar privilegios, gracias a la **guía de GTFOBins**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* *BurpSuite*
+* *searchsploit*
+* *mv*
+* *echo*
+* *Python3*
+* *nc*
+* *script*
+* *PHP*
+* *Metasploit Framework (msfconsole)*
+* *Módulo: exploit/linux/http/bludit_upload_images_exec*
+* *wget*
+* *pspy64*
+* *Crackstation*
+* *ssh*
+* *sudo*
+* *busctl*
+* *chmod*
+* *bash*
 
 
 <br>
@@ -43,32 +73,25 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#login">Analizando Login de Bludit</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Exploit1">Probando Exploit: Bludit 3.9.2 - Authentication Bruteforce Mitigation Bypass</a></li>
+				<li><a href="#Exploit2">Probando Exploit: Bludit 3.9.2 - Directory Traversal y Ganando Acceso a la Máquina Víctima</a></li>
+				<li><a href="#Metasploit">Utilizando Módulo bludit_upload_images_exec de Metasploit Framework para Explotar Bludit 3.9.2</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#enumLin">Enumeración de la Máquina Víctima y Enumeración de Archivos del CMS Bludit</a></li>
+				<li><a href="#Cracking">Enumeración de Archivos del CMS Bludit y Crackeando Hash MD5 en Crackstation.net</a></li>
+				<li><a href="#busctlPrivesc">Escalando Privilegios con Binario busctl</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
 </div>
-
-
-<h2 id="HTTP">Analizando Servicio HTTP</h2>
-<h2 id="fuzz">Fuzzing</h2>
-<h2 id="login">Analizando Login de Bludit</h2>
-<h2 id="Exploit1">Probando Exploit: Bludit 3.9.2 - Authentication Bruteforce Mitigation Bypass</h2>
-<h2 id="Exploit2">Probando Exploit: Bludit 3.9.2 - Directory Traversal</h2>
-<h2 id="Metasploit">Utilizando Módulo bludit_upload_images_exec de Metasploit Framework para Explotar Bludit 3.9.2</h2>
-<h2 id="enumLin">Enumeración de la Máquina Víctima y Enumeración de Archivos del CMS Bludit</h2>
-<h2 id="Cracking">Enumeración de Archivos del CMS Bludit y Crackeando Hash MD5 en Crackstation.net</h2>
-<h2 id="busctlPrivesc">Escalando Privilegios con Binario busctl</h2>
 
 
 <br>
@@ -364,12 +387,12 @@ El problema es saber, si dicho token es dinámico o estático, pues si es dinám
 Podemos comprobarlo aplicando **curl** al login, buscando el token con **grep**, volver a esperar unos segundos y volver a aplicarlo:
 ```bash
 curl -s http://192.168.1.240/admin/login | grep tokenCSRF
-<h1 class="text-center....id="jstokenCSRF" name="tokenCSRF" value="0ac7475569c42d68535a68c3e448368788d2f560">
+<h1 class="text-center"....id="jstokenCSRF" name="tokenCSRF" value="0ac7475569c42d68535a68c3e448368788d2f560">
 
 # Espera unos segundos
 
 curl -s http://192.168.1.240/admin/login | grep tokenCSRF
-<h1 class="text-center....id="jstokenCSRF" name="tokenCSRF" value="c1e54f96df317a3bb25daebf2dce7af9152761b9">
+<h1 class="text-center"....id="jstokenCSRF" name="tokenCSRF" value="c1e54f96df317a3bb25daebf2dce7af9152761b9">
 ```
 Es un token dinámico.
 
@@ -462,7 +485,7 @@ Y estamos dentro.
 
 <br>
 
-<h2 id="Exploit2">Probando Exploit: Bludit 3.9.2 - Directory Traversal</h2>
+<h2 id="Exploit2">Probando Exploit: Bludit 3.9.2 - Directory Traversal y Ganando Acceso a la Máquina Víctima</h2>
 
 Como ya tenemos un usuario y contraseña válidos, es posible aplicar el **Exploit Bludit 3.9.2 - Directory Traversal**, que justamente necesita esto.
 
@@ -480,9 +503,9 @@ File Type: Python script, ASCII text executable
 Analizando este Exploit, vemos varias cosillas:
 
 * Lo principal, es que está hecho en **Python**, por lo que solo tendríamos que cambiarle el tipo de archivo para poder ejecutarlo.
-* Tenemos instrucciones para crear una **Reverse Shell** de **PHP** que será almacenada en una imagen y luego crear un **archivo .htaccess** que será el que ejecute el payload de la imagen.
-* Instrucciones para modificar la URL, el usuario y la contraseña por los válidos para el login.
-* Abrir un listener que capturara al **Reverse Shell**.
+* Tenemos instrucciones para crear una **Reverse Shell** de **PHP** que será almacenada en una imagen y luego crear un **archivo .htaccess** que será el que interprete el payload de la imagen.
+* Tenemos instrucciones para modificar la URL, el usuario y la contraseña por los válidos para el login.
+* Debemos abrir un listener que capturara la **Reverse Shell**.
 * Y luego visitar el archivo creado en la ruta `url + /bl-content/tmp/temp/evil.png`, que ejecutara nuestra **Reverse Shell**.
 
 Vamos a cambiar esto un poco, pues en vez de que se aplique una **Reverse Shell**, cargaremos una **WebShell de PHP**.
@@ -884,6 +907,7 @@ Y con esto, terminamos la máquina.
 * https://www.exploit-db.com/exploits/48942
 * https://www.exploit-db.com/exploits/48701
 * https://www.bludit.com/es/
+* https://github.com/DominicBreuker/pspy
 * https://crackstation.net/
 * https://gtfobins.github.io/gtfobins/busctl/
 
