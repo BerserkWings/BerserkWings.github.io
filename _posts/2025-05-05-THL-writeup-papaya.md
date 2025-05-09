@@ -105,7 +105,7 @@ PING 192.168.10.30 (192.168.10.30) 56(84) bytes of data.
 4 packets transmitted, 4 received, 0% packet loss, time 3421ms
 rtt min/avg/max/mdev = 1.054/1.621/2.495/0.546 ms
 ```
-Por el TTL sabemos que la máquina usa *****, hagamos los escaneos de puertos y servicios.
+Por el TTL sabemos que la máquina usa **Linux**, hagamos los escaneos de puertos y servicios.
 
 <br>
 

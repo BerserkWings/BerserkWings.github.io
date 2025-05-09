@@ -21,9 +21,9 @@ tags:
   - Cracking Hash
   - Cracking KeePass Database
   - Abusing /etc/passwd File
-  - Abusing Sudoers Privilege
-  - Privesc - Abusing Sudoers Privilege
-  - Privesc - Abusing passwd File
+  - Abusing Sudoers Privileges
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - Abusing /etc/passwd File
   - OSCP Style
 ---
 ![](/assets/images/THL-writeup-decryptor/decryptor.jpg)
