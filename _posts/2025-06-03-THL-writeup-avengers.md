@@ -1413,12 +1413,10 @@ Y con esto, completamos la máquina.
 * https://esolangs.org/wiki/Pikalang
 * https://www.dcode.fr/pikalang-language
 * https://gchq.github.io/CyberChef/
-* 
-* 
-* 
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
