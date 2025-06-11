@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Sal y Azucar - TheHackerLabs
+title: Sal y Azúcar - TheHackerLabs
 excerpt: "Esta fue una máquina sencilla. Después de aplicar Fuzzing, encontramos un directorio oculto. Dicho directorio, solamente tiene un archivo que muestra un mensaje que nos da una pista de lo que tenemos que hacer. Aplicamos fuerza bruta al servicio SSH, encontrando un usuario y contraseña válidos con los que podemos ganar acceso a la máquina víctima. Dentro de la máquina, revisamos los privilegios de nuestro usuario, descubriendo que podemos utilizar el binario base64 como Root. Utilizamos la guía de GTFOBins para encontrar una forma de escalar privilegios con este binario. Encontramos que el binario base64 nos permite ver archivos que solamente el Root puede, siendo de esta forma que logramos copiar la llave privada id_rsa. Logramos crackear la llave privada y nos autenticamos como Root en la máquina víctima."
 date: 2025-06-06
 classes: wide
