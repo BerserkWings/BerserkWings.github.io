@@ -1,11 +1,11 @@
 ---
 layout: single
 title: TheFirstAvenger - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina sencilla, pero que necesita bastante trabajo para terminarla. Después de analizar los escaneos y no encontrar nada en la página web activa en el puerto 80, aplicamos Fuzzing y descubrimos una página web que fue creada con WordPress. Enumeramos WordPress y al no encontrar alguna vulnerabilidad, aplicamos fuerza bruta al usuario admin, de quien obtenemos su contraseña y ganamos acceso al login de WordPress. Dentro, modificamos un tema para que uno de sus archivos ejecute comandos, siendo este método por el que aplicamos y obtenemos una Reverse Shell de la máquina víctima. Al no encontrar algo en la máquina víctima, leemos el archivo wp-config.php, que contiene credenciales de acceso al servicio MySQL, y enumeramos las bases de datos de MySQL, descubriendo así un hash MD5 que logramos crackear y resultando en la contraseña del único usuario de la máquina, con lo que ganamos acceso vía SSH. Al comprobar si estaba activo el servicio MySQL, descubrimos un puerto activo que resulta ser una página web. Gracias a que ya tenemos acceso vía SSH, aplicamos Local Port Forwarding para poder ver esa página web. Utilizamos Nmap para ver qué tecnologías usa esta página web y descubrimos que usa Werkzeug, lo que nos lleva a comprobar y a aplicar Server Side Template Injection, con el que logramos asignarle permisos SUID a la Bash y así escalar privilegios para ser Root."
 date: 2025-07-12
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-theFirstAvenger/_logo.png
+  teaser: /assets/images/THL-writeup-theFirstAvenger/thefirstavenger.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -19,24 +19,50 @@ tags:
   - Werkzeug
   - Web Enumeration
   - Fuzzing
-  - 
-  - 
-  - 
-  - 
-  - 
+  - WordPress Enumeration
+  - Brute Force Attack
+  - WordPress Theme Editor Modification (RCE)
+  - System Recognition (Linux)
+  - MySQL Enumeration
+  - Cracking Hash
+  - Local Port Forwarding
+  - Server Side Template Injection (SSTI)
+  - Privesc - Server Side Template Injection (SSTI)
   - OSCP Style
+  - Metasploit Framework
 ---
-![](/assets/images/THL-writeup-theFirstAvenger/_logo.png)
+![](/assets/images/THL-writeup-theFirstAvenger/thefirstavenger.png)
 
-texto
+Esta fue una máquina sencilla, pero que necesita bastante trabajo para terminarla. Después de analizar los escaneos y no encontrar nada en la página web activa en el **puerto 80**, aplicamos **Fuzzing** y descubrimos una página web que fue creada con **WordPress**. Enumeramos **WordPress** y al no encontrar alguna vulnerabilidad, aplicamos fuerza bruta al **usuario admin**, de quien obtenemos su contraseña y ganamos acceso al login de **WordPress**. Dentro, modificamos un tema para que uno de sus archivos ejecute comandos, siendo este método por el que aplicamos y obtenemos una **Reverse Shell** de la máquina víctima. Al no encontrar algo en la máquina víctima, leemos el archivo **wp-config.php**, que contiene credenciales de acceso al **servicio MySQL**, y enumeramos las bases de datos de **MySQL**, descubriendo así un **hash MD5** que logramos crackear y resultando en la contraseña del único usuario de la máquina, con lo que ganamos acceso vía **SSH**. Al comprobar si estaba activo el **servicio MySQL**, descubrimos un puerto activo que resulta ser una página web. Gracias a que ya tenemos acceso vía **SSH**, aplicamos **Local Port Forwarding** para poder ver esa página web. Utilizamos **Nmap** para ver qué tecnologías usa esta página web y descubrimos que usa **Werkzeug**, lo que nos lleva a comprobar y a aplicar **Server Side Template Injection**, con el que logramos asignarle **permisos SUID** a la **Bash** y así escalar privilegios para ser **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *ffuf*
+* *gobuster*
+* *echo*
+* *wpscan*
+* *Metasploit Framework (msfconsole)*
+* *Módulo: auxiliary/scanner/http/wordpress_scanner*
+* *curl*
+* *grep*
+* *sed*
+* *cut*
+* *hydra*
+* *nc*
+* *Bash*
+* *Módulo: exploit/unix/webapp/wp_admin_shell_upload*
+* *which*
+* *ss*
+* *mysql*
+* *Crackstation*
+* *hash-identifier*
+* *JohnTheRipper*
+* *ssh*
+* *lsof*
+* *netstat*
+* *cat*
 
 
 <br>
@@ -55,11 +81,11 @@ Herramientas utilizadas:
 				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
 				<li><a href="#fuzz">Fuzzing</a></li>
 				<li><a href="#WordPress">Analizando Página Web de WordPress</a></li>
-				<li><a href="##WordPress">Enumeración de Página Web de WordPress</a></li>
+				<li><a href="#WordPress">Enumeración de Página Web de WordPress</a></li>
 				<ul>
 					<li><a href="#WPScan">Enumeración de Página Web de WordPress con WPScan</a></li>
 					<li><a href="#Metasploit">Enumeración de Plugins de WordPress con Módulo wordpress_scanner de Metasploit Framework</a></li>
-				<ul>
+				</ul>
 				<li><a href="#Manual">Enumeración Manual de Página Web de WordPress</a></li>
 				<ul>
                                         <li><a href="#VersionWordPress">Identificando Versión de WordPress</a></li>
@@ -649,6 +675,15 @@ Trying admin / yellow Time: 00:00:03 <                                          
 ...
 ...
 ```
+
+| Parámetros | Descripción |
+|--------------------------|
+| *--password-attack* | Para elegir un ataque suministrado en lugar de determinar uno automáticamente. Puede ser `wp-login, xmlrpc, xmlrpc-multicall`|
+| *-U*	     | Indica una lista de usuarios o un usuario. |
+| *-P*	     | Indica un wordlist de contraseñas. |
+
+<br>
+
 Excelente, obtuvimos la contraseña del **usuario admin** y parece que esta vez, sí pudo identificar el plugin que descubrimos antes.
 
 Ahora, utilicemos **hydra** para aplicar la fuerza bruta:
@@ -741,7 +776,7 @@ Y observa la **netcat**:
 ```bash
 nc -nvlp 443
 listening on [any] 443 ...
-connect to [Tu_IP] from (UNKNOWN) [192.168.100.98] 53832
+connect to [Tu_IP] from (UNKNOWN) [192.168.10.180] 53832
 bash: cannot set terminal process group (34916): Inappropriate ioctl for device
 bash: no job control in this shell
 </wp1/wp-content/themes/twentytwentythree/patterns$ whoami
