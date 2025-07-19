@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Campana Feliz - TheHackerLabs
-excerpt: "."
-date: 2025-07-17
+excerpt: "Después de analizar los escaneos, pasamos a analizar las dos páginas web activas. Descubrimos el uso de Webmin en la página web activa del puerto 10000. También descubrimos una pista en el código fuente de la página web activa en el puerto 8088 y aplicando Fuzzing, descubrimos un login al que le aplicamos fuerza bruta para ganar acceso. Al entrar, vemos que es una WebShell, lo que nos permite ejecutar una Reverse Shell desde un servidor web remoto de Python de nuestra máquina, con tal de ganar acceso a la máquina víctima. Ya en la máquina, descubrimos que nuestro usuario puede ejecutar la Bash con privilegios de Root, lo que nos permite escalar privilegios fácilmente para ser Root. Además, encontramos un archivo con credenciales de acceso al Webmin. Al entrar, vemos que es posible utilizar la Shell de Comandos y la Terminal para mandarnos una Reverse Shell, pero al recibirla, resulta que ganamos acceso como Root, pues es este quien ejecuta el Webmin."
+date: 2025-07-18
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-/_logo.png
+  teaser: /assets/images/THL-writeup-campanaFeliz/campana_feliz.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,42 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - Webmin
+  - Web Enumeration
+  - Fuzzing
+  - BurpSuite
+  - Brute Force Attack
+  - WebShell to Reverse Shell
+  - Abusing Sudoers Privileges
+  - Abusing Webmin Tools
+  - Privesc - Abusing Sudoers Privileges
+  - Privesc - Abusing Webmin Tools
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-/_logo.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-campanaFeliz/campana_feliz.png">
+</p>
 
-texto
+Después de analizar los escaneos, pasamos a analizar las dos páginas web activas. Descubrimos el uso de **Webmin** en la página web activa del **puerto 10000**. También descubrimos una pista en el código fuente de la página web activa en el **puerto 8088** y aplicando **Fuzzing**, descubrimos un login al que le aplicamos **fuerza bruta** para ganar acceso. Al entrar, vemos que es una **WebShell**, lo que nos permite ejecutar una **Reverse Shell** desde un servidor web remoto de **Python** de nuestra máquina, con tal de ganar acceso a la máquina víctima. Ya en la máquina, descubrimos que nuestro usuario puede ejecutar la **Bash** con privilegios de **Root**, lo que nos permite escalar privilegios fácilmente para ser **Root**. Además, encontramos un archivo con credenciales de acceso al **Webmin**. Al entrar, vemos que es posible utilizar la **Shell de Comandos** y la **Terminal** para mandarnos una **Reverse Shell**, pero al recibirla, resulta que ganamos acceso como **Root**, pues es este quien ejecuta el  **Webmin**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *whatweb*
+* *echo*
+* *base64*
+* *ffuf*
+* *gobuster*
+* *hydra*
+* *BurpSuite*
+* *nc*
+* *bash*
+* *nano*
+* *wget*
+* *python3*
+* *grep*
+* *sudo*
 
 
 <br>
@@ -43,17 +64,25 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Puerto8088">Analizando Página Web de Puerto 8088</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#Shell">Analizando Página Descubierta con Fuzzing</a></li>
+				<li><a href="#login">Analizando Login de Puerto 10000</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#fuerzaBruta">Aplicando Fuerza Bruta a Login de Página shell.php</a></li>
+				<li><a href="#webshell">Probando Ejecución de Comandos de WebShell y Obteniendo una Reverse Shell</a></li>
+				<ul>
+					<li><a href="#Descarga">Descargando y Ejecutando Reverse Shell en la Máquina Víctima</a></li>
+					<li><a href="#Remoto">Ejecutando Script de Reverse Shell de Manera Remota con wget</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#linEnum">Enumeración de la Máquina Víctima y Escalando Privilegios con Privilegios Sobre Binario Bash</a></li>
+				<li><a href="#Webmin">Probando Credenciales de Webmin y Escalando Privilegios con Shell Activa de Root</a></li>
+				<li><a href="#Github">Escalando Privilegios Abusando de Versión Vulnerable de Webmin con Script de GitHub</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -192,7 +221,7 @@ Nmap done: 1 IP address (1 host up) scanned in 110.72 seconds
 | *-p*       | Para indicar puertos específicos. |
 | *-oN*      | Para indicar que el output se guarde en un fichero. Lo llame targeted. |
 
-El **puerto 8088** esta mostrando la página por defecto de **Apache2** y parece que el **puerto 10000** esta mostrando un login.
+El **puerto 8088** está mostrando la página por defecto de **Apache2** y parece que el **puerto 10000** está mostrando un login.
 
 Vamos a ver si encontramos algo en la página web del **puerto 8088** y luego iremos al login del **puerto 10000**.
 
@@ -206,7 +235,7 @@ Vamos a ver si encontramos algo en la página web del **puerto 8088** y luego ir
 <br>
 
 
-<h2 id="">Analizando Página Web de Puerto 8088</h2>
+<h2 id="Puerto8088">Analizando Página Web de Puerto 8088</h2>
 
 Entremos:
 
@@ -214,7 +243,7 @@ Entremos:
 <img src="/assets/images/THL-writeup-campanaFeliz/Captura1.png">
 </p>
 
-Muy extraño, todo esta en blanco y **Wappalizer** tiene problemas para detectar las tecnologías usadas.
+Muy extraño, todo está en blanco y **Wappalizer** tiene problemas para detectar las tecnologías usadas.
 
 Veamos qué nos dice **whatweb**:
 ```bash
@@ -229,7 +258,7 @@ Veamos si hay algo en el código fuente:
 <img src="/assets/images/THL-writeup-campanaFeliz/Captura2.png">
 </p>
 
-Bien, tenemos dos mensajes códificados en **base64**.
+Bien, tenemos dos mensajes codificados en **base64**.
 
 Si los decodificamos, obtendremos lo siguiente:
 ```bash
@@ -245,7 +274,7 @@ Verás el niño en la cuna
 echo -n "Q2FtcGFuYSBDYW1wYW5hIENhTXBBTkEgQ2FNcGFOYQo=" | base64 -d
 Campana Campana CaMpANA CaMpaNa
 ```
-El primer mensaje es como una letra de alguna canción, pero el segundo mensaje, nos esta mostrando un usuario y/o una posible contraseña que quizá sean válidos para el login del puerto **10000**.
+El primer mensaje es como una letra de alguna canción, pero el segundo mensaje, nos está mostrando un usuario y/o una posible contraseña que quizá sean válidas para el login del puerto **10000**.
 
 Lo probaremos más adelante.
 
@@ -255,7 +284,7 @@ De momento, no encontramos nada más, así que vamos a aplicar **Fuzzing** para 
 
 <h2 id="fuzz">Fuzzing</h2>
 
-Para ahorrarte un poco de tiempo, no encontre ningún directorio oculto, por lo que enfoque el **Fuzzing** para buscar algún archivo oculto.
+Para ahorrarte un poco de tiempo, no encontré ningún directorio oculto, por lo que enfoqué el **Fuzzing** para buscar algún archivo oculto.
 
 Primero, usaremos **ffuf**:
 ```bash
@@ -352,9 +381,9 @@ Entremos:
 <img src="/assets/images/THL-writeup-campanaFeliz/Captura3.png">
 </p>
 
-Hemos descubierto un login que nos da acceso a una shell (quizá una webshell).
+Hemos descubierto un login que nos da acceso a una Shell (quizá una WebShell).
 
-Probamos como usuario y contraseña el segundo mensaje que decodificamos, pero no funciono:
+Probamos como usuario y contraseña el segundo mensaje que decodificamos, pero no funcionó:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-campanaFeliz/Captura4.png">
@@ -362,20 +391,13 @@ Probamos como usuario y contraseña el segundo mensaje que decodificamos, pero n
 
 El mensaje de error, no nos dice si el usuario existe o no.
 
-El código fuente no nos da alguna pista como tal y, si le aplicamos algunas **inyecciones SQL**, no parece que esten funcionando.
+El código fuente no nos da alguna pista como tal y, si le aplicamos algunas **inyecciones SQL**, no parece que estén funcionando.
 
 Por último, vayamos a ver el login del **puerto 10000**.
 
 <br>
 
 <h2 id="login">Analizando Login de Puerto 10000</h2>
-<h2 id="fuerzaBruta">Aplicando Fuerza Bruta a Login de Página shell.php</h2>
-<h2 id="webshell">Probando Ejecución de Comandos de WebShell y Obteniendo una Reverse Shell</h2>
-<h3 id="Descarga">Descargando y Ejecutando Reverse Shell en la Máquina Víctima</h3>
-<h3 id="Remoto">Ejecutando Script de Reverse Shell de Manera Remota con wget</h3>
-<h2 id="linEnum">Enumeración de la Máquina Víctima y Escalando Privilegios con Privilegios Sudoers de Usuario www-data</h2>
-<h2 id="Webmin">Probando Credenciales de CMS Webmin y Escalando Privilegios con Shell Activa de Root</h2>
-<h2 id="Github">Escalando Privilegios Abusando de Versión Vulnerable de CMS Webmin con Script de GitHub</h2>
 
 Entremos:
 
@@ -619,7 +641,7 @@ Continuemos.
 <br>
 
 
-<h2 id="linEnum">Enumeración de la Máquina Víctima y Escalando Privilegios con Privilegios Sudoers de Usuario www-data</h2>
+<h2 id="linEnum">Enumeración de la Máquina Víctima y Escalando Privilegios con Privilegios Sobre Binario Bash</h2>
 
 Veamos qué usuarios existen:
 ```bash
