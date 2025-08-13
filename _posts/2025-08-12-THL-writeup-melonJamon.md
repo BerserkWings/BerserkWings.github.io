@@ -1,11 +1,11 @@
 ---
 layout: single
-title: MelonJamon - TheHackerLabs
-excerpt: "."
+title: MelonJamón - TheHackerLabs
+excerpt: "Esta fue una máquina un poco complicada. Después de analizar los escaneos, descubrimos que existe un dominio al que se nos redirige cuando intentamos entrar a la página web activa del puerto 80, siendo esto el uso de Virtual Hosting. Agregamos ese dominio al /etc/hosts, para ver de manera correcta la página web. Al no encontrar nada, decidimos aplicar Fuzzing, logrando descubrir un directorio oculto que almacena una página que permite la carga de archivos. En el código fuente, se nos da una pista de que la página web de carga de archivos utiliza YAML. Realizamos un Ataque de Deserialización YAML de Python para cargar una Reverse Shell, logrando ganar acceso principal a la máquina víctima. Dentro, descubrimos que nuestro usuario tiene privilegios de otro usuario sobre el binario go. Creamos un script que almacena una Reverse Shell y usamos go con los privilegios del usuario para ejecutarlo, ganando acceso como este. Ya como el nuevo usuario, utilizamos la herramienta linpeas.sh y pspy64, logrando identificar que es posible modificar el directorio apt.conf.d y su contenido. Además, encontramos que se está ejecutando una tarea CRON que actualiza el sistema con el comando apt update. Sabiendo todo esto, abusamos de la funcionalidad de APT para inyectar comandos que le den permisos SUID a la Bash, siendo así que nos convertimos en Root."
 date: 2025-08-12
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-melonJamon/_logo.png
+  teaser: /assets/images/THL-writeup-melonJamon/melonjamon.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,46 @@ categories:
   - Medium Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - Virtual Hosting
+  - Python YAML Serialization (PyYAML)
+  - Web Enumeration
+  - Fuzzing
+  - YAML Deserialization Attack (Python)
+  - Abusing Sudoers Privilege
+  - Abusing go Binary (Sudoers)
+  - System Recognition (Linux)
+  - Abusing APT Functionality
+  - Privesc - Abusing APT Functionality
+  - Abusing CRON Jobs
+  - Privesc - Abusing CRON Jobs
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-melonJamon/_logo.png)
+![](/assets/images/THL-writeup-melonJamon/melonjamon.png)
 
-texto
+Esta fue una máquina un poco complicada. Después de analizar los escaneos, descubrimos que existe un dominio al que se nos redirige cuando intentamos entrar a la página web activa del **puerto 80**, siendo esto el uso de **Virtual Hosting**. Agregamos ese dominio al `/etc/hosts`, para ver de manera correcta la página web. Al no encontrar nada, decidimos aplicar **Fuzzing**, logrando descubrir un directorio oculto que almacena una página que permite la carga de archivos. En el código fuente, se nos da una pista de que la página web de carga de archivos utiliza **YAML**. Realizamos un **Ataque de Deserialización YAML de Python** para cargar una **Reverse Shell**, logrando ganar acceso principal a la máquina víctima. Dentro, descubrimos que nuestro usuario tiene privilegios de otro usuario sobre el **binario go**. Creamos un script que almacena una **Reverse Shell** y usamos **go** con los privilegios del usuario para ejecutarlo, ganando acceso como este. Ya como el nuevo usuario, utilizamos la herramienta **linpeas.sh** y **pspy64**, logrando identificar que es posible modificar el directorio **apt.conf.d** y su contenido. Además, encontramos que se está ejecutando una **tarea CRON** que actualiza el sistema con el comando **apt update**. Sabiendo todo esto, abusamos de la funcionalidad de **APT** para inyectar comandos que le den **permisos SUID** a la **Bash**, siendo así que nos convertimos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *echo*
+* *base64*
+* *nano*
+* *tcpdump*
+* *nc*
+* *grep*
+* *sudo*
+* *go*
+* *cat*
+* *python3*
+* *wget*
+* *linpeas.sh*
+* *pspy64*
+* *chmod*
+* *bash*
 
 
 <br>
