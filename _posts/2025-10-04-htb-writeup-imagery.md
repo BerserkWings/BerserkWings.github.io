@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Imagery - Hack The Box
-excerpt: "."
+excerpt: "Esta es una máquina bastante complicada. Después de analizar los escaneos, nos dedicamos a analizar la página web activa en el puerto 8000. En dicha página, creamos un nuevo usuario y probamos las funcionalidades de la página, siendo así que logramos descubrir que un reporte de bugs, es vulnerable a Blind XSS y Stored XSS, logrando secuestrar la sesión (Session Hijacking) de un administrador. Revisando las funcionalidades de la sesión del administrador, identificamos el uso de un parámetro que resulta ser vulnerable a Local File Inclusion (LFI) y Directory Traversal. De esta forma, logramos leer un archivo interno que contiene las contraseñas hasheadas en MD5, que crackeamos y nos logueamos como otro usuario. Analizando la sesión del nuevo usuario, vemos que tiene funcionalidades bloqueadas en otras sesiones al subir una imagen. Analizamos una funcionalidad, descubriendo que es vulnerable a Inyección de Comandos (Command Injection), lo que nos permite mandarnos una Reverse Shell y ganando así, acceso principal a la máquina víctima. Enumerando la máquina, encontramos un archivo ZIP que está encriptado por pyAesCrypt. Utilizamos ChatGPT, para crear un script que aplica fuerza bruta a este archivo encriptado, logrando crackearlo y obteniendo el archivo ZIP. Descomprimiéndolo resulta ser un backup del servidor web, que contiene un archivo JSON con contraseñas hasheadas en MD5 de los usuarios de la máquina víctima, logueándonos como otro usuario. Revisando los privilegios de nuestro usuario, vemos que puede ejecutar el binario charcol como Root, pues dicho binario, permite crear tareas CRON que ejecutan comandos. Abusamos de esta función para darle permisos SUID a la Bash, siendo así que escalamos privilegios y nos convertimos en Root."
 date: 2025-10-04
 classes: wide
 header:
@@ -19,37 +19,43 @@ tags:
   - BurpSuite
   - Blind XSS
   - Session Hijacking
-  - Store XSS
+  - Stored XSS
   - Local File Inclusion (LFI)
+  - Cracking Hash
+  - Cracking MD5 Hash
   - Command Injection (CI)
-  - Cracking AES Encrypted File
-  - Abusing Sudoers Privilege On charcol Binary
-  - Privesc - Abusing Sudoers Privilege On charcol Binary
+  - Cracking AES Encrypted File (pyAesCrypt)
+  - Abusing Sudoers Privileges On charcol Binary
+  - Privesc - Abusing Sudoers Privileges On charcol Binary
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-imagery/imagery.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-imagery/imagery.png">
+</p>
 
-Esta es una máquina bastante complicada. Después de analizar los escaneos, nos dedicamos a analizar la página web activa en el puerto 8000. En dicha página, creamos un nuevo usuario y probamos las funcionalidades de la página, siendo así que logramos descubrir que un reporte de bugs, es vulnerable a Blind XSS y Store XSS, logrando secuestrar la sesión (Session Hijacking) de un administrador. Revisando las funcionalidades de la sesión del administrador, identificamos el uso de un parámetro que resulta ser vulnerable a Local File Inclusion (LFI) y Directory Traversal. De esta forma, logramos leer un archivo interno que contiene las contraseñas hasheadas en MD5, que crackeamos y nos logueamos como otro usuario. Analizando la sesión del nuevo usuario, vemos que tiene funcionalidades bloqueadas en otras sesiones al subir una imagen. Analizamos una funcionalidad, descubriendo que es vulnerable a Inyección de Comandos (Command Injection), lo que nos permite mandarnos una Reverse Shell y ganando así, acceso principal a la máquina víctima.
+Esta es una máquina bastante complicada. Después de analizar los escaneos, nos dedicamos a analizar la página web activa en el **puerto 8000**. En dicha página, creamos un nuevo usuario y probamos las funcionalidades de la página, siendo así que logramos descubrir que un reporte de bugs, es vulnerable a **Blind XSS** y **Stored XSS**, logrando **secuestrar la sesión (Session Hijacking)** de un administrador. Revisando las funcionalidades de la sesión del administrador, identificamos el uso de un parámetro que resulta ser vulnerable a **Local File Inclusion (LFI)** y **Directory Traversal**. De esta forma, logramos leer un archivo interno que contiene las contraseñas hasheadas en **MD5**, que crackeamos y nos logueamos como otro usuario. Analizando la sesión del nuevo usuario, vemos que tiene funcionalidades bloqueadas en otras sesiones al subir una imagen. Analizamos una funcionalidad, descubriendo que es vulnerable a **Inyección de Comandos (Command Injection)**, lo que nos permite mandarnos una **Reverse Shell** y ganando así, acceso principal a la máquina víctima. Enumerando la máquina, encontramos un **archivo ZIP** que está encriptado por **pyAesCrypt**. Utilizamos **ChatGPT**, para crear un script que aplica fuerza bruta a este archivo encriptado, logrando crackearlo y obteniendo el **archivo ZIP**. Descomprimiéndolo resulta ser un backup del servidor web, que contiene un **archivo JSON** con contraseñas hasheadas en **MD5** de los usuarios de la máquina víctima, logueándonos como otro usuario. Revisando los privilegios de nuestro usuario, vemos que puede ejecutar el **binario charcol** como **Root**, pues dicho binario, permite crear **tareas CRON** que ejecutan comandos. Abusamos de esta función para darle **permisos SUID** a la **Bash**, siendo así que escalamos privilegios y nos convertimos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
 * *Wappalixer*
 * *whatweb*
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
-* **
+* *php*
+* *BurpSuite*
+* *wfuzz*
+* *Crackstation*
+* *tcpdump*
+* *python3*
+* *nc*
+* *ChatGPT*
+* *pwd*
+* *grep*
+* *wget*
+* *file*
+* *unzip*
+* *sudo*
+* *charcol*
+* *bash*
 
 
 <br>
@@ -69,7 +75,7 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#XSSstored">Identificando Campo Vulnerable a XSS (Blind XSS) y Aplicando Secuestro de Sesión (Session Hijacking) Usando un XSS Stored</a></li>
+				<li><a href="#StoredXSS">Identificando Campo Vulnerable a XSS (Blind XSS) y Aplicando Secuestro de Sesión (Session Hijacking) Usando un Stored XSS</a></li>
 				<li><a href="#LFI">Analizando Sesión de Administrador y Aplicando Local File Inclusion (LFI) en Página Admin Panel</a></li>
 				<li><a href="#CI">Analizando Sesión de Usuario testuser y Aplicando Inyección de Comandos (Command Injection) para Obtener una Reverse Shell</a></li>
 			</ul>
@@ -292,7 +298,7 @@ Podríamos probar si aquí podemos aplicar un **XSS**.
 <br>
 
 
-<h2 id="XSSstored">Identificando Campo Vulnerable a XSS (Blind XSS) y Aplicando Secuestro de Sesión (Session Hijacking) Usando un XSS Stored</h2>
+<h2 id="StoredXSS">Identificando Campo Vulnerable a XSS (Blind XSS) y Aplicando Secuestro de Sesión (Session Hijacking) Usando un Stored XSS</h2>
 
 Utilicemos un **XSS** básico para ver dos cosas, cómo funciona el envío de reporte y ver si se ejecuta el **XSS**:
 
