@@ -1066,7 +1066,7 @@ source ~/.zshrc
 ```
 
 Una vez que tengas instalado **dotnet** copia y pega el siguiente script en tu máquina:
-```bash
+```python
 #!/usr/bin/env python3
 import os
 import subprocess
@@ -1086,6 +1086,8 @@ project_dir = "legacy_auth_auto"
 program_cs = f"""using System;
 using AspNetCore.LegacyAuthCookieCompat;
 
+# Elimina las etiquetas {% raw %} y {% endraw %}
+{% raw %}
 public static class HexUtils
 {{
     public static byte[] HexToBinary(string hex)
@@ -1141,6 +1143,7 @@ class Program
     }}
 }}
 """
+{% endraw %}
 
 def run(cmd, cwd=None, capture=False):
     print(f"> {' '.join(cmd)}")
@@ -1214,7 +1217,75 @@ Muy bien, somos el **usuario web_admin**.
 
 <br>
 
+<h2 id="Sniper">Analizando Login de Usuario web_admin y Aplicando Sniper Attack para Identificar Archivos Aceptados en Carga de Archivos</h2>
+
+Tenemos dos mensajes en el dashboard de este usuario.
+
+Observa que uno de estos es un mensaje del **usuario johnathan** pidiendo un cambio de contraseña:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura18.png">
+</p>
+
+Y vemos otro mensaje que nos da una pista de que podemos hacer:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura19.png">
+</p>
+
+El punto 4 nos menciona que como este usuario, ya podemos cargar archivos, cosa que con el **usuario ken.w** no nos permitia:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura20.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura21.png">
+</p>
+
+Pero no sabemos que clase de archivos podemos subir, por lo que debemos identificar que clase de archivos nos acepta.
+
+Si bien podemos aplicar un **Sniper Attack** con el **Intruder** de **BurpSuite**, al ser una máquina **Windows**, debe de aceptar archivos que solo se puedan ejecutar en este **SO**.
+
+Aun así puedes aplicar el ataque.
+
+**CUIDADO**: la cookie de sesión que obtuvimos con el script tiene una duración, por lo que el ataque puede fallar en cierto punto.
+
+Realiza una captura de la carga de archivos y enviala al **Repeater**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura22.png">
+</p>
+
+Como payload utilizaremos el wordlist `/usr/share/wordlists/seclists/Discovery/Web-Content/raft-small-extensions.txt`.
+
+Pasando un poco de tiempo, vemos que nuestra cookie deja de funcionar:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura23.png">
+</p>
+
+Logramos ver que se intento enviar un **archivo ODT**, que podemos probarlo si lo mandamos al **Repeater** y le cambiamos la cookie:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura24.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura25.png">
+</p>
+
+Excelente, si esta aceptando **archivos ODT**.
+
+Ya tenemos una pista de lo que debemos hacer.
+
+<br>
+
 <h2 id="MaliciousODT">Cargando Archivo ODT Malicioso para Capturar y Crackear Hash Net NTLMv2</h2>
+
+Ya hemos creado **archivos ODT** maliciosos de manera manual, pero podemos crearlos de manera automatizada usando el siguiente script:
+* <a href="https://github.com/lof1sec/Bad-ODF" target="_blank">Repositorio de lof1sec: Bad-ODF</a>
+
 
 ```bash
 
