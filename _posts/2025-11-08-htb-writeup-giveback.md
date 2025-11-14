@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Giveback - Hack The Box
-excerpt: "."
+excerpt: "Esta es una de las máquinas más complicadas que he hecho. Después de analizar la página web activa en el puerto 80, nos damos cuenta de que, aparte del uso de WordPress, vemos que está utilizando el plugin GiveWP, que es vulnerable a ejecución remota de comandos (CVE-2024-5932), lo que nos permite inyectar y ejecutar una Reverse Shell, ganando así acceso principal a la máquina. Vemos que estamos dentro de un contenedor que, al investigar sus variables de entorno, descubrimos que hay una red interna a la que este contenedor tiene acceso. Utilizamos chisel para aplicar Port Forwarding, con tal de poder ver una página web activa en el puerto 5000, de lo que parece ser otro contenedor. Al analizar esta página, resulta ser un CMS de uso interno, pero vemos que utiliza una versión vulnerable de PHP-CGI (CVE-2024-457), que nos permite ejecutar comandos de manera remota, siendo esta forma con la que ganamos acceso a una segunda máquina. Resulta que esta segunda máquina es otro contendor, que al revisar las variables de entorno, vemos que se está utilizando kubernetes. Investigando vulnerabilidades de Kubernetes, encontramos una forma en la que podemos suplantar la cuenta de servicio para leer los recursos Secrets, que contienen las contraseñas de algunos usuarios, siendo uno de estos quien pertenece a la máquina principal y con quien ganamos acceso a esta vía SSH. Dentro, vemos que podemos utilizar un binario que necesita una contraseña para funcionar. Usamos una de las contraseñas del servicio MariaDB y ya funciona el binario. Vemos la versión del binario y descubrimos que es el binario runc Wrapper, que es vulnerable a CVE-2024-21626, lo que nos permite crear una montura del directorio Root, logrando así escalar privilegios.."
 date: 2025-11-08
 classes: wide
 header:
@@ -16,26 +16,49 @@ tags:
   - WordPress
   - Kubernetes
   - Docker
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Web Enumeration
+  - WordPress Enumeration
+  - PHP Object Injection Vulnerability (giveWP - CVE-2024-5932)
+  - Docker Container Enumeration
+  - Reverse Port Forwarding
+  - PHP-CGI Parameter Injection (CVE-2024-457)
+  - Abusing Kubernetes Service Account Token to Read Secrets
+  - Abusing Sudoers Privileges On runC Binary
+  - Abusing runC Wrapper (CVE-2024-21626)
+  - Privesc - Abusing Sudoers Privileges On runC Binary
+  - Privesc - Abusing runC Wrapper (CVE-2024-21626)
   - OSCP Style
 ---
 <p align="center">
 <img src="/assets/images/htb-writeup-giveback/giveback.png">
 </p>
 
-texto
+Esta es una de las máquinas más complicadas que he hecho. Después de analizar la página web activa en el **puerto 80**, nos damos cuenta de que, aparte del uso de **WordPress**, vemos que está utilizando el **plugin GiveWP**, que es vulnerable a ejecución remota de comandos (**CVE-2024-5932**), lo que nos permite inyectar y ejecutar una **Reverse Shell**, ganando así acceso principal a la máquina. Vemos que estamos dentro de un contenedor que, al investigar sus variables de entorno, descubrimos que hay una red interna a la que este contenedor tiene acceso. Utilizamos **chisel** para aplicar **Port Forwarding**, con tal de poder ver una página web activa en el **puerto 5000**, de lo que parece ser otro contenedor. Al analizar esta página, resulta ser un **CMS** de uso interno, pero vemos que utiliza una versión vulnerable de **PHP-CGI (CVE-2024-457)**, que nos permite ejecutar comandos de manera remota, siendo esta forma con la que ganamos acceso a una segunda máquina. Resulta que esta segunda máquina es otro contendor, que al revisar las variables de entorno, vemos que se está utilizando **kubernetes**. Investigando vulnerabilidades de **Kubernetes**, encontramos una forma en la que podemos suplantar la **cuenta de servicio** para leer los recursos **Secrets**, que contienen las contraseñas de algunos usuarios, siendo uno de estos quien pertenece a la máquina principal y con quien ganamos acceso a esta vía **SSH**. Dentro, vemos que podemos utilizar un binario que necesita una contraseña para funcionar. Usamos una de las contraseñas del servicio **MariaDB** y ya funciona el binario. Vemos la versión del binario y descubrimos que es el binario **runc Wrapper**, que es vulnerable a **CVE-2024-21626**, lo que nos permite crear una montura del directorio **Root**, logrando así escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *echo*
+* *wpscan*
+* *git*
+* *python3*
+* *pip*
+* *nc*
+* *python*
+* *cat*
+* *grep*
+* *which*
+* *mysql*
+* *env*
+* *php*
+* *chisel*
+* *BurpSuite*
+* *curl*
+* *base64*
+* *ssh*
+* *sudo*
+* *vim*
 
 
 <br>
@@ -59,7 +82,7 @@ Herramientas utilizadas:
 				<li><a href="#giveWPexploit">Probando Exploit: PHP Object Injection Vulnerability in WordPress GiveWP (CVE-2024-5932)</a></li>
 				<li><a href="#dockerPivot">Enumeración de Contenedor Docker y Aplicando Reverse Pivoting para Alcanzar Segunda Máquina</a></li>
 				<li><a href="#ExploitPHP">Probando Exploit: PHP-CGI Parameter Injection - Remote Command Execution (CVE-2024-457) y Ganando Acceso a Máquina Interna</a></li>
-				<li><a href="#kubernetes">Utilizando Service Account Token para Leer Secrets</a></li>
+				<li><a href="#kubernetes">Utilizando Service Account Token de Kubernetes para Leer Recursos Secrets</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
@@ -524,6 +547,7 @@ Logramos identificar varias cosas de este output:
 * Vemos que se están ocupando servicios como **Kubernetes**, **MariaDB**, **WordPress**, **WP-CLI**, **Apache**, **Nginx**, **Legacy Intranet**
 * Encontramos lo que parecen ser credenciales de acceso al login de **WordPress**, pero no son efectivas.
 * Vemos varias IPs relacionadas con estos servicios:
+
 ```bash
 # Nginx
 10.43.4.242
@@ -749,7 +773,7 @@ export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
 
 <br>
 
-<h2 id="kubernetes">Utilizando Service Account Token para Leer Secrets</h2>
+<h2 id="kubernetes">Utilizando Service Account Token de Kubernetes para Leer Recursos Secrets</h2>
 
 Podemos revisar las variables de entorno y vemos que aquí también se están usando **Kubernetes**:
 ```bash
@@ -863,7 +887,7 @@ babywyrm@giveback:~$ cat user.txt
 <br>
 
 
-<h2 id="runc">Creando una Montura del Directorio root para Escalar Privilegios (CVE-2019-5736 - CVE-2024-21626)</h2>
+<h2 id="runC">Creando una Montura del Directorio root para Escalar Privilegios (CVE-2019-5736 - CVE-2024-21626)</h2>
 
 Veamos qué privilegios tiene nuestro usuario:
 ```bash
@@ -926,6 +950,12 @@ Please enter the administrative password:
 [*] Administrative password verified
 Error: No command specified. Use '/opt/debug --help' for usage information.
 ```
+
+<br>
+
+++++**NOTA**: Esta parte de la sección aún esta en pruebas.+++++
+
+<br>
 
 Obtengamos más información del binario con la flag `--help`:
 ```bash
