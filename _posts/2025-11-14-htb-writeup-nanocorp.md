@@ -1,7 +1,7 @@
 ---
 layout: single
 title: NanoCorp - Hack The Box
-excerpt: "."
+excerpt: "Esta fue una máquina un poco complicada. Después de analizar los escaneos, nos dirigimos a analizar la página web activa en el puerto 80, en donde encontramos una página que nos lleva a un subdominio que nos permite subir archivos comprimidos ZIP, 7Z y RAR. Investigando un poco, encontramos una vulnerabilidad que nos permite cargar un archivo ZIP malicioso que nos ayuda a capturar el Hash NTLMv2 del usuario que ejecuta la página web, siendo el CVE-2025-24071 y CVE-2025-24054. Gracias a esta vulnerabilidad obtenemos la contraseña y un usuario válido, con lo que logramos enumerar el AD con python-bloodhound y BloodHound. Después de enumerar el AD, descubrimos que nuestro usuario se puede agregar un grupo que, dicho grupo, permite cambiarle la contraseña a un usuario sin restricciones. Aplicamos esta cadena de ataques para lograr apoderarnos de un usuario con el que nos autenticamos en la máquina AD. Dentro, utilizamos winPEASx64 para encontrar una forma de escalar privilegios, siendo así que descubrimos el uso de Check_MK Windows Agent, el cual es vulnerable a inyección de comandos (CVE-2024-0670), lo que nos permite inyectar un script de PowerShell que nos ayuda a obtener una Reverse Shell del Administrador, logrando escalar privilegios."
 date: 2025-11-14
 classes: wide
 header:
@@ -29,17 +29,39 @@ tags:
   - Privesc - CVE-2024-0670
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-nanocorp/nanocorp.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-nanocorp/nanocorp.png">
+</p>
 
-texto
+Esta fue una máquina un poco complicada. Después de analizar los escaneos, nos dirigimos a analizar la página web activa en el **puerto 80**, en donde encontramos una página que nos lleva a un subdominio que nos permite subir archivos comprimidos **ZIP, 7Z y RAR**. Investigando un poco, encontramos una vulnerabilidad que nos permite cargar un **archivo ZIP malicioso** que nos ayuda a capturar el **Hash NTLMv2** del usuario que ejecuta la página web, siendo el **CVE-2025-24071** y **CVE-2025-24054**. Gracias a esta vulnerabilidad obtenemos la contraseña y un usuario válido, con lo que logramos enumerar el **AD** con **python-bloodhound** y **BloodHound**. Después de enumerar el **AD**, descubrimos que nuestro usuario se puede agregar un grupo que, dicho grupo, permite cambiarle la contraseña a un usuario sin restricciones. Aplicamos esta cadena de ataques para lograr apoderarnos de un usuario con el que nos autenticamos en la máquina **AD**. Dentro, utilizamos **winPEASx64** para encontrar una forma de escalar privilegios, siendo así que descubrimos el uso de **Check_MK Windows Agent**, el cual es vulnerable a **inyección de comandos** (**CVE-2024-0670**), lo que nos permite inyectar un script de **PowerShell** que nos ayuda a obtener una **Reverse Shell** del **Administrador**, logrando escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *Wappalizer*
+* *echo*
+* *ffuf*
+* *gobuster*
+* *wget*
+* *python*
+* *responder*
+* *JohnTheRipper*
+* *netexec (nxc)*
+* *ntpdate*
+* *impacket-getTGT*
+* *klist*
+* *export*
+* *bloodhound-python*
+* *BloodHoundV4.3.1*
+* *bloodyAD*
+* *git*
+* *python3*
+* *winPEASx64.exe*
+* *nc.exe*
+* *RunasCs.exe*
+* *locate*
+* *rlwrap*
+* *nc*
 
 
 <br>
