@@ -13,7 +13,15 @@ categories:
   - Medium Machine
 tags:
   - Linux
-  - 
+  - MySQL
+  - Web Enumeration
+  - Fuzzing
+  - BurpSuite
+  - Dumping Git Repository
+  - Script Analysis
+  - PDO SQL Injections
+  - Cracking Hash
+  - Cracking Bcrypt Hash
   - 
   - OSCP Style
 ---
@@ -43,8 +51,13 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<li><a href="#DumpGit">Dumpeando Repositorio de Git Expuesto y Analizando su Contenido</a></li>
+				<ul>
+					<li><a href="#inventory">Analizando Script inventory.php e Identificando Posibles Vulnerabilidades</a></li>
+					<li><a href="#admin">Analizando Script admin.php e Identificando Posibles Vulnerabilidades</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -372,45 +385,257 @@ Analicemos su contenido.
 
 <br>
 
-<h3 id="admin">Analizando Script admin.php e Identificando Posibles Vulnerabilidades</h3>
+<h3 id="inventory">Analizando Script inventory.php e Identificando Posibles Vulnerabilidades</h3>
 
+Dentro del contenido del repo, podemos analizar el siguiente script **inventory.php**, donde podemos ver como funciona:
 ```bash
+cat inventory.php
+<?php
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/session.php';
 
+if (!isset($_SESSION['user'])) {
+    header('Location: index.php');
+    exit;
+}
+
+$sortItem = $_POST['sort'] ?? $_GET['sort'] ?? 'item_name';
+$userId = $_POST['user_id'] ?? $_GET['user_id'] ?? $_SESSION['user']['id'];
+$col = "`" . str_replace("`", "", $sortItem) . "`";
+$itemMap = [];
+$itemMeta = $pdo->prepare("SELECT name, description, image FROM items WHERE name = ?");
+try {
+    if ($sortItem === 'quantity') {
+        $stmt = $pdo->prepare("SELECT item_name, item_image, item_description, quantity FROM inventory WHERE user_id = ? ORDER BY quantity DESC");
+        $stmt->execute([$userId]);
+    } else {
+        $stmt = $pdo->prepare("SELECT $col FROM inventory WHERE user_id = ? ORDER BY item_name ASC");
+        $stmt->execute([$userId]);
+    }
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $results = [];
+}
+foreach ($results as $row) {
+    $firstKey = array_keys($row)[0];
+    $name = $row['item_name'] ?? $row[$firstKey] ?? null;
+    if (!$name) {
+        continue;
+    }
+    $meta = [];
+    try {
+        $itemMeta->execute([$name]);
+        $meta = $itemMeta->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $meta = [];
+    }
+    $itemMap[$name] = [
+        'name' => $name ?? "",
+        'description' => $meta['description'] ?? "",
+        'image' => $meta['image'] ?? "",
+        'quantity' => $row['quantity'] ?? (is_numeric($row[$firstKey]) ? $row[$firstKey] : 1)
+    ];
+}
+$stmt = $pdo->prepare("SELECT money FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user']['id']]);
+$money = $stmt->fetchColumn();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your Inventory</title>
+...
+...
+</body>
+</html>
+```
+De manera general le ayuda al usuario para ordenar por **item_name** o **quantity**, y el script consulta la base de datos para obtener los ítems del usuario, junto con su metadata (descripción, imagen), y los renderiza en una vista **HTML**.
+
+Pero podemos visualizar algunas cosillas interesantes:
+* Para poder ver esta página, necesitamos estar logueados como un usuario, en caso de no estarlo, nos redirigira al `index.php`.
+* Tenemos dos parámetros, el primero es el de **user_id**, que encontramos en la variable `$userId = $_POST['user_id']...` y el segundo es **sort**, que encontramos en la variable `$sortItem = $_POST['sort']...`.
+* La siguiente linea puede ser vulnerable a SQLi, pues no valida el contenido que el usuario puede incluir:
+```bash
+$col = "`" . str_replace("`", "", $sortItem) . "`";
 ```
 
+* Por último, lo más importante que podemos visualizar es lo siguiente:
 ```bash
-
+if ($sortItem === 'quantity') {
+    $stmt = $pdo->prepare("SELECT item_name, item_image, item_description, quantity FROM inventory WHERE user_id = ? ORDER BY quantity DESC");
+} else {
+    $stmt = $pdo->prepare("SELECT $col FROM inventory WHERE user_id = ? ORDER BY item_name ASC");
+}
 ```
+En esta condicional, si el usuario elige la opción **quantity**, la consulta se sanitiza, pero si utiliza otra opción, la consulta no contiene ningún filtro.
 
-```bash
+Además, podemos ver el uso de la instancia **PDO (PHP Data Object)** y **statement**.
 
-```
-
-```bash
-
-```
+| **PDO (PHP Data Object)** |
+|:-------------------------:|
+| *PDO es una interfaz de PHP para trabajar con bases de datos. Es una librería incluida en PHP que permite conectarte a distintos motores de base de datos (MySQL, MariaDB, PostgreSQL, SQLite, SQL Server, etc.), ejecutar consultas SQL, usar sentencias preparadas (prepared statements), etc.* |
 
 <br>
 
-<h3 id="inventory">Analizando Script inventory.php e Identificando Posibles Vulnerabilidades</h3>
+| **Statement** |
+|:-------------:|
+| *Un statement (en PHP, un objeto PDOStatement) es una consulta SQL preparada y lista para ejecutarse. representa una sentencia SQL precompilada donde los valores reales se pasan después con execute().* |
 
+<br>
+
+Gracias a este análisis, podemos decir que es muy probable que la página **inventory.php** sea vulnerable a **Inyecciones SQL**.
+
+<br>
+
+<h3 id="admin">Analizando Script admin.php e Identificando Posibles Vulnerabilidades</h3>
+
+Analicemos el script **admin.php**:
 ```bash
+cat admin.php
+<?php
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/session.php';
+require_once __DIR__ . '/includes/auction.php';
 
+if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'auctioneer') {
+    header('Location: index.php');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $auction_id = intval($_POST['auction_id'] ?? 0);
+    $rule = trim($_POST['rule'] ?? '');
+    $message = trim($_POST['message'] ?? '');
+
+    if ($auction_id > 0 && (empty($rule) || empty($message))) {
+        $stmt = $pdo->prepare("SELECT rule, message FROM auctions WHERE id = ?");
+        $stmt->execute([$auction_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $_SESSION['success'] = 'Auction not found.';
+            header('Location: admin.php');
+            exit;
+        }
+        if (empty($rule))    $rule = $row['rule'];
+        if (empty($message)) $message = $row['message'];
+    }
+
+    if ($auction_id > 0 && $rule && $message) {
+        $stmt = $pdo->prepare("UPDATE auctions SET rule = ?, message = ? WHERE id = ?");
+        $stmt->execute([$rule, $message, $auction_id]);
+        $_SESSION['success'] = 'Rule and message updated successfully!';
+        header('Location: admin.php');
+        exit;
+    }
+}
+
+$stmt = $pdo->query("SELECT * FROM auctions WHERE status = 'active' ORDER BY id");
+$current_auction = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Auction Admin</title>
+...
+...
+            <h1 class="h3 text-gray-800 text-center"><i class="fa fa-lock"></i> Admin Panel</h1>
+            <hr>
+            <?php if (!empty($_SESSION['success'])): ?>
+                <div class="alert alert-success text-center">Rule and message updated successfully!</div>
+                <?php unset($_SESSION['success']); ?>
+            <?php endif; ?>
+            <?php if (!$current_auction): ?>
+                <div class="alert alert-warning">No active auctions at the moment. Please check back later.</div>
+            <?php else: ?>
+                <div class="row">
+                    <?php foreach ($current_auction as $auction):
+                        $itemDetails = get_item_by_name($auction['item_name']);
+                        $remaining = strtotime($auction['ends_at']) - time();
+                        ?>
+                        <div class="col-md-4">
+                            <div class="card shadow mb-4">
+                                <div class="card-body text-center">
+                                    <img src="<?= ASSETS_URL ?>/img/<?= $itemDetails['image'] ?>" alt="" class="img-fluid mb-3" style="max-height: 200px;">
+                                    <h3 class="mb-1"><?= htmlspecialchars($itemDetails['name']) ?></h3>
+                                    <p class="mb-1"><?= htmlspecialchars($itemDetails['description']) ?></p>
+                                    <hr>
+                                    <form class="bidForm mt-4" method="POST">
+                                    <input type="hidden" name="auction_id" value="<?= $auction['id'] ?>">
+                                    <!-- p class="mb-1 text-justify"><strong>Rule:</strong> <code lang="php"><?= htmlspecialchars($auction['rule']) ?></code></p -->
+                                    <input type="text" class="form-control form-control-user" name="rule" placeholder="Edit rule">
+                                    <!-- <p class="mb-1 text-justify"><strong>Message:</strong> <?= htmlspecialchars($auction['message']) ?></p> -->
+                                    <input type="text" class="form-control form-control-user" name="message" placeholder="Edit message">
+                                    <p class="mb-1 text-justify"><strong>Time Remaining:</strong> <span class="timer" data-end="<?= strtotime($auction['ends_at']) ?>"><?= $remaining ?></span> seconds <i class="fas fa-clock"></i></p>
+                                    <button class="btn btn-dark btn-user btn-block" type="submit"><i class="fas fa-pencil-alt"></i> Edit</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="<?= ASSETS_URL ?>/vendor/jquery/jquery.min.js"></script>
+    <script src="<?= ASSETS_URL ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="<?= ASSETS_URL ?>/vendor/jquery-easing/jquery.easing.min.js"></script>
+    <script src="<?= ASSETS_URL ?>/js/sb-admin-2.min.js"></script>
+    <script>
+        document.querySelectorAll('.timer').forEach(timer => {
+            const end = parseInt(timer.dataset.end);
+            const pTag = timer.closest('p');
+            const interval = setInterval(() => {
+                const now = Math.floor(Date.now() / 1000);
+                const remaining = end - now;
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    location.reload();
+                } else {
+                    timer.innerText = remaining;
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
+```
+Esta página desplegada, permite cambiar la regla y mensaje de cualquier producto que se encuentre dentro de la subasta. Se realiza mediante un formulario al que solo tienen acceso los usuarios con el rol **auctioneer**, que son quienes pueden entrar al **panel de admin**.
+
+Expliquemos lo más relevante que tiene este script:
+* Al inicio, vemos que hay un control de acceso en donde solo los usuarios con el rol **auctioneer**, pueden usar el panel admin. Lo curioso es que parece ser también un usuario y no solo un rol:
+```bash
+if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'auctioneer') {
+    header('Location: index.php');
+    exit;
+}
 ```
 
+* Vemos como se maneja el procesamiento del formulario, que solo se ejecuta si se envia por **petición POST**.
+* Observa que se obtienen 3 valores, siendo 2 de estos los que el usuario puede modificar, que son **rule** y **message**:
 ```bash
-
+$auction_id = intval($_POST['auction_id'] ?? 0);
+$rule = trim($_POST['rule'] ?? '');
+$message = trim($_POST['message'] ?? '');
 ```
 
+* Una vez que se obtengan los valores que da el usuario, se realiza la actualización de los valores, directamente a la base de datos, sin ninguna sanitización:
 ```bash
-
+$stmt = $pdo->prepare("UPDATE auctions SET rule = ?, message = ? WHERE id = ?");
+$stmt->execute([$rule, $message, $auction_id]);
 ```
+Esto quiere decir que cualquier cosa que indique en los valores **rule** y **message**, se almacena en la BD y puede que se ejecute también.
 
-```bash
+Sabiendo esta información, es posible que esta página pueda ser vulnerable a **Inyección de Comandos**.
 
-```
-
-
+Después de este análisis, empecemos por explotar la página **inventory.php** y después **admin.php**.
 
 
 <br>
@@ -422,13 +647,24 @@ Analicemos su contenido.
 <br>
 
 
-<h2 id="SQLi">Aplicando Inyección SQL Union-Based con Filtros y Crackeando Hash Bcrypt</h2>
+<h2 id="SQLi">Aplicando PDO SQL Injections y Crackeando Hash Bcrypt</h2>
 
+Investigando un poco sobre **Inyecciones SQL** aplicadas a **PDO (PHP Data Object)**, podemos encontrar el siguiente blog:
+* <a href="https://slcyber.io/research-center/a-novel-technique-for-sql-injection-in-pdos-prepared-statements/" target="_blank">A Novel Technique for SQL Injection in PDO’s Prepared Statements</a>
 
-
+Leyendo el blog, nos menciona que es posible aplicar **SQLi** a **PDO (PHP Data Object)** en distintos escenarios, siendo que muestra uno similar al funcionamiento de la página **inventory.php**:
 ```bash
-
+http://localhost:8000/?name=x` FROM (SELECT table_name AS `'x` from information_schema.tables)y;%23&col=\?%23%00
 ```
+Esta ocupando filtros para aplicar bypass a las restricciones que están activas en la página **inventory.php**.
+
+Utilicemos la misma inyección, pero cambiemos los parámetros:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura9.png">
+</p>
+
+
 
 ```bash
 
