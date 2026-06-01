@@ -272,4 +272,5 @@ defaults:
       related: true
 
 # Habilitar la visualización de publicaciones futuras
-future: true
+timezone: America/Mexico_City
+future: false
