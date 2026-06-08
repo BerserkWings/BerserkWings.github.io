@@ -3,6 +3,7 @@ layout: single
 title: Connected - Hack The Box
 excerpt: "Esta fue una máquina sencilla. Después de analizar los escaneos, nos dirigimos a la página web activa del puerto 80, pues vemos que está utilizando un dominio, el cual registramos en el /etc/hosts. Al entrar al dominio, vemos que se está utilizando FreePBX versión 16.0.40.2 que, al buscarlo, descubrimos que es vulnerable al CVE-2025-57819, lo que nos permite ejecutar comandos de manera remota. Utilizamos una herramienta de Python3 que ejecuta esta vulnerabilidad y crea una WebShell, siendo que la aprovechamos para obtener una Reverse Shell, logrando así acceso a la máquina víctima. Dentro, usamos la herramienta linpeas.sh para identificar vulnerabilidades, logrando identificar una forma de escalar privilegios, abusando de una mala configuración del servicio DAHDI, siendo así que nos convertimos en Root."
 date: 2026-06-06
+published: false
 classes: wide
 header:
   teaser: /assets/images/htb-writeup-connected/connected.png
