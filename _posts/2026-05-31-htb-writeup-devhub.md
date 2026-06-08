@@ -2,7 +2,7 @@
 layout: single
 title: DevHub - Hack The Box
 excerpt: "Esta fue una máquina un poco complicada. Después de analizar los escaneos, nos dirigimos a la página web activa en el puerto 80, en donde vemos información sobre qué herramientas se utilizan de manera interna por desarrolladores, siendo lo más útil que encontramos. Después, vamos a la página web del puerto 6274, que resulta ser MCPJam Inspector, que está expuesto para que cualquiera lo utilice, pero al investigar su versión, vemos que es vulnerable al CVE-2026-23744, lo que nos permite ejecutar comandos de manera remota y así obtener una sesión interactiva de la máquina víctima como un usuario. Dentro, descubrimos que se está utilizando Jupyter Notebook en el puerto 8888, pero solo de manera interna. Utilizamos Chisel para exponer ese puerto en nuestra máquina y logramos ejecutar comandos tanto en Python como en la terminal del Jupyter Notebook, para así obtener una Reverse Shell y convertirnos en otro usuario con más privilegios. Como el segundo usuario, analizamos un script de Python que sirve como un servidor MCP interno al que se le pueden hacer consultas a distintos endpoints, como una API. Resulta que una de las consultas que podemos hacer nos da como resultado una llave privada SSH del Root, que logramos obtener y así escalamos privilegios para convertirnos en Root."
-date: 2026-06-06 15:00:00 -0600
+date: 2026-05-31
 classes: wide
 header:
   teaser: /assets/images/htb-writeup-devHub/devhub.png
