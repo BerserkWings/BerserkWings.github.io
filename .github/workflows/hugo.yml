@@ -1,24 +1,24 @@
 name: Build y despliegue del blog (Hugo -> GitHub Pages)
- 
+
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
   workflow_dispatch:
   schedule:
     - cron: "0 13 * * *"
- 
+
 permissions:
   contents: read
   pages: write
   id-token: write
- 
+
 concurrency:
   group: "pages"
   cancel-in-progress: false
- 
+
 env:
   HUGO_VERSION: 0.165.0
- 
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
- 
+
       - name: Instalar Hugo (versión fija + checksum verificado)
         run: |
           set -euo pipefail
@@ -35,18 +35,18 @@ jobs:
           curl -sSLo checksums.txt "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_${HUGO_VERSION}_checksums.txt"
           grep " ${HUGO_DEB}\$" checksums.txt | sha256sum -c -
           sudo apt-get install -y "./${HUGO_DEB}"
- 
+
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
- 
+
       - name: Build del sitio
         run: hugo --minify --gc
- 
+
       - name: Subir artefacto
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
- 
+
   deploy:
     environment:
       name: github-pages
