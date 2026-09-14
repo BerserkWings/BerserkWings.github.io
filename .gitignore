@@ -1,5 +1,7 @@
-_site
-.sass-cache
-.jekyll-metadata
-_drafts
+/public/
+/resources/_gen/
+.hugo_build.lock
 .DS_Store
+
+# Por si algún día agregas variables de entorno locales
+.env
