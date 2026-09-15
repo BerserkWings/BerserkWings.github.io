@@ -1,0 +1,36 @@
+{{ define "main" }}
+<canvas class="hero-matrix-bg hero-matrix-bg--dim" id="heroMatrixBg" aria-hidden="true"></canvas>
+<div class="wrap" style="margin-top:3.5rem; margin-bottom:4rem;">
+  <div class="terminal" style="max-width:680px; margin:0 auto;">
+    <div class="terminal-bar">
+      <div class="terminal-dots"><span></span><span></span><span></span></div>
+      <div class="terminal-window-title">Error 404</div>
+      <div class="terminal-dots is-spacer" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+    <div class="terminal-body">
+      <p class="prompt-line"><span class="prompt-user">{{ .Site.Params.nickname | lower }}@blog</span> <span class="prompt">$</span> cd {{ .RelPermalink }}</p>
+      <p class="post-embargo-error">bash: cd: {{ .RelPermalink }}: No existe el archivo o el directorio</p>
+ 
+      <div class="post-embargo-lock">
+        <div class="post-embargo-content">
+          <svg class="post-embargo-icon" viewBox="0 0 24 24" aria-hidden="true" style="width: 110px; height: 110px; stroke: var(--accent-magenta); filter: drop-shadow(0 0 14px rgba(255, 46, 154, 0.55));">
+            <circle cx="12" cy="12" r="9"></circle>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+          </svg>
+          <p class="post-embargo-message">
+            Esta ruta no existe en el sitio.
+          </p>
+          <a class="post-embargo-back" href="{{ .Site.Home.RelPermalink }}">← Volver a Inicio</a>
+        </div>
+      </div>
+ 
+      <p class="post-meta" style="text-align:center; margin-top:1.5rem;">También puedes ir a:</p>
+      <div class="terminal-links" style="justify-content:center;">
+        <a href="{{ "posts/" | relURL }}">→ ./writeups</a>
+        <a href="{{ "buscador/" | relURL }}">→ ./buscador</a>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
