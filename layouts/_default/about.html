@@ -2,18 +2,21 @@
 <canvas class="hero-matrix-bg" id="heroMatrixBg" aria-hidden="true"></canvas>
 {{ partial "sidebar-profile.html" . }}
 <div class="wrap post-content" id="top" style="margin-top:2.5rem; max-width: 58rem;">
-
+ 
   <h1>{{ .Title }}</h1>
-
+ 
+  <h2 id="quien-soy">¿Quién soy?</h2>
+  {{ with .Params.intro }}{{ . | markdownify }}{{ end }}
+ 
   <div class="about-ascii-wrap">
     <div class="ascii-avatar about-ascii-avatar" data-char-width="2" role="img" aria-label="{{ .Site.Params.nickname }}">
       <pre class="ascii-output about-ascii" aria-hidden="true"></pre>
       <img class="ascii-source about-avatar" src="{{ .Params.photo | strings.TrimPrefix "/" | absURL }}" alt="{{ .Site.Params.nickname }}">
     </div>
   </div>
-
+ 
   {{ .Content }}
-
+ 
   {{ with .Params.certifications }}
   <h2 id="certificaciones-adquiridas">Certificaciones adquiridas</h2>
   <p class="post-meta">Haz clic en una certificación para verla en grande y escanear su código QR de verificación.</p>
@@ -31,6 +34,6 @@
     <img id="certLightboxImg" alt="">
   </div>
   {{ end }}
-
+ 
 </div>
 {{ end }}

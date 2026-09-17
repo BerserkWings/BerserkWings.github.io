@@ -104,6 +104,21 @@
       {{ if .Params.links }}<ul><li><a href="#links-de-investigacion">Links de investigación</a></li></ul>{{ end }}
     </nav>
   </aside>
+
+  <button type="button" class="mobile-toc-toggle" id="mobileTocToggle" aria-expanded="false" aria-controls="mobileTocPanel">
+    📑 Índice
+  </button>
+  <div class="mobile-toc-backdrop" id="mobileTocBackdrop"></div>
+  <div class="mobile-toc-panel" id="mobileTocPanel" role="dialog" aria-label="Índice">
+    <div class="mobile-toc-panel-header">
+      <span>📑 Índice</span>
+      <button type="button" class="mobile-toc-close" id="mobileTocClose" aria-label="Cerrar índice">✕</button>
+    </div>
+    <nav>
+      {{ .TableOfContents }}
+      {{ if .Params.links }}<ul><li><a href="#links-de-investigacion">Links de investigación</a></li></ul>{{ end }}
+    </nav>
+  </div>
   {{ end }}
 
   <div class="post-content">

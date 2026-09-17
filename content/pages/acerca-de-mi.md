@@ -3,6 +3,14 @@ title: "Acerca de mí"
 url: "/acerca-de-mi/"
 layout: "about"
 photo: "/assets/images/waos.jpg"
+intro: |
+  Soy un Pentester Jr criado de manera autodidacta en esta bonita y muy complicada rama de la ciberseguridad, lo que me ha llevado por un montón de retos.
+
+  Cuento con una licenciatura en "Ciencias de la Informática", lo que siendo sinceros es bastante inútil en comparación con mi carrera autodidacta en ciberseguridad, pero he podido conseguir las certificaciones de INE Security **eJPT**, **eCPPT** y **eWPT** que quiero pensar me dan cierto nivel en Hacking Ético.
+
+  Por algunas malas experiencias en la universidad en donde estudié la carrera, me he enfocado en cumplir un sueño que había reprimido hace tiempo: convertirme en un hacker.
+
+  Ha sido un camino bastante pesado, no solo por no conocer nada al respecto sobre ciberseguridad y mucho menos sobre hacking, pero mi disciplina y perseverancia me han llevado hasta donde estoy hoy en día.
 certifications:
   - name: "eJPT — Junior Penetration Tester"
     image: "/assets/images/certs/ejpt.png"
@@ -11,16 +19,6 @@ certifications:
   - name: "eWPT — Web Application Penetration Tester"
     image: "/assets/images/certs/ewpt.png"
 ---
-
-## ¿Quién soy?
-
-Soy un Pentester Jr criado de manera autodidacta en esta bonita y muy complicada rama de la ciberseguridad, lo que me ha llevado por un montón de retos.
-
-Cuento con una licenciatura en "Ciencias de la Informática", lo que siendo sinceros es bastante inútil en comparación con mi carrera autodidacta en ciberseguridad, pero he podido conseguir las certificaciones de INE Security **eJPT**, **eCPPT** y **eWPT** que quiero pensar me dan cierto nivel en Hacking Ético.
-
-Por algunas malas experiencias en la universidad en donde estudié la carrera, me he enfocado en cumplir un sueño que había reprimido hace tiempo: convertirme en un hacker.
-
-Ha sido un camino bastante pesado, no solo por no conocer nada al respecto sobre ciberseguridad y mucho menos sobre hacking, pero mi disciplina y perseverancia me han llevado hasta donde estoy hoy en día.
 
 ## ¿Cómo trabajo?
 
@@ -45,6 +43,8 @@ Para subir los Write Ups que hago, utilizo:
 
 * GitHub
 * Git
+
+![Hack exitoso](/assets/images/hackiado.jpg)
 
 ## ¿Qué estoy estudiando actualmente?
 

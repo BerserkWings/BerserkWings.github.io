@@ -1,0 +1,7 @@
+<div class="ascii-image-wrap">
+  <div class="ascii-avatar ascii-image-frame" data-char-width="{{ with .Get "char-width" }}{{ . }}{{ else }}3.6{{ end }}">
+    <img class="ascii-source ascii-image-source" src="{{ (.Get "src") | absURL }}" alt="{{ .Get "alt" | default "" }}">
+    <pre class="ascii-output ascii-image-output"></pre>
+  </div>
+  {{ with .Get "caption" }}<p class="ascii-image-caption">{{ . }}</p>{{ end }}
+</div>

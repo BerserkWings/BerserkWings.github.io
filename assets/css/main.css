@@ -125,7 +125,7 @@ pre code{ background: none; padding: 0; }
   gap: 0.5rem;
 }
 .brand .dot{ color: var(--accent-magenta); }
-.brand-logo{ height: 40px; width: auto; display: block; }
+.brand-logo{ height: auto; max-height: 40px; width: auto; max-width: 100%; display: block; }
 
 nav.main-nav{ display: flex; gap: 1.4rem; flex-wrap: wrap; }
 nav.main-nav a{
@@ -150,8 +150,6 @@ nav.main-nav a.is-active{ color: var(--accent-cyan); }
 .hero-matrix-bg{
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
   z-index: -1;
   pointer-events: none;
   opacity: 0.4;
@@ -159,6 +157,18 @@ nav.main-nav a.is-active{ color: var(--accent-cyan); }
   mask-image: linear-gradient(to right, black 0%, black 22%, transparent 38%, transparent 62%, black 78%, black 100%);
 }
 .hero-matrix-bg--dim{ opacity: 0.16; }
+/* En mobile el contenido ocupa casi todo el ancho (no solo la columna
+   central angosta de escritorio), así que la franja transparente de la
+   máscara de arriba se queda corta y el Matrix se ve detrás del texto.
+   Aquí se reduce a un par de franjas finas en los bordes. */
+@media (max-width: 900px){
+  .hero-matrix-bg{
+    opacity: 0.22;
+    -webkit-mask-image: linear-gradient(to right, black 0%, black 3%, transparent 8%, transparent 92%, black 97%, black 100%);
+    mask-image: linear-gradient(to right, black 0%, black 3%, transparent 8%, transparent 92%, black 97%, black 100%);
+  }
+  .hero-matrix-bg--dim{ opacity: 0.09; }
+}
 .terminal{
   position: relative;
   z-index: 1;
@@ -234,11 +244,26 @@ nav.main-nav a.is-active{ color: var(--accent-cyan); }
 @media (max-width: 900px){
   .hero-stats-row{
     flex-wrap: wrap;
+    width: 100%;
+    row-gap: 1.25rem;
   }
   .hero-ascii-frame{
     width: 100%;
     order: -1;
+    padding: 1.4rem 1rem;
   }
+  .hero-ascii-avatar{ max-width: 90%; }
+}
+/* En pantallas de celular sí caben lado a lado si se encogen un poco;
+   se prefiere eso a que se apilen verticalmente. El avatar ASCII sigue
+   yendo en su propia fila arriba (order:-1 + width:100% de la regla de
+   900px de más arriba) — aquí solo encogemos las tarjetas HTB/THL. */
+@media (max-width: 640px){
+  .hero-stats-row{ gap: 0.9rem; }
+  .hero-stat-badge{ padding: 0.45rem 0.55rem; }
+  .hero-stat-logo{ height: 76px; max-width: 84px; }
+  .hero-stat-label{ font-size: 0.62rem; }
+  .hero-stat-value{ font-size: 0.74rem; }
 }
 .hero-stat-badge{
   display: flex;
@@ -492,7 +517,7 @@ nav.main-nav a.is-active{ color: var(--accent-cyan); }
   object-fit: contain;
 }
 @media (max-width: 640px){
-  .post-card-with-image{ flex-direction: column; }
+  .post-card-with-image{ flex-direction: column; align-items: stretch; }
   .post-card-thumb-wrap{ width: 100%; height: auto; max-height: 200px; order: -1; }
 }
 
@@ -546,7 +571,7 @@ nav.main-nav a.is-active{ color: var(--accent-cyan); }
   font-size: 0.85rem;
   flex-wrap: wrap;
 }
-.pagination-numbers{ display: flex; gap: 0.4rem; }
+.pagination-numbers{ display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .pagination-number{
   display: inline-flex;
   align-items: center;
@@ -811,6 +836,10 @@ details.toc a::before{
   text-justify: inter-word;
   hyphens: auto;
 }
+.post-content a{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .post-content h2, .post-content h3, .post-content h4,
 .post-content [id]{
   scroll-margin-top: 5.5rem;
@@ -830,6 +859,10 @@ details.toc a::before{
     margin-left: 0;
     margin-right: 0;
   }
+  .post-content h2{ margin-top: 3rem; padding-top: 1.2rem; }
+  .post-content h3{ margin-top: 2rem; }
+  .post-content table{ width: auto; min-width: 100%; }
+  .post-content table th, .post-content table td{ padding: 0.5rem 0.6rem; font-size: 0.92rem; white-space: nowrap; }
 }
 .post-content table th, .post-content table td{
   border: 1px solid var(--border);
@@ -872,7 +905,102 @@ details.toc a::before{
   box-shadow: 0 4px 20px rgba(0, 229, 255, 0.45);
 }
 .back-to-top.visible{ opacity: 1; pointer-events: auto; transform: translateY(0); }
-.back-to-top:hover{ background: var(--accent-magenta); color: #06121a; text-decoration:none; box-shadow: 0 4px 24px rgba(255, 46, 154, 0.5); }
+/* :hover solo para dispositivos con mouse real, para que en touch
+   (iOS Safari) el primer tap navegue directo en vez de quedarse
+   "pegado" simulando el hover. */
+@media (hover: hover) and (pointer: fine){
+  .back-to-top:hover{ background: var(--accent-magenta); color: #06121a; text-decoration:none; box-shadow: 0 4px 24px rgba(255, 46, 154, 0.5); }
+}
+.back-to-top:active{ background: var(--accent-magenta); box-shadow: 0 4px 24px rgba(255, 46, 154, 0.5); }
+
+/* =========================================================
+   Índice flotante para mobile/tablet — el .side-toc de escritorio
+   solo aparece desde 1650px, así que por debajo de eso el índice
+   normalmente solo vive arriba del todo del post. Este botón +
+   panel lo hacen accesible sin tener que subir a buscarlo.
+   ========================================================= */
+.mobile-toc-toggle{
+  display: none;
+  position: fixed;
+  left: 1.4rem;
+  bottom: 1.4rem;
+  z-index: 30;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-cyan);
+  background: var(--bg-panel);
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(0, 229, 255, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.mobile-toc-backdrop{
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 3, 14, 0.6);
+  z-index: 39;
+}
+.mobile-toc-panel{
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-height: 75vh;
+  overflow-y: auto;
+  z-index: 40;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  border-radius: 14px 14px 0 0;
+  padding: 0 1.25rem 1.5rem;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+}
+.mobile-toc-panel-header{
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0 0.7rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+.mobile-toc-close{
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+}
+.mobile-toc-panel nav ul{ list-style: none; margin: 0; padding: 0; }
+.mobile-toc-panel nav ul ul{ padding-left: 0.9rem; }
+.mobile-toc-panel nav a{
+  display: block;
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.mobile-toc-panel nav a:hover{ color: var(--accent-cyan); text-decoration: none; }
+
+@media (max-width: 1649px){
+  .mobile-toc-toggle{ display: flex; }
+  .mobile-toc-toggle.visible{ opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .mobile-toc-backdrop.is-open{ display: block; }
+  .mobile-toc-panel.is-open{ display: block; }
+}
 
 /* =========================================================
    Buy Me a Coffee
@@ -1149,8 +1277,58 @@ details.toc a::before{
 
 @media (max-width: 640px){
   .terminal-title{ font-size: 1.5rem; }
-  nav.main-nav{ gap: 0.9rem; }
-  .site-header .wrap{ flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+}
+
+/* =========================================================
+   Menú hamburguesa (solo mobile) — reemplaza el nav apilado
+   que se comía media pantalla.
+   ========================================================= */
+.nav-toggle{
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.nav-toggle-bar{
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text);
+  transition: transform .2s ease, opacity .2s ease;
+}
+.nav-toggle.is-open .nav-toggle-bar:nth-child(1){ transform: translateY(7px) rotate(45deg); }
+.nav-toggle.is-open .nav-toggle-bar:nth-child(2){ opacity: 0; }
+.nav-toggle.is-open .nav-toggle-bar:nth-child(3){ transform: translateY(-7px) rotate(-45deg); }
+
+@media (max-width: 640px){
+  .nav-toggle{ display: flex; }
+  .site-header .wrap{
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  nav.main-nav{
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 0;
+    order: 3;
+    margin-top: 0.9rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+  }
+  nav.main-nav.is-open{ display: flex; }
+  nav.main-nav a{ padding: 0.65rem 0.2rem; }
 }
 
 /* =========================================================
@@ -1349,6 +1527,35 @@ details.toc a::before{
   object-fit: cover;
   box-shadow: 0 0 32px rgba(0, 229, 255, 0.3);
 }
+
+/* Shortcode {{</* ascii-image */>}} — para imágenes sueltas dentro del
+   contenido (no avatares) que se quieran mostrar en formato ASCII. */
+.ascii-image-wrap{ margin: 1.5rem 0; text-align: center; }
+.ascii-image-frame{
+  width: 480px;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+.ascii-image-source{
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.ascii-image-output{
+  font-size: 5px;
+  line-height: 5.2px;
+  letter-spacing: 0;
+}
+.ascii-image-caption{
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
 .about-signoff,
 .post-content p.about-signoff{
   text-align: center;
@@ -1413,8 +1620,9 @@ details.toc a::before{
   .cert-slide{ width: 170px; }
 }
 @media (max-width: 640px){
-  .cert-track{ flex-wrap: wrap; }
-  .cert-slide{ flex: 0 0 100%; max-width: 220px; }
+  .cert-carousel{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cert-track{ flex-wrap: nowrap; justify-content: flex-start; overflow: visible; }
+  .cert-slide{ flex: 0 0 auto; }
 }
 
 .cert-lightbox{

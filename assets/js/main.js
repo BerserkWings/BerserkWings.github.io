@@ -9,6 +9,62 @@
 })();
 
 (function () {
+  var toggle = document.getElementById("mobileTocToggle");
+  var panel = document.getElementById("mobileTocPanel");
+  var backdrop = document.getElementById("mobileTocBackdrop");
+  var closeBtn = document.getElementById("mobileTocClose");
+  if (!toggle || !panel || !backdrop) return;
+
+  var closePanel = function () {
+    panel.classList.remove("is-open");
+    backdrop.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+  };
+  var openPanel = function () {
+    panel.classList.add("is-open");
+    backdrop.classList.add("is-open");
+    toggle.setAttribute("aria-expanded", "true");
+  };
+
+  toggle.addEventListener("click", function () {
+    if (panel.classList.contains("is-open")) closePanel(); else openPanel();
+  });
+  if (closeBtn) closeBtn.addEventListener("click", closePanel);
+  backdrop.addEventListener("click", closePanel);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closePanel();
+  });
+  // Cerrar el panel al tocar un link (para saltar directo a la sección).
+  panel.querySelectorAll("a").forEach(function (a) {
+    a.addEventListener("click", closePanel);
+  });
+})();
+
+(function () {
+  var toggle = document.getElementById("navToggle");
+  var nav = document.getElementById("mainNav");
+  if (!toggle || !nav) return;
+
+  var closeMenu = function () {
+    nav.classList.remove("is-open");
+    toggle.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+  };
+
+  toggle.addEventListener("click", function () {
+    var isOpen = nav.classList.toggle("is-open");
+    toggle.classList.toggle("is-open", isOpen);
+    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+
+  // Cerrar el menú al tocar un link (para no tener que cerrarlo a mano
+  // cada vez que navegas a otra sección).
+  nav.querySelectorAll("a").forEach(function (a) {
+    a.addEventListener("click", closeMenu);
+  });
+})();
+
+(function () {
   var btn = document.getElementById("backToTop");
   if (!btn) return;
 
@@ -22,18 +78,36 @@
 
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();
+
+  // iOS Safari necesita un manejador de clic real en JS para que un <a>
+  // responda al primer toque; sin esto, el navegador espera un segundo
+  // toque (comportamiento pensado originalmente para simular :hover).
+  btn.addEventListener("click", function (e) {
+    var hash = btn.getAttribute("href");
+    var targetEl = hash && hash !== "#top" ? document.querySelector(hash) : null;
+    e.preventDefault();
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    // Suelta cualquier estado :active/:focus pegado tras el tap en iOS.
+    if (typeof btn.blur === "function") btn.blur();
+  });
 })();
 
 (function () {
   var sideToc = document.querySelector(".side-toc");
+  var mobileTocToggle = document.getElementById("mobileTocToggle");
   var indice = document.getElementById("indice");
-  if (!sideToc || !indice || !("IntersectionObserver" in window)) return;
+  if ((!sideToc && !mobileTocToggle) || !indice || !("IntersectionObserver" in window)) return;
 
   var observer = new IntersectionObserver(
     function (entries) {
       entries.forEach(function (entry) {
         var scrolledPast = entry.boundingClientRect.top < 0 && !entry.isIntersecting;
-        sideToc.classList.toggle("visible", scrolledPast);
+        if (sideToc) sideToc.classList.toggle("visible", scrolledPast);
+        if (mobileTocToggle) mobileTocToggle.classList.toggle("visible", scrolledPast);
       });
     },
     { threshold: 0 }
@@ -443,4 +517,3 @@
     resizeTimer = setTimeout(resize, 200);
   });
 })();
-

@@ -7,7 +7,12 @@
       {{ .Site.Params.nickname }}<span class="dot">_</span>
       {{ end }}
     </a>
-    <nav class="main-nav">
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="mainNav">
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+    </button>
+    <nav class="main-nav" id="mainNav">
       {{ range .Site.Menus.main }}
         <a href="{{ .URL }}" {{ if eq $.RelPermalink .URL }}class="is-active"{{ end }}>{{ .Name }}</a>
       {{ end }}
